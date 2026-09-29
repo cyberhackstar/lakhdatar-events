@@ -1,3 +1,19 @@
+# Lakhdatar Events 1.4.7
+
+## Integration-test fixture correction
+
+- Fixes `MultiEventCatalogIntegrationTest.lifecycleTransitionsAreGuarded`, which used hard-coded actor ID `1` without creating the corresponding `users` row.
+- Creates a real ADMIN test user and uses its persisted database ID for lifecycle/audit operations.
+- Keeps the production audit-log foreign-key integrity constraint intact; no authorization or production security rule is weakened.
+- Bumps release metadata to `1.4.7`.
+
+## CI validation
+
+- v1.4.6 frontend baseline verification and production build passed.
+- v1.4.6 frontend unit tests reached the Karma/ChromeHeadless stage successfully.
+- v1.4.6 backend CI failed only in `MultiEventCatalogIntegrationTest.lifecycleTransitionsAreGuarded` because `audit_logs.actor_user_id=1` had no matching `users` row.
+- v1.4.7 corrects the test fixture so the database contract is exercised with a valid actor.
+
 # Lakhdatar Events 1.4.6
 
 ## Backend manager-ticket contract stabilization

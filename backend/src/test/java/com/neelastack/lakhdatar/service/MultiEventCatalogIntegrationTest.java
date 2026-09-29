@@ -18,6 +18,7 @@ class MultiEventCatalogIntegrationTest extends AbstractPostgresIntegrationTest {
     @Autowired private PublicEventService publicEvents;
     @Autowired private EventManagementService management;
     @Autowired private OrganizerRepository organizers;
+    @Autowired private UserRepository users;
     @Autowired private EventRepository events;
     @Autowired private TicketTypeRepository types;
     @Autowired private VenueRepository venues;
@@ -145,16 +146,24 @@ class MultiEventCatalogIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test void lifecycleTransitionsAreGuarded() {
+        User admin = new User();
+        admin.setEmail("lifecycle-admin-" + UUID.randomUUID() + "@test.invalid");
+        admin.setPasswordHash("test-only");
+        admin.setFullName("Lifecycle Test Admin");
+        admin.setRole(Enums.UserRole.ADMIN);
+        admin = users.saveAndFlush(admin);
+        Long actorId = admin.getId();
+
         Organizer o = organizer("life");
         Event e = event(o, "life", Enums.EventStatus.DRAFT, 5, "Jaipur", "Music");
         type(e, "GA", 10_000, 10);
-        assertThrows(ApiException.class, () -> management.transition(e.getPublicId(), EventManagementService.Transition.UNPUBLISH, 1L, "ADMIN"));
-        management.publish(e.getPublicId(), 1L, "ADMIN");
+        assertThrows(ApiException.class, () -> management.transition(e.getPublicId(), EventManagementService.Transition.UNPUBLISH, actorId, "ADMIN"));
+        management.publish(e.getPublicId(), actorId, "ADMIN");
         assertNotNull(events.findById(e.getId()).orElseThrow().getPublishedAt());
-        management.transition(e.getPublicId(), EventManagementService.Transition.UNPUBLISH, 1L, "ADMIN");
-        management.transition(e.getPublicId(), EventManagementService.Transition.CANCEL, 1L, "ADMIN");
-        assertThrows(ApiException.class, () -> management.publish(e.getPublicId(), 1L, "ADMIN"));
-        management.transition(e.getPublicId(), EventManagementService.Transition.ARCHIVE, 1L, "ADMIN");
+        management.transition(e.getPublicId(), EventManagementService.Transition.UNPUBLISH, actorId, "ADMIN");
+        management.transition(e.getPublicId(), EventManagementService.Transition.CANCEL, actorId, "ADMIN");
+        assertThrows(ApiException.class, () -> management.publish(e.getPublicId(), actorId, "ADMIN"));
+        management.transition(e.getPublicId(), EventManagementService.Transition.ARCHIVE, actorId, "ADMIN");
         assertEquals(Enums.EventStatus.ARCHIVED, events.findById(e.getId()).orElseThrow().getStatus());
     }
 
