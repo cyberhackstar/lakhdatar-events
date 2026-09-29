@@ -1,3 +1,15 @@
+# v1.4.9
+
+## CI/CD deployment model aligned with Neelastack production
+
+- Replaces `ORACLE_SSH_KEY`, `ORACLE_SSH_HOST`, `ORACLE_SSH_USER`, and `ORACLE_GHCR_TOKEN` with the proven deployment secret contract: `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, and `DEPLOY_KNOWN_HOSTS`.
+- `DEPLOY_HOST` contains the full SSH destination (`user@host`) and strict host verification uses the supplied `DEPLOY_KNOWN_HOSTS` value instead of `ssh-keyscan` at deploy time.
+- Deployment now fast-forwards/resets the VM repository to the exact release SHA and runs the existing production deploy script in place, matching the previous Neelastack deployment topology.
+- Removes the separate VM GHCR PAT requirement. The workflow uses the short-lived GitHub Actions `GITHUB_TOKEN` to log the VM into GHCR for the deployment and logs out afterward.
+- Hardens manual rollback with an explicit executable-bit step before invoking `rollback.sh`.
+- Keeps public-health rollback, but only invokes it after a successful deployment step; application-level deployment failures are handled by `infra/deploy/deploy.sh`.
+- Bumps release metadata to `1.4.9`.
+
 # v1.4.8
 
 ## Frontend production build configuration hardening

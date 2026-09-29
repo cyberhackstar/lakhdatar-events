@@ -40,58 +40,120 @@ jobs:
         with:
           ref: ${{ steps.release.outputs.sha }}
 
+      # Keep the deployment secret contract identical to the proven Neelastack deployment flow.
+      # DEPLOY_HOST must include the SSH user, e.g. ubuntu@203.0.113.10.
+      - name: Verify deployment secrets
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -z "$DEPLOY_HOST" ] && missing+=("DEPLOY_HOST")
+          [ -z "$DEPLOY_SSH_KEY" ] && missing+=("DEPLOY_SSH_KEY")
+          [ -z "$DEPLOY_KNOWN_HOSTS" ] && missing+=("DEPLOY_KNOWN_HOSTS")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing deployment secrets: ${missing[*]}"
+            exit 1
+          fi
+
       - name: Configure SSH
         env:
-          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
-          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
         run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          set -euo pipefail
+          trap 'rm -f deploy_key known_hosts' EXIT
+          printf '%s\n' "$DEPLOY_SSH_KEY" > deploy_key
+          chmod 600 deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > known_hosts
+          chmod 644 known_hosts
 
-      - name: Sync deployment files
+          # Keep key/host verification strict, matching the previous production project.
+          ssh-keygen -y -f deploy_key >/dev/null
+
+      - name: Authenticate Oracle VM to GHCR with GitHub token
         env:
-          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
-          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
+          GITHUB_TOKEN_VALUE: ${{ github.token }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$APP_DIR/infra'"
-          scp -r infra "$SSH_USER@$SSH_HOST:$APP_DIR/"
-          scp .env.example "$SSH_USER@$SSH_HOST:$APP_DIR/"
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN_VALUE" |
+            ssh \
+              -i deploy_key \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile=known_hosts \
+              "$DEPLOY_HOST" \
+              "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
 
-      - name: Authenticate Oracle VM to GHCR
+      - name: Deploy exact commit SHA to Oracle VM
+        id: deploy
         env:
-          GHCR_TOKEN: ${{ secrets.ORACLE_GHCR_TOKEN }}
-          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
-          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
-        run: |
-          test -n "$GHCR_TOKEN"
-          printf '%s' "$GHCR_TOKEN" | ssh "$SSH_USER@$SSH_HOST" "docker login ghcr.io -u '${{ github.repository_owner }}' --password-stdin"
-
-      - name: Deploy immutable release
-        env:
-          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
-          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        shell: bash
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "cd '$APP_DIR' && chmod +x infra/deploy/*.sh infra/backup/*.sh && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/deploy.sh '$RELEASE_SHA'"
+          set -euo pipefail
+          trap 'rm -f deploy_key known_hosts' EXIT
+
+          # The VM keeps its production .env outside Git. The application repository is
+          # checked out in-place, exactly like the previous Neelastack deployment flow.
+          ssh \
+            -i deploy_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=known_hosts \
+            "$DEPLOY_HOST" \
+            "cd '$APP_DIR' && git fetch --force origin main && git reset --hard '$RELEASE_SHA' && chmod +x ./infra/deploy/*.sh ./infra/backup/*.sh && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/deploy.sh '$RELEASE_SHA'"
 
       - name: Public health check (through Cloudflare)
+        id: public_health
+        shell: bash
         run: |
-          ok=0
+          set -euo pipefail
           for i in $(seq 1 20); do
             if curl -fsS --max-time 15 "$PUBLIC_URL/" >/dev/null \
                && curl -fsS --max-time 15 "$PUBLIC_URL/api/v1/public/events/upcoming" >/dev/null \
-               && curl -fsS --max-time 15 "$PUBLIC_URL/sitemap.xml" >/dev/null; then ok=1; break; fi
+               && curl -fsS --max-time 15 "$PUBLIC_URL/sitemap.xml" >/dev/null; then
+              echo "Public health checks passed."
+              exit 0
+            fi
             sleep 6
           done
-          [ "$ok" = "1" ]
+          echo "::error::Public health checks failed after deployment."
+          exit 1
 
       - name: Roll back on failed public health check
-        if: failure()
+        if: failure() && steps.deploy.outcome == 'success' && steps.public_health.outcome == 'failure'
         env:
-          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
-          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "cd '$APP_DIR' && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/rollback.sh" || true
+          set -euo pipefail
+          ssh \
+            -i deploy_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=known_hosts \
+            "$DEPLOY_HOST" \
+            "cd '$APP_DIR' && chmod +x ./infra/deploy/*.sh ./infra/backup/*.sh && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/rollback.sh"
           exit 1
+
+      - name: Log out of GHCR on Oracle VM
+        if: always()
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
+        run: |
+          ssh \
+            -i deploy_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=known_hosts \
+            "$DEPLOY_HOST" \
+            "docker logout ghcr.io >/dev/null 2>&1 || true"

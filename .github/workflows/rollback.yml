@@ -3,6 +3,10 @@ name: Rollback Oracle VM
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: read
+
 concurrency:
   group: lakhdatar-events-production
   cancel-in-progress: false
@@ -14,18 +18,77 @@ jobs:
   rollback:
     runs-on: ubuntu-latest
     steps:
+      - name: Verify deployment secrets
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -z "$DEPLOY_HOST" ] && missing+=("DEPLOY_HOST")
+          [ -z "$DEPLOY_SSH_KEY" ] && missing+=("DEPLOY_SSH_KEY")
+          [ -z "$DEPLOY_KNOWN_HOSTS" ] && missing+=("DEPLOY_KNOWN_HOSTS")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing deployment secrets: ${missing[*]}"
+            exit 1
+          fi
+
       - name: Configure SSH
         env:
-          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
-          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
         run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
-      - name: Roll back to the previous immutable release
+          set -euo pipefail
+          printf '%s\n' "$DEPLOY_SSH_KEY" > deploy_key
+          chmod 600 deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > known_hosts
+          chmod 644 known_hosts
+          ssh-keygen -y -f deploy_key >/dev/null
+
+      - name: Authenticate Oracle VM to GHCR with GitHub token
         env:
-          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
-          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
+          GITHUB_TOKEN_VALUE: ${{ github.token }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "cd '$APP_DIR' && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/rollback.sh"
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN_VALUE" |
+            ssh \
+              -i deploy_key \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile=known_hosts \
+              "$DEPLOY_HOST" \
+              "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+
+      - name: Roll back to previous immutable release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'rm -f deploy_key known_hosts' EXIT
+          ssh \
+            -i deploy_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=known_hosts \
+            "$DEPLOY_HOST" \
+            "cd '$APP_DIR' && chmod +x ./infra/deploy/*.sh ./infra/backup/*.sh && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/rollback.sh"
+
+      - name: Log out of GHCR on Oracle VM
+        if: always()
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
+        run: |
+          ssh \
+            -i deploy_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=known_hosts \
+            "$DEPLOY_HOST" \
+            "docker logout ghcr.io >/dev/null 2>&1 || true"
