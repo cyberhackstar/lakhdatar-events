@@ -1,3 +1,15 @@
+# v1.5.0
+
+## CI/CD SSH material lifecycle fix
+
+- Keeps `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, and `DEPLOY_KNOWN_HOSTS` as the deployment secret contract, matching the established Neelastack production flow.
+- Fixes the deployment workflow bug where the SSH key and `known_hosts` files were deleted at the end of the SSH setup step before later SSH steps could use them.
+- Keeps temporary SSH files available for GHCR authentication, deployment, health-check rollback, and logout, then removes them in a final cleanup step.
+- Gates remote cleanup on successful SSH setup so a missing/broken secret cannot trigger a second misleading SSH failure.
+- Applies the same hardened SSH lifecycle to manual rollback.
+- Keeps strict `StrictHostKeyChecking=yes` with the supplied `DEPLOY_KNOWN_HOSTS`.
+- Bumps release metadata to `1.5.0`.
+
 # v1.4.9
 
 ## CI/CD deployment model aligned with Neelastack production

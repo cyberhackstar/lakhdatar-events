@@ -36,6 +36,7 @@ jobs:
           fi
 
       - name: Configure SSH
+        id: ssh_setup
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
@@ -70,7 +71,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          trap 'rm -f deploy_key known_hosts' EXIT
           ssh \
             -i deploy_key \
             -o BatchMode=yes \
@@ -79,12 +79,13 @@ jobs:
             "$DEPLOY_HOST" \
             "cd '$APP_DIR' && chmod +x ./infra/deploy/*.sh ./infra/backup/*.sh && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/rollback.sh"
 
-      - name: Log out of GHCR on Oracle VM
-        if: always()
+      - name: Log out of GHCR and clean SSH material
+        if: always() && steps.ssh_setup.outcome == 'success'
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         shell: bash
         run: |
+          set +e
           ssh \
             -i deploy_key \
             -o BatchMode=yes \
@@ -92,3 +93,4 @@ jobs:
             -o UserKnownHostsFile=known_hosts \
             "$DEPLOY_HOST" \
             "docker logout ghcr.io >/dev/null 2>&1 || true"
+          rm -f deploy_key known_hosts
