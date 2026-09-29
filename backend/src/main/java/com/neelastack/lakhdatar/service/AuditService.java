@@ -1,0 +1,3 @@
+package com.neelastack.lakhdatar.service;
+import com.neelastack.lakhdatar.domain.AuditLog; import com.neelastack.lakhdatar.repository.AuditLogRepository; import lombok.RequiredArgsConstructor; import org.slf4j.MDC; import org.springframework.stereotype.Service;
+@Service @RequiredArgsConstructor public class AuditService { private final AuditLogRepository repo; public void log(Long actor,String action,String type,String id,String correlation){ AuditLog a=new AuditLog();a.setActorUserId(actor);a.setAction(action);a.setEntityType(type);a.setEntityId(id);a.setCorrelationId(correlation!=null?correlation:MDC.get("correlationId")); repo.save(a); } }

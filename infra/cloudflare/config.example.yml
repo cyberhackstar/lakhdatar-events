@@ -1,0 +1,7 @@
+# Example cloudflared ingress for the Oracle VM. Merge the events.neelastack.com rule into your existing
+# tunnel config; do not remove the rules that serve the other applications on this host.
+ingress:
+  - hostname: events.neelastack.com
+    service: http://localhost:4002
+  # ...existing rules for the other apps stay here...
+  - service: http_status:404

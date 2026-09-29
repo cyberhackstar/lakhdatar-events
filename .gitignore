@@ -1,0 +1,31 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Java / Maven
+backend/target/
+**/target/
+*.class
+
+# Angular / Node
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+
+# Runtime / backups / deployment state
+infra/backups/
+.deploy-current
+.deploy-previous
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# JVM crash artefacts
+hs_err_pid*.log
+replay_pid*.log
+*.hprof

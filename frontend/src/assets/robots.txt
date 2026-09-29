@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /staff
+Disallow: /login
+Disallow: /checkout
+Disallow: /ticket/
+Disallow: /recover

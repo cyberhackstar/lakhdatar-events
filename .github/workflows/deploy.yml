@@ -1,0 +1,97 @@
+name: Deploy Oracle VM
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+# Only one production deployment at a time; never cancel one mid-flight.
+concurrency:
+  group: lakhdatar-events-production
+  cancel-in-progress: false
+
+env:
+  APP_DIR: /home/ubuntu/apps/lakhdatar-events
+  PUBLIC_URL: https://events.neelastack.com
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine release SHA
+        id: release
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync deployment files
+        env:
+          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
+          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$APP_DIR/infra'"
+          scp -r infra "$SSH_USER@$SSH_HOST:$APP_DIR/"
+          scp .env.example "$SSH_USER@$SSH_HOST:$APP_DIR/"
+
+      - name: Authenticate Oracle VM to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.ORACLE_GHCR_TOKEN }}
+          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
+          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
+        run: |
+          test -n "$GHCR_TOKEN"
+          printf '%s' "$GHCR_TOKEN" | ssh "$SSH_USER@$SSH_HOST" "docker login ghcr.io -u '${{ github.repository_owner }}' --password-stdin"
+
+      - name: Deploy immutable release
+        env:
+          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
+          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" "cd '$APP_DIR' && chmod +x infra/deploy/*.sh infra/backup/*.sh && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/deploy.sh '$RELEASE_SHA'"
+
+      - name: Public health check (through Cloudflare)
+        run: |
+          ok=0
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 15 "$PUBLIC_URL/" >/dev/null \
+               && curl -fsS --max-time 15 "$PUBLIC_URL/api/v1/public/events/upcoming" >/dev/null \
+               && curl -fsS --max-time 15 "$PUBLIC_URL/sitemap.xml" >/dev/null; then ok=1; break; fi
+            sleep 6
+          done
+          [ "$ok" = "1" ]
+
+      - name: Roll back on failed public health check
+        if: failure()
+        env:
+          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
+          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" "cd '$APP_DIR' && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/rollback.sh" || true
+          exit 1

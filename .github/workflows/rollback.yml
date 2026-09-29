@@ -1,0 +1,31 @@
+name: Rollback Oracle VM
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: lakhdatar-events-production
+  cancel-in-progress: false
+
+env:
+  APP_DIR: /home/ubuntu/apps/lakhdatar-events
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+      - name: Roll back to the previous immutable release
+        env:
+          SSH_HOST: ${{ secrets.ORACLE_SSH_HOST }}
+          SSH_USER: ${{ secrets.ORACLE_SSH_USER }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" "cd '$APP_DIR' && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/rollback.sh"

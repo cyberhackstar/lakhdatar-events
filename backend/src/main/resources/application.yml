@@ -1,0 +1,130 @@
+spring:
+  application:
+    name: lakhdatar-events-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
+    username: ${DB_USERNAME:lakhdatar}
+    password: ${DB_PASSWORD:change-me}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:5000}
+      validation-timeout: ${DB_VALIDATION_TIMEOUT_MS:2000}
+      max-lifetime: ${DB_MAX_LIFETIME_MS:1800000}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    validate-on-migrate: true
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: UTC
+
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
+  shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: application/json,text/plain,text/css,application/javascript,text/javascript,image/svg+xml
+    min-response-size: 1024
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 100ms,300ms,1s,3s
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:replace-with-a-long-random-secret-at-least-32-bytes}
+    access-token: ${JWT_ACCESS_TOKEN:15m}
+    refresh-token: ${JWT_REFRESH_TOKEN:14d}
+  security:
+    ticket-view-secret: ${TICKET_VIEW_SECRET:replace-with-a-long-random-secret-at-least-32-bytes}
+    refresh-cookie-secure: ${AUTH_COOKIE_SECURE:false}
+    ticket-view-ttl: ${TICKET_VIEW_TTL:24h}
+  qr:
+    signing-secret: ${QR_SIGNING_SECRET:replace-with-a-long-random-secret-at-least-32-bytes}
+    image-size: ${QR_IMAGE_SIZE:512}
+  reservation:
+    hold: ${RESERVATION_HOLD:12m}
+    sweep: ${RESERVATION_SWEEP:30s}
+  refund:
+    recovery-sweep: ${REFUND_RECOVERY_SWEEP:30s}
+  razorpay:
+    base-url: ${RAZORPAY_BASE_URL:https://api.razorpay.com/v1}
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+    reconciliation-age-ms: ${PAYMENT_RECONCILIATION_AGE_MS:120000}
+    reconciliation-sweep-ms: ${PAYMENT_RECONCILIATION_SWEEP:30000}
+    order-recovery-sweep: ${PAYMENT_ORDER_RECOVERY_SWEEP:30000}
+    http-connect-timeout-ms: ${RAZORPAY_CONNECT_TIMEOUT_MS:3000}
+    http-read-timeout-ms: ${RAZORPAY_READ_TIMEOUT_MS:8000}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  rate-limit:
+    login-per-window: ${LOGIN_RATE_LIMIT_PER_WINDOW:10}
+    public-checkout-per-window: ${CHECKOUT_RATE_LIMIT_PER_WINDOW:20}
+    scan-per-minute: ${CHECKIN_RATE_LIMIT_PER_MINUTE:240}
+    window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+  checkout:
+    max-tickets-per-order: ${MAX_TICKETS_PER_ORDER:20}
+  checkin:
+    early-window: ${CHECKIN_EARLY_WINDOW:30m}
+  branding:
+    neelastack-name: ${NEELASTACK_NAME:Neelastack}
+    neelastack-public-url: ${NEELASTACK_PUBLIC_URL:https://neelastack.com}
+    neelastack-logo-url: ${NEELASTACK_LOGO_URL:/assets/neelastack-logo.svg}
+    default-organizer-logo-url: ${DEFAULT_ORGANIZER_LOGO_URL:/assets/lakhdatar-logo.svg}
+    promo-enabled: ${NEELASTACK_PROMO_ENABLED:true}
+    promo-title: ${NEELASTACK_PROMO_TITLE:Powered by Neelastack}
+    promo-description: ${NEELASTACK_PROMO_DESCRIPTION:Build modern digital experiences for your business.}
+    promo-cta: ${NEELASTACK_PROMO_CTA:Explore Neelastack}
+  auth:
+    cleanup-sweep: ${REFRESH_TOKEN_CLEANUP_SWEEP:3600000}
+  # Canonical public origin used for sitemap/robots. Never derived from request headers.
+  public-base-url: ${PUBLIC_BASE_URL:https://events.neelastack.com}
+  bootstrap:
+    enabled: ${BOOTSTRAP_ENABLED:false}
+    admin-email: ${BOOTSTRAP_ADMIN_EMAIL:}
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+    admin-name: ${BOOTSTRAP_ADMIN_NAME:Platform Administrator}
+    organizer-name: ${BOOTSTRAP_ORGANIZER_NAME:Lakhdatar Events}
+    organizer-slug: ${BOOTSTRAP_ORGANIZER_SLUG:lakhdatar-events}
+    event-slug: ${BOOTSTRAP_EVENT_SLUG:dandiya-night-2026}
+  support:
+    email: ${SUPPORT_EMAIL:support@example.com}
+    phone: ${SUPPORT_PHONE:+91 00000 00000}
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"
+  level:
+    root: INFO
+    com.neelastack.lakhdatar: INFO

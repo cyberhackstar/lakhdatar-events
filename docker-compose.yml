@@ -1,0 +1,93 @@
+name: lakhdatar-events-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lakhdatar-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lakhdatar
+      POSTGRES_USER: lakhdatar
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+    volumes:
+      - lakhdatar_pg_data:/var/lib/postgresql/data
+    networks: [lakhdatar_net]
+    ports: ["127.0.0.1:5433:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lakhdatar -d lakhdatar"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    container_name: lakhdatar-redis
+    restart: unless-stopped
+    command: ["redis-server","--appendonly","yes"]
+    volumes: ["lakhdatar_redis_data:/data"]
+    networks: [lakhdatar_net]
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+  backend:
+    build: ./backend
+    container_name: lakhdatar-backend
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/lakhdatar
+      DB_USERNAME: lakhdatar
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      TICKET_VIEW_SECRET: ${TICKET_VIEW_SECRET:?set TICKET_VIEW_SECRET}
+      QR_SIGNING_SECRET: ${QR_SIGNING_SECRET:?set QR_SIGNING_SECRET}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      NEELASTACK_PUBLIC_URL: ${NEELASTACK_PUBLIC_URL:-https://neelastack.com}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:4002}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:4002}
+      BOOTSTRAP_ENABLED: ${BOOTSTRAP_ENABLED:-false}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+    networks: [lakhdatar_net]
+    ports: ["127.0.0.1:8081:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+  web:
+    build: ./frontend
+    container_name: lakhdatar-web
+    restart: unless-stopped
+    depends_on: {backend: {condition: service_healthy}}
+    networks: [lakhdatar_net]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/healthz >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+  edge:
+    build: ./edge
+    container_name: lakhdatar-edge
+    restart: unless-stopped
+    depends_on:
+      web: {condition: service_healthy}
+      backend: {condition: service_healthy}
+    networks: [lakhdatar_net]
+    ports: ["127.0.0.1:4002:80"]
+
+networks:
+  lakhdatar_net:
+    name: lakhdatar_net
+
+volumes:
+  lakhdatar_pg_data:
+    name: lakhdatar_pg_data
+  lakhdatar_redis_data:
+    name: lakhdatar_redis_data
