@@ -1,11 +1,11 @@
 {
   "name": "lakhdatar-events-frontend",
-  "version": "1.4.7",
+  "version": "1.4.8",
   "private": true,
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test --watch=false --browsers=ChromeHeadless",
     "verify:baseline": "node ../tools/verify-platform-baseline.mjs"

@@ -1,3 +1,11 @@
+# v1.4.8
+
+## Frontend production build configuration hardening
+
+- Fixed the Angular production build path so CI/container builds explicitly use the `production` configuration.
+- Set the Angular build target default configuration to `production` to prevent accidental development environment replacement in release builds.
+- This prevents `http://localhost:8081/api/v1` from being compiled into production browser bundles; production uses the same-origin `/api/v1` endpoint.
+
 # Lakhdatar Events 1.4.7
 
 ## Integration-test fixture correction
