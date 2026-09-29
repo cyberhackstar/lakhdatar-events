@@ -1,3 +1,12 @@
+# v1.5.1
+
+## Deployment reliability patch
+
+- Removes the production deploy dependency on `/home/ubuntu/apps/lakhdatar-events` being a Git checkout.
+- Transfers the exact CI checkout to the VM while preserving the VM-managed `.env` and deployment state files.
+- Keeps the existing `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, and `DEPLOY_KNOWN_HOSTS` contract.
+- Fixes first-deployment/fresh-directory failure: `fatal: not a git repository`.
+
 # v1.5.0
 
 ## CI/CD SSH material lifecycle fix

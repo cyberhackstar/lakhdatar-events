@@ -99,15 +99,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # The VM keeps its production .env outside Git. The application repository is
-          # checked out in-place, exactly like the previous Neelastack deployment flow.
-          ssh \
-            -i deploy_key \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            -o UserKnownHostsFile=known_hosts \
-            "$DEPLOY_HOST" \
-            "cd '$APP_DIR' && git fetch --force origin main && git reset --hard '$RELEASE_SHA' && chmod +x ./infra/deploy/*.sh ./infra/backup/*.sh && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') ./infra/deploy/deploy.sh '$RELEASE_SHA'"
+          # The VM keeps its production .env and deployment state outside Git.
+          # Transfer the exact GitHub Actions checkout instead of assuming the VM
+          # directory is itself a Git repository. This also makes first deployment
+          # and recovery on a fresh VM deterministic.
+          tar \
+            --exclude='.git' \
+            --exclude='.env' \
+            --exclude='.deploy-current' \
+            --exclude='.deploy-previous' \
+            -czf - . | \
+            ssh \
+              -i deploy_key \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile=known_hosts \
+              "$DEPLOY_HOST" \
+              "mkdir -p '$APP_DIR' && tar -xzf - -C '$APP_DIR' && chmod +x '$APP_DIR'/infra/deploy/*.sh '$APP_DIR'/infra/backup/*.sh && IMAGE_NAMESPACE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]') '$APP_DIR'/infra/deploy/deploy.sh '$RELEASE_SHA'"
 
       - name: Public health check (through Cloudflare)
         id: public_health
