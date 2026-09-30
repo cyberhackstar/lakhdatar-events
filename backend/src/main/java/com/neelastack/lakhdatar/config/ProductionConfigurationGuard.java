@@ -1,3 +1,4 @@
+
 package com.neelastack.lakhdatar.config;
 
 import org.springframework.core.env.Environment;
@@ -17,7 +18,7 @@ public class ProductionConfigurationGuard {
         requireSecret("JWT_SECRET", props.jwt().secret());
         requireSecret("TICKET_VIEW_SECRET", props.security().ticketViewSecret());
         requireSecret("QR_SIGNING_SECRET", props.qr().signingSecret());
-        requireSecret("RAZORPAY_KEY_SECRET", props.razorpay().keySecret());
+        requireProviderCredential("RAZORPAY_KEY_SECRET", props.razorpay().keySecret());
         requireSecret("RAZORPAY_WEBHOOK_SECRET", props.razorpay().webhookSecret());
         requireNonBlank("RAZORPAY_KEY_ID", props.razorpay().keyId());
         requireHttps("NEELASTACK_PUBLIC_URL", props.branding().neelastackPublicUrl());
@@ -31,6 +32,18 @@ public class ProductionConfigurationGuard {
         requireNonBlank(name, value);
         if (value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 32 || value.startsWith("replace-with-") || value.startsWith("change-me"))
             throw new IllegalStateException(name + " must be a unique secret of at least 32 bytes in production");
+    }
+
+    /**
+     * Provider-issued credentials must be validated according to the provider's
+     * contract, not by an application-defined minimum length. Razorpay API
+     * secrets are provider-issued values and may legitimately be shorter than
+     * the 32-byte minimum used for application-owned cryptographic secrets.
+     */
+    private void requireProviderCredential(String name, String value) {
+        requireNonBlank(name, value);
+        if (value.startsWith("replace-with-") || value.startsWith("change-me"))
+            throw new IllegalStateException(name + " must be a real provider credential in production");
     }
     private void requireNonBlank(String name, String value) {
         if (value == null || value.isBlank()) throw new IllegalStateException(name + " is required in production");
