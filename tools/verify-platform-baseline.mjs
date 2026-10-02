@@ -12,6 +12,7 @@ const angular = JSON.parse(read('frontend/angular.json'));
 const styles = read('frontend/src/styles.css');
 const index = read('frontend/src/index.html');
 const dockerfile = read('frontend/Dockerfile');
+const edgeDockerfile = read('edge/Dockerfile');
 const ci = read('.github/workflows/ci.yml');
 const version = read('VERSION').trim();
 
@@ -49,6 +50,9 @@ if (angular.projects?.['lakhdatar-events-frontend']?.architect?.build?.builder !
 if (!styles.includes('input,select,textarea{font-size:16px') && !styles.includes('input, select, textarea { font-size: 16px')) problems.push('iOS input zoom guard missing');
 if (!index.includes('name="viewport"') || !index.includes('width=device-width')) problems.push('viewport metadata missing');
 if (!dockerfile.includes('node:24-alpine3.22')) problems.push('frontend Docker Node baseline mismatch');
+if ((dockerfile.match(/apk upgrade --no-cache/g) || []).length < 2) problems.push('frontend Docker Alpine security upgrade missing from build and runtime stages');
+if (!edgeDockerfile.includes('FROM nginx:1.27-alpine')) problems.push('edge Docker NGINX baseline mismatch');
+if (!edgeDockerfile.includes('apk upgrade --no-cache')) problems.push('edge Docker Alpine security upgrade missing');
 if (!ci.includes('node-version-file: .nvmrc')) problems.push('CI Node baseline file mismatch');
 if (!ci.includes('fetch-depth: 0')) problems.push('CI secret-scan history depth mismatch');
 if (ci.includes('actions/dependency-review-action@')) problems.push('Unsupported dependency-review job must not run until GitHub dependency graph is enabled');

@@ -1,6 +1,9 @@
 # Hardened NGINX edge image: non-root runtime, read-only compatible.
 FROM nginx:1.27-alpine
 
+# Apply current Alpine security updates before switching to the non-root runtime user.
+RUN apk upgrade --no-cache
+
 # Prepare writable runtime/cache paths for the official nginx UID/GID (101:101).
 RUN mkdir -p /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp \
         /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp \

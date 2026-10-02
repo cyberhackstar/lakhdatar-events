@@ -1,4 +1,8 @@
-# Final Production Audit — 1.9.12
+## v1.9.13 Alpine security corrective pass
+
+The v1.9.13 hotfix adds Alpine package upgrades to the frontend and edge image builds. The latest CI run reached registry-backed Trivy successfully and showed the backend image clean, while the frontend image was blocked by four HIGH OpenSSL findings on Alpine 3.22.4. The fixed versions are available in the Alpine v3.22 repository.
+
+# Final Production Audit — 1.9.13
 
 ## Release status
 

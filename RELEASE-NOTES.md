@@ -1,3 +1,11 @@
+# Release 1.9.13 — Alpine security hotfix
+
+- Keeps the corrected v1.9.12 release metadata and CI/CD hardening intact.
+- Adds `apk upgrade --no-cache` to both frontend image stages so the final Node runtime receives current Alpine security updates.
+- Adds the same Alpine security update step to the NGINX edge image.
+- Strengthens `tools/verify-platform-baseline.mjs` to require these image hardening steps.
+- The latest CI log shows the Java backend image at 0 vulnerabilities; the remaining blocker was the frontend image carrying Alpine OpenSSL 3.5.6-r0, which Trivy flagged as HIGH until updated.
+
 # Release 1.9.12 — corrected enterprise production baseline
 
 - Rebuilt from the verified v1.9.11 baseline rather than carrying forward the broken v1.9.12 metadata changes.
