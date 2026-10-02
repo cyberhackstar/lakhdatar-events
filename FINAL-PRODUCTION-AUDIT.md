@@ -1,8 +1,8 @@
-# Final Production Audit — v1.9.11
+# Final Production Audit — 1.9.12
 
 ## Release status
 
-v1.9.11 is the CI/CD follow-up that hardens multi-architecture image publication and registry-backed Trivy scanning, following v1.9.10 edge non-root hardening. The objective is to keep the repository deployable with deterministic dependency metadata, consolidated automation, and a non-root public edge.
+1.9.12 is the CI/CD follow-up that hardens multi-architecture image publication and registry-backed Trivy scanning, following v1.9.10 edge non-root hardening. The objective is to keep the repository deployable with deterministic dependency metadata, consolidated automation, and a non-root public edge.
 
 ## Confirmed fixes
 
@@ -17,7 +17,7 @@ v1.9.11 is the CI/CD follow-up that hardens multi-architecture image publication
 
 ## Release verification performed in the packaging environment
 
-- Release metadata: 1.9.11
+- Release metadata: 1.9.12
 - JSON lockfile parse: PASS
 - Required workflow count: 2
 - Invalid Trivy references: 0
@@ -50,14 +50,9 @@ The repository's Maven backend build was previously verified by the user's Windo
 The Docker release pipeline now publishes multi-architecture `linux/amd64,linux/arm64` images. This resolves Trivy failures caused by scanning ARM64-only registry manifests from AMD64 GitHub-hosted runners while retaining native ARM64 deployment for the Oracle VM.
 
 
-## v1.9.12 Backend Dependency Security Recheck
 
-- Registry-backed Trivy identified 15 Java findings in the v1.9.11 backend image: 12 HIGH and 3 CRITICAL.
-- Patched `com.fasterxml.jackson.core:jackson-core` and `jackson-databind` to 2.21.7.
-- Patched `tools.jackson.core:jackson-core` and `tools.jackson.core:jackson-databind` to 3.1.7.
-- Patched `org.apache.httpcomponents.core5:httpcore5` and `httpcore5-h2` to 5.4.3.
-- Patched embedded Tomcat components to 11.0.26.
-- No Trivy ignore/suppression was introduced for these findings.
-- Spring Boot remains 4.0.8; the fix is intentionally limited to dependency patch versions to minimize framework migration risk.
+## v1.9.12 corrective pass
 
-External confirmation required: GitHub Actions must complete the Maven package/build and the three registry-backed image Trivy scans.
+The first v1.9.12 package was not suitable for CI because release metadata was only partially bumped. This corrected release updates all version-bearing files and preserves the Testcontainers BOM from the verified v1.9.11 baseline. CI's Gitleaks step now uses full history, and the unsupported GitHub Dependency Review job has been removed rather than making deployment depend on a repository setting that is currently disabled.
+
+Backend runtime dependency overrides are pinned to security-patched patch versions identified by the registry-backed Trivy scan: Jackson 2.21.7 / 3.1.7, HttpComponents Core5 5.4.3 and Tomcat 11.0.26.

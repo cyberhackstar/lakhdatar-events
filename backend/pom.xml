@@ -12,7 +12,7 @@
 
   <groupId>com.neelastack</groupId>
   <artifactId>lakhdatar-events</artifactId>
-  <version>1.9.11</version>
+  <version>1.9.12</version>
   <name>Neelastack Event Platform</name>
   <description>Production event ticketing, Razorpay payments and secure QR check-in platform powered by Neelastack</description>
 
@@ -23,8 +23,7 @@
     <zxing.version>3.5.3</zxing.version>
     <postgresql.version>42.7.12</postgresql.version>
     <testcontainers.version>1.21.4</testcontainers.version>
-    <!-- Security-patched dependency overrides validated against registry Trivy findings.
-         Keep these on patch releases to avoid an unnecessary Spring Boot major/minor migration. -->
+    <!-- Security patch overrides validated against the registry-backed Trivy findings in the v1.9.11 image. -->
     <jackson2.version>2.21.7</jackson2.version>
     <jackson3.version>3.1.7</jackson3.version>
     <httpcomponents-core5.version>5.4.3</httpcomponents-core5.version>
@@ -162,7 +161,7 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
-      <!-- Override vulnerable transitive versions reported by registry-backed Trivy. -->
+      <!-- Keep runtime libraries on security-patched patch releases without changing the Spring Boot baseline. -->
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-core</artifactId>

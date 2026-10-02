@@ -16,20 +16,6 @@ concurrency:
 
 # Action majors are kept current; the Trivy action is pinned to its immutable v0.36.0 commit.
 jobs:
-  dependency_review:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@v7
-      - name: Review dependency changes
-        uses: actions/dependency-review-action@v5.0.0
-        with:
-          fail-on-severity: high
-
   security:
     # Runs on PR/push and as the weekly security sweep. Keeping the sweep here avoids a second workflow.
     if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule'
@@ -39,6 +25,8 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v3.0.0
         env:

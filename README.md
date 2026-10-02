@@ -1,5 +1,7 @@
+# Release 1.9.12 — corrected enterprise production baseline
 
-> **Release 1.9.12:** backend runtime dependencies are pinned to security-patched Jackson 2.21.7 / 3.1.7, HttpComponents Core5 5.4.3, and Tomcat 11.0.26. CI keeps registry-backed Trivy CRITICAL/HIGH scanning enabled.
+This release rebuilds from the verified v1.9.11 source baseline and fixes the CI regressions observed when the release was pushed: Testcontainers dependency management/version drift, release-version drift, shallow Gitleaks history, and unsupported dependency-review execution. It also retains the registry-backed security patches and multi-architecture image publication.
+
 # Neelastack Events Platform
 
 Premium multi-event ticketing and event-day admission platform, **owned and operated by Neelastack**.
@@ -32,7 +34,7 @@ Cloudflare Tunnel: events.neelastack.com
         v
 127.0.0.1:4002  (host, loopback only)
         |
-   edge (nginx :808080)
+   edge (nginx :8080)
      |-- /api/*, /robots.txt, /sitemap.xml --> backend (Spring Boot :8080) --> PostgreSQL, Redis
      |-- everything else ---------------------> web (Angular SSR, Node :3000) --> backend (private network)
 ```
