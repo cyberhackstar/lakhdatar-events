@@ -125,7 +125,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push backend ARM64 image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           platforms: linux/arm64
@@ -134,7 +134,7 @@ jobs:
           provenance: true
           sbom: true
       - name: Build and push web (Angular SSR) ARM64 image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           platforms: linux/arm64
@@ -143,7 +143,7 @@ jobs:
           provenance: true
           sbom: true
       - name: Build and push edge (nginx) ARM64 image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./edge
           platforms: linux/arm64
