@@ -49,3 +49,15 @@ The repository's Maven backend build was previously verified by the user's Windo
 
 The Docker release pipeline now publishes multi-architecture `linux/amd64,linux/arm64` images. This resolves Trivy failures caused by scanning ARM64-only registry manifests from AMD64 GitHub-hosted runners while retaining native ARM64 deployment for the Oracle VM.
 
+
+## v1.9.12 Backend Dependency Security Recheck
+
+- Registry-backed Trivy identified 15 Java findings in the v1.9.11 backend image: 12 HIGH and 3 CRITICAL.
+- Patched `com.fasterxml.jackson.core:jackson-core` and `jackson-databind` to 2.21.7.
+- Patched `tools.jackson.core:jackson-core` and `tools.jackson.core:jackson-databind` to 3.1.7.
+- Patched `org.apache.httpcomponents.core5:httpcore5` and `httpcore5-h2` to 5.4.3.
+- Patched embedded Tomcat components to 11.0.26.
+- No Trivy ignore/suppression was introduced for these findings.
+- Spring Boot remains 4.0.8; the fix is intentionally limited to dependency patch versions to minimize framework migration risk.
+
+External confirmation required: GitHub Actions must complete the Maven package/build and the three registry-backed image Trivy scans.

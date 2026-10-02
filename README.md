@@ -1,3 +1,5 @@
+
+> **Release 1.9.12:** backend runtime dependencies are pinned to security-patched Jackson 2.21.7 / 3.1.7, HttpComponents Core5 5.4.3, and Tomcat 11.0.26. CI keeps registry-backed Trivy CRITICAL/HIGH scanning enabled.
 # Neelastack Events Platform
 
 Premium multi-event ticketing and event-day admission platform, **owned and operated by Neelastack**.

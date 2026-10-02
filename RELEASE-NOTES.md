@@ -1,3 +1,20 @@
+# Release 1.9.12 — backend dependency security patch
+
+- Patched all HIGH/CRITICAL backend image findings reported by the registry-backed Trivy scan without changing the Spring Boot baseline.
+- Upgraded FasterXML Jackson 2.x to 2.21.7 and Jackson 3.x tooling/runtime components to 3.1.7.
+- Upgraded Apache HttpComponents Core5 (`httpcore5` and `httpcore5-h2`) to 5.4.3.
+- Upgraded embedded Tomcat to 11.0.26, which is newer than the 11.0.25 minimum fixing the reported Tomcat CVEs.
+- Kept Trivy CRITICAL/HIGH scanning strict; no vulnerability ignore list was added.
+- Retained the v1.9.11 multi-architecture image publication and v1.9.10 non-root edge hardening.
+
+## Registry scan findings addressed
+
+The v1.9.11 backend image contained 15 Java findings (12 HIGH, 3 CRITICAL), including Jackson, HttpComponents Core5 and Tomcat issues. The corresponding fixed versions are now enforced through Maven dependency management.
+
+## Validation boundary
+
+The local packaging environment can validate XML/static dependency metadata, but the authoritative confirmation remains the GitHub Actions Maven build and registry-backed Trivy image scan because those steps resolve dependencies and build the final image in the same environment used for release.
+
 # Release 1.9.11 — CI multi-architecture image hardening
 
 - Fixed Docker CI image scanning on AMD64 GitHub-hosted runners by publishing `linux/amd64` and `linux/arm64` variants under the same immutable commit tag.

@@ -1,9 +1,11 @@
-Lakhdatar Events Release 1.9.11
-Release type: enterprise CI/CD + dependency security + non-root edge hardening
+Lakhdatar Events Release 1.9.12
+Release type: enterprise CI/CD + multi-arch images + dependency security patch
 Git image tags: immutable 40-character SHA
 Flyway: V1..V17
 Frontend dependency major: Angular 20.x (runtime/CI baseline Node 24)
+Backend runtime: Java 21 / Spring Boot 4.0.8 with security-patched Jackson, HttpComponents Core and Tomcat patch versions
 CI workflows: CI + Production (security schedule is integrated into CI)
 Edge runtime: NGINX non-root on container port 8080; VM loopback port 4002 unchanged
+Image platforms: linux/amd64,linux/arm64
 Generated: 2026-10-02
 Validation boundary: packaging-environment validation plus user-side registry-backed CI verification.

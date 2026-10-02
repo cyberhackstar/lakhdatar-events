@@ -23,6 +23,12 @@
     <zxing.version>3.5.3</zxing.version>
     <postgresql.version>42.7.12</postgresql.version>
     <testcontainers.version>1.21.4</testcontainers.version>
+    <!-- Security-patched dependency overrides validated against registry Trivy findings.
+         Keep these on patch releases to avoid an unnecessary Spring Boot major/minor migration. -->
+    <jackson2.version>2.21.7</jackson2.version>
+    <jackson3.version>3.1.7</jackson3.version>
+    <httpcomponents-core5.version>5.4.3</httpcomponents-core5.version>
+    <tomcat.version>11.0.26</tomcat.version>
     <!-- Empty by default so `mvn verify` runs everything. Use -Punit to skip Docker-backed integration tests. -->
     <test.excludedGroups></test.excludedGroups>
   </properties>
@@ -155,6 +161,52 @@
         <version>${testcontainers.version}</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+      <!-- Override vulnerable transitive versions reported by registry-backed Trivy. -->
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-core</artifactId>
+        <version>${jackson2.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>${jackson2.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>tools.jackson.core</groupId>
+        <artifactId>jackson-core</artifactId>
+        <version>${jackson3.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>tools.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>${jackson3.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.httpcomponents.core5</groupId>
+        <artifactId>httpcore5</artifactId>
+        <version>${httpcomponents-core5.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.httpcomponents.core5</groupId>
+        <artifactId>httpcore5-h2</artifactId>
+        <version>${httpcomponents-core5.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-core</artifactId>
+        <version>${tomcat.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-el</artifactId>
+        <version>${tomcat.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-websocket</artifactId>
+        <version>${tomcat.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
