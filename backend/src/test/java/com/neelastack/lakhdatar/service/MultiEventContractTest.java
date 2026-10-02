@@ -57,14 +57,14 @@ class MultiEventContractTest {
 
     @Test void deploymentUsesApprovedPathAndPortOnly() throws Exception {
         for (String f : new String[]{"../infra/docker-compose.prod.yml", "../infra/deploy/deploy.sh", "../infra/deploy/rollback.sh",
-                "../.github/workflows/deploy.yml", "../.env.example", "../infra/backup/backup-postgres.sh"}) {
+                "../.github/workflows/production.yml", "../.env.example", "../infra/backup/backup-postgres.sh"}) {
             String s = Files.readString(Path.of(f));
             assertFalse(s.contains("/opt/"), f + " must not use /opt");
             assertFalse(Pattern.compile("[:\\s\"'](4000|4001)\\b").matcher(s).find(), f + " must not claim ports 4000/4001");
         }
         String compose = Files.readString(Path.of("../infra/docker-compose.prod.yml"));
         assertTrue(compose.contains("127.0.0.1:4002:80"), "public entry must be host port 4002, bound to loopback");
-        assertTrue(Files.readString(Path.of("../.github/workflows/deploy.yml")).contains("/home/ubuntu/apps/lakhdatar-events"));
+        assertTrue(Files.readString(Path.of("../.github/workflows/production.yml")).contains("/home/ubuntu/apps/lakhdatar-events"));
     }
 
     @Test void mobileFormControlsStayAtSixteenPixelsAndViewportRemainsAccessible() throws Exception {

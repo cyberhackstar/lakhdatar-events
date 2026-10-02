@@ -3,9 +3,9 @@ $ErrorActionPreference = "Stop"
 Write-Host "Neelastack frontend dependency baseline refresh" -ForegroundColor Cyan
 
 $node = node --version 2>$null
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($node)) { throw "Node.js 22.x is required but Node.js could not be found. Activate the project Node version before continuing." }
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($node)) { throw "Node.js 24.x is required but Node.js could not be found. Activate the project Node version before continuing." }
 $node = $node.Trim()
-if (-not $node.StartsWith("v22.")) { throw "Node 22.x is required. Select the project baseline from .nvmrc before continuing. Current: $node" }
+if (-not $node.StartsWith("v24.")) { throw "Node 24.x is required. Select the project baseline from .nvmrc before continuing. Current: $node" }
 
 function Invoke-Npm {
     param([Parameter(Mandatory=$true)][string[]]$Arguments)

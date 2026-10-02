@@ -1,7 +1,8 @@
-Lakhdatar Events Release 1.9.7
-Release type: enterprise hardening / production build-fix patch
+Lakhdatar Events Release 1.9.8
+Release type: enterprise CI/CD hardening + dependency lock repair
 Git image tags: immutable 40-character SHA
 Flyway: V1..V17
 Frontend dependency major: Angular 20.x (runtime/CI baseline Node 24)
-Generated: 2026-10-02T06:36:16Z
-Build limitation: Maven/Docker/npm registry unavailable in audit environment; user-side Maven compile/verify and dependency-backed CI validation required.
+CI workflows: CI + Production (security schedule is integrated into CI)
+Generated: 2026-10-02
+Validation boundary: user-side Maven/Angular builds required for dependency-backed verification.

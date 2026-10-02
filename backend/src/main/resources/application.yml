@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}
-    password: ${DB_PASSWORD:lakhdatar}
+    password: ${DB_PASSWORD:change-me}
     hikari:
       maximum-pool-size: ${DB_POOL_MAX:20}
       minimum-idle: ${DB_POOL_MIN:5}
@@ -139,7 +139,7 @@ app:
     neelastack-name: ${NEELASTACK_NAME:Neelastack}
     neelastack-public-url: ${NEELASTACK_PUBLIC_URL:https://neelastack.com}
     neelastack-logo-url: ${NEELASTACK_LOGO_URL:/assets/neelastack-logo.svg}
-    default-organizer-logo-url: ${DEFAULT_ORGANIZER_LOGO_URL:/assets/neelastack_logo_dark_theme.png}
+    default-organizer-logo-url: ${DEFAULT_ORGANIZER_LOGO_URL:/assets/lakhdatar-logo.svg}
     promo-enabled: ${NEELASTACK_PROMO_ENABLED:true}
     promo-title: ${NEELASTACK_PROMO_TITLE:Powered by Neelastack}
     promo-description: ${NEELASTACK_PROMO_DESCRIPTION:Build modern digital experiences for your business.}

@@ -1,0 +1,220 @@
+name: Production
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Production operation
+        required: true
+        type: choice
+        default: deploy
+        options:
+          - deploy
+          - rollback
+      release_sha:
+        description: 40-character Git SHA for manual deployment (blank uses the selected ref SHA)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: lakhdatar-events-production
+  cancel-in-progress: false
+
+env:
+  APP_DIR: /home/ubuntu/apps/lakhdatar-events
+  PUBLIC_URL: https://events.neelastack.com
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy')
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine release SHA
+        id: release
+        shell: bash
+        env:
+          MANUAL_SHA: ${{ inputs.release_sha }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$MANUAL_SHA" ]; then
+            sha="$MANUAL_SHA"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            sha="$WORKFLOW_SHA"
+          else
+            sha="$GITHUB_SHA"
+          fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Release SHA must be exactly 40 lowercase hex characters"; exit 2; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Verify deployment secrets
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -z "$DEPLOY_HOST" ] && missing+=(DEPLOY_HOST)
+          [ -z "$DEPLOY_SSH_KEY" ] && missing+=(DEPLOY_SSH_KEY)
+          [ -z "$DEPLOY_KNOWN_HOSTS" ] && missing+=(DEPLOY_KNOWN_HOSTS)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing deployment secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Configure SSH
+        id: ssh_setup
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$DEPLOY_SSH_KEY" > deploy_key
+          chmod 600 deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > known_hosts
+          chmod 644 known_hosts
+          ssh-keygen -y -f deploy_key >/dev/null
+
+      - name: Authenticate Oracle VM to GHCR
+        env:
+          GITHUB_TOKEN_VALUE: ${{ github.token }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN_VALUE" | ssh \
+            -i deploy_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=known_hosts \
+            "$DEPLOY_HOST" \
+            "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+
+      - name: Deploy exact immutable release
+        id: deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          IMAGE_NAMESPACE: ghcr.io/${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude='.git' --exclude='.env' --exclude='.deploy-current' --exclude='.deploy-previous' -czf - . | \
+            ssh \
+              -i deploy_key \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile=known_hosts \
+              "$DEPLOY_HOST" \
+              "mkdir -p '$APP_DIR' && tar -xzf - -C '$APP_DIR' && chmod +x '$APP_DIR'/infra/deploy/*.sh '$APP_DIR'/infra/backup/*.sh && IMAGE_NAMESPACE=$(printf '%s' '$IMAGE_NAMESPACE' | tr '[:upper:]' '[:lower:]') '$APP_DIR'/infra/deploy/deploy.sh '$RELEASE_SHA'"
+
+      - name: Public smoke test through Cloudflare
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 15 "$PUBLIC_URL/" >/dev/null && \
+               curl -fsS --max-time 15 "$PUBLIC_URL/api/v1/public/events/upcoming" >/dev/null && \
+               curl -fsS --max-time 15 "$PUBLIC_URL/sitemap.xml" >/dev/null; then
+              echo "Public smoke tests passed."
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "::error::Public smoke tests failed. Release remains deployed for diagnosis; automatic DB/schema rollback is intentionally disabled after Flyway." >&2
+          exit 1
+
+      - name: Log out of GHCR and clean SSH material
+        if: always() && steps.ssh_setup.outcome == 'success'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
+        run: |
+          set +e
+          ssh -i deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$DEPLOY_HOST" \
+            "docker logout ghcr.io >/dev/null 2>&1 || true"
+          rm -f deploy_key known_hosts
+
+  rollback:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback'
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify deployment secrets
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [ -n "$DEPLOY_HOST" ] && [ -n "$DEPLOY_SSH_KEY" ] && [ -n "$DEPLOY_KNOWN_HOSTS" ] || {
+            echo "::error::DEPLOY_HOST, DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS are required"; exit 1;
+          }
+
+      - name: Configure SSH
+        id: ssh_setup
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$DEPLOY_SSH_KEY" > deploy_key
+          chmod 600 deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > known_hosts
+          chmod 644 known_hosts
+          ssh-keygen -y -f deploy_key >/dev/null
+
+      - name: Authenticate Oracle VM to GHCR
+        env:
+          GITHUB_TOKEN_VALUE: ${{ github.token }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN_VALUE" | ssh -i deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$DEPLOY_HOST" \
+            "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+
+      - name: Roll back to previous immutable release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          IMAGE_NAMESPACE: ghcr.io/${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$DEPLOY_HOST" \
+            "cd '$APP_DIR' && chmod +x ./infra/deploy/*.sh ./infra/backup/*.sh && IMAGE_NAMESPACE=$(printf '%s' '$IMAGE_NAMESPACE' | tr '[:upper:]' '[:lower:]') ./infra/deploy/rollback.sh"
+
+      - name: Log out of GHCR and clean SSH material
+        if: always() && steps.ssh_setup.outcome == 'success'
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        shell: bash
+        run: |
+          set +e
+          ssh -i deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$DEPLOY_HOST" \
+            "docker logout ghcr.io >/dev/null 2>&1 || true"
+          rm -f deploy_key known_hosts

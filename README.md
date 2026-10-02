@@ -67,7 +67,11 @@ docker compose up --build
 ```
 
 Backend tests: `cd backend && mvn -B verify` (integration tests need Docker; `mvn verify -Punit` skips them).
-Frontend: use Node 22, refresh the lock once with `./scripts/refresh-frontend-lock.ps1`, then `cd frontend && npm ci && npm run build`; run the built SSR server with `PORT=3000 SSR_API_BASE_URL=http://localhost:8081/api/v1 node dist/frontend/server/server.mjs`.
+Frontend: use Node 24, refresh the lock once with `./scripts/refresh-frontend-lock.ps1`, then `cd frontend && npm ci && npm run build`; run the built SSR server with `PORT=3000 SSR_API_BASE_URL=http://localhost:8081/api/v1 node dist/frontend/server/server.mjs`.
+
+## CI/CD
+
+The repository intentionally uses two GitHub Actions workflows: `CI` for build, test, security and weekly security review, and `Production` for approved deployment or manual rollback. Production deploys exact immutable Git SHAs and never performs an automatic database downgrade after Flyway has run.
 
 ## Documentation
 

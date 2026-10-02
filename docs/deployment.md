@@ -21,14 +21,13 @@ Target directory: `/home/ubuntu/apps/lakhdatar-events`. Public host port: `4002`
 
 ## Releases
 
-GitHub Actions `CI` builds and tests the backend, builds and validates the SSR frontend, and pushes three ARM64 images tagged with the full Git SHA:
-`lakhdatar-backend`, `lakhdatar-web`, `lakhdatar-edge`. `Deploy Oracle VM` then follows the same deployment model used by the Neelastack production project: the VM repository is fast-forwarded/reset to the exact release SHA and `infra/deploy/deploy.sh <sha>` is executed in place, which:
+GitHub Actions uses two workflows only: `CI` and `Production`. `CI` builds/tests the backend, builds/validates the SSR frontend (including an SSR server smoke test), runs security/dependency scans and the weekly security sweep, and pushes three ARM64 images tagged with the full Git SHA: `lakhdatar-backend`, `lakhdatar-web`, `lakhdatar-edge`. `Production` then follows the same deployment model used by the Neelastack production project: the VM repository is fast-forwarded/reset to the exact release SHA and `infra/deploy/deploy.sh <sha>` is executed in place, which:
 
 1. validates the Compose model, 2. takes a database backup, 3. pulls the immutable images, 4. starts PostgreSQL/Redis, 5. starts the backend (Flyway applies migrations) and waits for health,
 6. starts web and edge, 7. smoke-tests `/`, `/api/v1/public/events/upcoming`, `/robots.txt`, `/sitemap.xml` on `127.0.0.1:4002`.
 
-Any failure triggers an automatic rollback to the previous tag. The workflow then checks the public URL through Cloudflare and rolls back if it fails.
-Manual rollback: run the `Rollback Oracle VM` workflow, or `./infra/deploy/rollback.sh` on the VM.
+Failures before Flyway-backed application startup can roll back automatically. Once Flyway has run, the release is not automatically downgraded because database schema changes are forward-only; the deployment is marked failed and the operator must use a forward fix or a verified schema-compatible rollback.
+Manual rollback: run the `Production` workflow with operation `rollback`, or run `./infra/deploy/rollback.sh` on the VM after confirming the previous release is schema-compatible. Manual deploy accepts an explicit 40-character release SHA; it must already have passed CI and have corresponding GHCR images. Application rollback is intentionally not automatic after Flyway has run.
 
 Repository secrets: `DEPLOY_HOST`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`. `DEPLOY_HOST` includes the SSH user, for example `ubuntu@203.0.113.10`. No separate GHCR token secret is required by the workflow. The workflow uses the short-lived GitHub Actions `GITHUB_TOKEN` to authenticate the VM to GHCR for the deployment, then logs out after the operation. No separate GHCR PAT secret is stored in GitHub.
 
