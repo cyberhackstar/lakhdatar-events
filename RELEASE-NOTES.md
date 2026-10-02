@@ -1,4 +1,11 @@
-# Lakhdatar Events v1.9.10
+# Release 1.9.11 — CI multi-architecture image hardening
+
+- Fixed Docker CI image scanning on AMD64 GitHub-hosted runners by publishing `linux/amd64` and `linux/arm64` variants under the same immutable commit tag.
+- Preserved Oracle ARM64 VM compatibility: the runtime pulls the ARM64 variant automatically.
+- Kept Trivy CRITICAL/HIGH image scanning enabled without architecture-specific exceptions.
+- Retained v1.9.10 edge non-root hardening and the frontend dependency security fixes.
+
+# Lakhdatar Events v1.9.10 — historical notes
 
 ## Fixed in v1.9.10
 

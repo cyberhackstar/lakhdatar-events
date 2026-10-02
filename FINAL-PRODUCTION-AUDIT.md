@@ -1,8 +1,8 @@
-# Final Production Audit — v1.9.10
+# Final Production Audit — v1.9.11
 
 ## Release status
 
-v1.9.10 is the CI/CD, dependency-security and container-hardening release following the successful backend verification and the v1.9.9 Piscina lock repair. The objective is to keep the repository deployable with deterministic dependency metadata, consolidated automation, and a non-root public edge.
+v1.9.11 is the CI/CD follow-up that hardens multi-architecture image publication and registry-backed Trivy scanning, following v1.9.10 edge non-root hardening. The objective is to keep the repository deployable with deterministic dependency metadata, consolidated automation, and a non-root public edge.
 
 ## Confirmed fixes
 
@@ -17,7 +17,7 @@ v1.9.10 is the CI/CD, dependency-security and container-hardening release follow
 
 ## Release verification performed in the packaging environment
 
-- Release metadata: 1.9.10
+- Release metadata: 1.9.11
 - JSON lockfile parse: PASS
 - Required workflow count: 2
 - Invalid Trivy references: 0
@@ -27,7 +27,7 @@ v1.9.10 is the CI/CD, dependency-security and container-hardening release follow
 
 ## External verification boundary
 
-The repository's Maven backend build was previously verified by the user's Windows environment through v1.9.7 (`76 tests, 0 failures, 0 errors, BUILD SUCCESS`). The v1.9.10 changes are limited to CI/CD, frontend dependency security metadata, edge container hardening, documentation and release contracts; the user should rerun `npm ci && npm run build` and the CI workflow for registry-backed confirmation.
+The repository's Maven backend build was previously verified by the user's Windows environment through v1.9.7 (`76 tests, 0 failures, 0 errors, BUILD SUCCESS`). The v1.9.11 changes are focused on multi-architecture image publication and registry-backed Trivy scanning, while retaining the v1.9.10 edge container hardening and frontend dependency security metadata.
 
 
 ### v1.9.9 CI Security Recheck (historical)
@@ -44,3 +44,8 @@ The repository's Maven backend build was previously verified by the user's Windo
 - NGINX cache tmpfs is explicitly owned by UID/GID `101:101`; `/tmp` is a bounded runtime tmpfs for the PID file.
 - Static Compose/YAML parsing completed successfully in the packaging environment.
 - Docker build/runtime execution could not be performed in this sandbox because the Docker CLI/daemon is not installed.
+
+## v1.9.11 CI follow-up
+
+The Docker release pipeline now publishes multi-architecture `linux/amd64,linux/arm64` images. This resolves Trivy failures caused by scanning ARM64-only registry manifests from AMD64 GitHub-hosted runners while retaining native ARM64 deployment for the Oracle VM.
+

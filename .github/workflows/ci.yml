@@ -161,29 +161,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push backend ARM64 image
+      - name: Build and push backend multi-architecture image
         uses: docker/build-push-action@v7.4.0
         with:
           context: ./backend
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/lakhdatar-backend:${{ github.sha }}
           provenance: true
           sbom: true
-      - name: Build and push web ARM64 image
+      - name: Build and push web multi-architecture image
         uses: docker/build-push-action@v7.4.0
         with:
           context: ./frontend
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/lakhdatar-web:${{ github.sha }}
           provenance: true
           sbom: true
-      - name: Build and push edge ARM64 image
+      - name: Build and push edge multi-architecture image
         uses: docker/build-push-action@v7.4.0
         with:
           context: ./edge
-          platforms: linux/arm64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/lakhdatar-edge:${{ github.sha }}
           provenance: true
