@@ -1,4 +1,4 @@
-Lakhdatar Events Release 1.9.8
+Lakhdatar Events Release 1.9.9
 Release type: enterprise CI/CD hardening + dependency lock repair
 Git image tags: immutable 40-character SHA
 Flyway: V1..V17

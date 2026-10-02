@@ -1,8 +1,8 @@
-# Final Production Audit — v1.9.8
+# Final Production Audit — v1.9.9
 
 ## Release status
 
-v1.9.8 is the CI/CD and dependency-lock repair release following the successful v1.9.7 backend verification. The objective is to make the repository deployable with a deterministic frontend lockfile and a small, coherent automation surface.
+v1.9.9 is the CI/CD and dependency-lock repair release following the successful v1.9.9 backend verification. The objective is to make the repository deployable with a deterministic frontend lockfile and a small, coherent automation surface.
 
 ## Confirmed fixes
 
@@ -17,7 +17,7 @@ v1.9.8 is the CI/CD and dependency-lock repair release following the successful 
 
 ## Release verification performed in the packaging environment
 
-- Release metadata: 1.9.8
+- Release metadata: 1.9.9
 - JSON lockfile parse: PASS
 - Required workflow count: 2
 - Invalid Trivy references: 0
@@ -27,4 +27,11 @@ v1.9.8 is the CI/CD and dependency-lock repair release following the successful 
 
 ## External verification boundary
 
-The repository's Maven backend build was previously verified by the user's Windows environment through v1.9.7 (`76 tests, 0 failures, 0 errors, BUILD SUCCESS`). The v1.9.8 changes are limited to CI/CD, frontend lock metadata, documentation and release contracts; the user should rerun `npm ci && npm run build` and the CI workflow for registry-backed confirmation.
+The repository's Maven backend build was previously verified by the user's Windows environment through v1.9.9 (`76 tests, 0 failures, 0 errors, BUILD SUCCESS`). The v1.9.9 changes are limited to CI/CD, frontend lock metadata, documentation and release contracts; the user should rerun `npm ci && npm run build` and the CI workflow for registry-backed confirmation.
+
+
+### v1.9.9 CI Security Recheck
+- npm override: piscina 5.3.2
+- Angular application remains 20.3.x
+- No Angular-major upgrade introduced solely to satisfy the advisory.
+- CI workflow count: 2 (CI, Production).

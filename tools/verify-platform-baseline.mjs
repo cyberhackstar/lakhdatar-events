@@ -29,6 +29,7 @@ if (pkg.devDependencies['@types/express'] !== '^4.17.21') problems.push('@types/
 if (pkg.devDependencies['@types/node'] !== '^22.9.0') problems.push('@types/node baseline mismatch');
 if (pkg.devDependencies.typescript !== '~5.9.3') problems.push('typescript baseline mismatch');
 if (pkg.overrides?.qs !== '6.16.0') problems.push('qs override mismatch');
+if (pkg.overrides?.piscina !== '5.3.2') problems.push('piscina security override mismatch');
 if (!pom.includes('<artifactId>spring-boot-starter-parent</artifactId>\n    <version>4.0.8</version>')) problems.push('Spring Boot baseline mismatch');
 if (!pom.includes('<java.version>21</java.version>')) problems.push('Java baseline mismatch');
 if (!pom.includes('<jjwt.version>0.13.0</jjwt.version>')) problems.push('JJWT baseline mismatch');
@@ -36,7 +37,8 @@ if (!pom.includes('<testcontainers.version>1.21.4</testcontainers.version>')) pr
 if (!pom.includes('<artifactId>spring-boot-starter-webmvc</artifactId>')) problems.push('Spring MVC starter mismatch');
 if (!pom.includes('<artifactId>spring-boot-jackson2</artifactId>')) problems.push('Jackson2 starter missing');
 if (!pom.includes('<postgresql.version>42.7.12</postgresql.version>')) problems.push('PostgreSQL driver baseline mismatch');
-if (version !== '1.9.8' || pkg.version !== '1.9.8' || !pom.includes('<artifactId>lakhdatar-events</artifactId>\n  <version>1.9.8</version>')) problems.push('release version mismatch');
+if (version !== pkg.version) problems.push('release version mismatch between VERSION and package.json');
+if (!pom.includes(`<artifactId>lakhdatar-events</artifactId>\n  <version>${version}</version>`)) problems.push('release version mismatch in Maven project');
 if (angular.projects?.['lakhdatar-events-frontend']?.architect?.build?.builder !== '@angular/build:application') problems.push('Angular application builder mismatch');
 if (!styles.includes('input,select,textarea{font-size:16px') && !styles.includes('input, select, textarea { font-size: 16px')) problems.push('iOS input zoom guard missing');
 if (!index.includes('name="viewport"') || !index.includes('width=device-width')) problems.push('viewport metadata missing');
