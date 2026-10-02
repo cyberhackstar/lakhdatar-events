@@ -5,6 +5,12 @@ public class Payment {
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
  @Column(name="public_id",nullable=false,unique=true,updatable=false) private UUID publicId=UUID.randomUUID();
  @Column(name="order_id",nullable=false,unique=true) private Long orderId;
+ @Enumerated(EnumType.STRING) @Column(name="provider",nullable=false,length=24) private Enums.PaymentProvider provider=Enums.PaymentProvider.RAZORPAY;
+ @Column(name="provider_order_id",unique=true) private String providerOrderId;
+ @Column(name="provider_payment_id",unique=true) private String providerPaymentId;
+ @Column(name="provider_signature") private String providerSignature;
+ @Column(name="provider_public_key",length=255) private String providerPublicKey;
+ @Column(name="provider_session_id",length=500) private String providerSessionId;
  @Column(name="razorpay_order_id",unique=true) private String razorpayOrderId;
  @Column(name="razorpay_payment_id",unique=true) private String razorpayPaymentId;
  @Column(name="razorpay_signature") private String razorpaySignature;

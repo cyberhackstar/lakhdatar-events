@@ -7,6 +7,7 @@ public class BrandConfiguration {
  @Column(nullable=false,length=32) private String scope;
  @Column(name="organizer_id") private Long organizerId;
  @Column(name="organizer_logo_url") private String organizerLogoUrl;
+ @Column(name="branding_mode",nullable=false,length=16) private String brandingMode="BOTH";
  @Column(name="organizer_name") private String organizerName;
  @Column(name="event_logo_url") private String eventLogoUrl;
  @Column(name="event_banner_url") private String eventBannerUrl;

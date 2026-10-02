@@ -7,7 +7,7 @@ const app = express();
 const angularApp = new AngularNodeAppEngine();
 
 app.disable('x-powered-by');
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // Liveness for container orchestration. Does not touch the backend on purpose.
 app.get('/healthz', (_req, res) => { res.status(200).type('text/plain').send('ok'); });
@@ -15,7 +15,7 @@ app.get('/healthz', (_req, res) => { res.status(200).type('text/plain').send('ok
 // Hashed build assets are immutable.
 app.use(express.static(browserDistFolder, { maxAge: '1y', immutable: true, index: false, redirect: false }));
 
-const PRIVATE_PREFIXES = ['/checkout', '/payment', '/ticket', '/recover', '/login', '/admin', '/staff'];
+const PRIVATE_PREFIXES = ['/checkout', '/payment', '/ticket', '/recover', '/login', '/setup', '/admin', '/staff'];
 
 app.use((req, res, next) => {
   const isPrivate = PRIVATE_PREFIXES.some(p => req.path === p || req.path.startsWith(p + '/'));

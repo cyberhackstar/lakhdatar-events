@@ -9,6 +9,65 @@ permissions:
   contents: read
 
 jobs:
+  dependency_review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Dependency audit (frontend)
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm audit --audit-level=high
+      - name: Filesystem vulnerability and misconfiguration scan
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: false
+          exit-code: '1'
+          format: table
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [java, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
   backend:
     runs-on: ubuntu-latest
     steps:
@@ -28,7 +87,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Verify Neelastack stability baseline
@@ -48,10 +107,12 @@ jobs:
           if grep -rl "localhost:8081" dist/frontend/browser; then echo "Dev API URL leaked into production bundle" >&2; exit 1; fi
 
   docker:
-    needs: [backend, frontend]
+    needs: [backend, frontend, security]
     permissions:
       contents: read
       packages: write
+      id-token: write
+      attestations: write
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -70,6 +131,8 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/lakhdatar-backend:${{ github.sha }}
+          provenance: true
+          sbom: true
       - name: Build and push web (Angular SSR) ARM64 image
         uses: docker/build-push-action@v6
         with:
@@ -77,6 +140,8 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/lakhdatar-web:${{ github.sha }}
+          provenance: true
+          sbom: true
       - name: Build and push edge (nginx) ARM64 image
         uses: docker/build-push-action@v6
         with:
@@ -84,3 +149,42 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/lakhdatar-edge:${{ github.sha }}
+          provenance: true
+          sbom: true
+      - name: Scan backend image for high/critical vulnerabilities
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/lakhdatar-backend:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: false
+          exit-code: '1'
+      - name: Scan web image for high/critical vulnerabilities
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/lakhdatar-web:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: false
+          exit-code: '1'
+      - name: Scan edge image for high/critical vulnerabilities
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/lakhdatar-edge:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: false
+          exit-code: '1'
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.0
+      - name: Verify and sign immutable release images
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
+            ref="ghcr.io/${OWNER}/${image}:${SHA}"
+            cosign verify-attestation --type slsaprovenance --certificate-identity-regexp 'https://github.com/.*/.github/workflows/.*' --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' "$ref" >/dev/null
+            cosign sign --yes "$ref"
+          done

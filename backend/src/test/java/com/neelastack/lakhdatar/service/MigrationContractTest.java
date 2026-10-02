@@ -28,4 +28,13 @@ class MigrationContractTest {
         var expected = Arrays.stream(Enums.OrderStatus.values()).map(Enum::name).collect(Collectors.toSet());
         assertEquals(expected, actual);
     }
+    @Test
+    void firstProductionMigrationAllowsComplimentaryOrdersAndAddsSearchIndexes() throws Exception {
+        String sql = Files.readString(Path.of("src/main/resources/db/migration/V15__first_production_release_hardening.sql"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("DROP CONSTRAINT IF EXISTS chk_order_total_positive"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("chk_order_total_non_negative"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("pg_trgm"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("DROP CONSTRAINT IF EXISTS chk_event_booking_window"));
+    }
+
 }

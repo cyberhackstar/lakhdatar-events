@@ -17,4 +17,13 @@ class EventCancellationRefundContractTest {
         assertTrue(refund.contains("queueCapturedPaymentRefundOnly"));
         assertTrue(lifecycle.contains("asynchronous recovery pipeline"));
     }
+    @Test
+    void checkoutAndCaptureUseEventRowLocks() throws Exception {
+        String repo = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/repository/EventRepository.java"));
+        String order = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/OrderService.java"));
+        assertTrue(repo.contains("findByPublicIdForUpdate"));
+        assertTrue(order.contains("events.findByPublicIdForUpdate(request.eventId())"));
+        assertTrue(order.contains("events.findByIdForUpdate(o.getEventId())"));
+    }
+
 }

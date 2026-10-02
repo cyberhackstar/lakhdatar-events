@@ -14,9 +14,9 @@ Target directory: `/home/ubuntu/apps/lakhdatar-events`. Public host port: `4002`
 1. `mkdir -p /home/ubuntu/apps && cd /home/ubuntu/apps`
 2. Clone the repository into `/home/ubuntu/apps/lakhdatar-events` and verify the VM can `git fetch origin main`.
 3. `cd /home/ubuntu/apps/lakhdatar-events`
-4. Create `.env` from `.env.example` (chmod 600). Set strong `DB_PASSWORD`, `JWT_SECRET`, `TICKET_VIEW_SECRET`, `QR_SIGNING_SECRET`, Razorpay keys, `CORS_ALLOWED_ORIGINS=https://events.neelastack.com`, `PUBLIC_BASE_URL=https://events.neelastack.com`.
+4. Create `.env` from `.env.example` (chmod 600). Set strong `DB_PASSWORD`, `JWT_SECRET`, `TICKET_VIEW_SECRET`, `QR_SIGNING_SECRET`, at least one complete payment-provider credential set, `CORS_ALLOWED_ORIGINS=https://events.neelastack.com`, and `PUBLIC_BASE_URL=https://events.neelastack.com`. If using Cashfree, set its complete `CASHFREE_*` credential set; if using Cloudinary, set its complete `CLOUDINARY_*` credential set.
 5. Add the Cloudflare ingress rule (see `infra/cloudflare/config.example.yml`): `events.neelastack.com -> http://localhost:4002`. Keep the existing rules for the other apps.
-6. Optional first-run seed: `BOOTSTRAP_ENABLED=true` with admin credentials, deploy once, then set it back to `false`.
+6. Fresh production setup: keep `BOOTSTRAP_ENABLED=false`. Temporarily set `INITIAL_ADMIN_SETUP_ENABLED=true` and a unique `INITIAL_ADMIN_SETUP_TOKEN` (32+ random bytes), deploy, then open `https://events.neelastack.com/setup/initial-admin` and create the first administrator/organizer. After successful creation, set `INITIAL_ADMIN_SETUP_ENABLED=false` and redeploy. No sample event is created by this flow.
 7. Optional: `infra/backup/install-cron.sh` for scheduled database backups.
 
 ## Releases

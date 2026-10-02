@@ -2,6 +2,7 @@ package com.neelastack.lakhdatar.service;
 
 import com.neelastack.lakhdatar.domain.*;
 import com.neelastack.lakhdatar.repository.*;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@Tag("integration")
 class CheckInConcurrencyTest extends AbstractPostgresIntegrationTest {
 
     @Autowired CheckInService checkInService;

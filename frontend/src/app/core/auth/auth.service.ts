@@ -36,9 +36,7 @@ export class AuthService {
     if (this.sessionProbe) return this.sessionProbe;
     this.sessionProbe = this.refresh().pipe(
       map(() => true),
-      tap({ error: () => this.clearLocalSession() }),
-      tap(() => undefined),
-      // Convert refresh failure to a deterministic unauthenticated result for route guards.
+      catchError(() => { this.clearLocalSession(); return of(false); }),
       shareReplay({ bufferSize: 1, refCount: false }),
       finalize(() => { this.sessionProbe = undefined; })
     );

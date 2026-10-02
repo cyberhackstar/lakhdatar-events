@@ -16,7 +16,7 @@ public class SecurityConfig {
             .headers(h->h.contentTypeOptions(c->{}).frameOptions(f->f.deny()))
             .authorizeHttpRequests(a->a
                 .requestMatchers("/actuator/health","/actuator/health/**","/actuator/info","/actuator/prometheus").permitAll()
-                .requestMatchers("/api/v1/auth/**","/api/v1/public/**","/api/v1/webhooks/**","/robots.txt","/sitemap.xml").permitAll()
+                .requestMatchers("/api/v1/auth/**","/api/v1/public/**","/api/v1/webhooks/**","/api/v1/setup/**","/robots.txt","/sitemap.xml").permitAll()
                 .requestMatchers("/api/v1/checkin/**","/api/v1/staff/**").hasAnyRole("STAFF","EVENT_MANAGER","ORGANIZER","ADMIN")
                 .requestMatchers("/api/v1/admin/payments/**").hasAnyRole("ADMIN","FINANCE","ORGANIZER")
                 .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN","ORGANIZER","EVENT_MANAGER","FINANCE")
@@ -26,7 +26,7 @@ public class SecurityConfig {
     }
     private CorsConfigurationSource cors(){
         CorsConfiguration c=new CorsConfiguration(); c.setAllowedOrigins(Arrays.stream(props.cors().allowedOrigins().split(",")).map(String::trim).filter(s->!s.isBlank()).toList());
-        c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS")); c.setAllowedHeaders(List.of("Authorization","Content-Type","X-Correlation-ID","X-Ticket-Token")); c.setExposedHeaders(List.of("X-Correlation-ID")); c.setAllowCredentials(true);
+        c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS")); c.setAllowedHeaders(List.of("Authorization","Content-Type","X-Correlation-ID","X-Ticket-Token","X-Initial-Setup-Token")); c.setExposedHeaders(List.of("X-Correlation-ID")); c.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource s=new UrlBasedCorsConfigurationSource(); s.registerCorsConfiguration("/api/**",c); return s;
     }
 }

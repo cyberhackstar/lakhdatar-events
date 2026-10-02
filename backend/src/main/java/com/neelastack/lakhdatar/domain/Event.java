@@ -15,6 +15,7 @@ public class Event {
  private Integer capacity;
  @Enumerated(EnumType.STRING) @Column(nullable=false,length=32) private Enums.EventStatus status=Enums.EventStatus.DRAFT;
  @Column(nullable=false,length=8) private String currency="INR";
+ @Enumerated(EnumType.STRING) @Column(name="payment_provider",nullable=false,length=24) private Enums.PaymentProvider paymentProvider=Enums.PaymentProvider.RAZORPAY;
 
  @Column(name="short_description",length=500) private String shortDescription;
  @Column(nullable=false,length=60) private String category="General";

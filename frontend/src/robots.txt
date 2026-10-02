@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /setup
+Disallow: /admin
+Disallow: /staff
+Disallow: /login
+Disallow: /recover
+Disallow: /checkout
+Disallow: /payment
+Disallow: /ticket
+Sitemap: https://events.neelastack.com/sitemap.xml

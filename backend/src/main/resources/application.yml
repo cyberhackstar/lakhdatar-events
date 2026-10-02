@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}
-    password: ${DB_PASSWORD:change-me}
+    password: ${DB_PASSWORD:lakhdatar}
     hikari:
       maximum-pool-size: ${DB_POOL_MAX:20}
       minimum-idle: ${DB_POOL_MIN:5}
@@ -23,6 +23,7 @@ spring:
   data:
     redis:
       url: ${REDIS_URL:redis://localhost:6379}
+      password: ${REDIS_PASSWORD:}
   flyway:
     enabled: true
     baseline-on-migrate: false
@@ -30,6 +31,10 @@ spring:
   jackson:
     default-property-inclusion: non_null
     time-zone: UTC
+  servlet:
+    multipart:
+      max-file-size: ${CLOUDINARY_MAX_BYTES:5242880}
+      max-request-size: ${CLOUDINARY_MAX_REQUEST_BYTES:7340032}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -50,9 +55,15 @@ management:
       probes:
         enabled: true
       show-details: never
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,redis
   metrics:
     tags:
       application: ${spring.application.name}
+      instance: ${HOSTNAME:unknown}
     distribution:
       percentiles-histogram:
         http.server.requests: true
@@ -66,10 +77,12 @@ app:
     refresh-token: ${JWT_REFRESH_TOKEN:14d}
   security:
     ticket-view-secret: ${TICKET_VIEW_SECRET:replace-with-a-long-random-secret-at-least-32-bytes}
+    ticket-view-previous-secret: ${TICKET_VIEW_SECRET_PREVIOUS:}
     refresh-cookie-secure: ${AUTH_COOKIE_SECURE:false}
     ticket-view-ttl: ${TICKET_VIEW_TTL:24h}
   qr:
     signing-secret: ${QR_SIGNING_SECRET:replace-with-a-long-random-secret-at-least-32-bytes}
+    previous-signing-secret: ${QR_SIGNING_SECRET_PREVIOUS:}
     image-size: ${QR_IMAGE_SIZE:512}
   reservation:
     hold: ${RESERVATION_HOLD:12m}
@@ -86,6 +99,29 @@ app:
     order-recovery-sweep: ${PAYMENT_ORDER_RECOVERY_SWEEP:30000}
     http-connect-timeout-ms: ${RAZORPAY_CONNECT_TIMEOUT_MS:3000}
     http-read-timeout-ms: ${RAZORPAY_READ_TIMEOUT_MS:8000}
+  cashfree:
+    base-url: ${CASHFREE_BASE_URL:https://api.cashfree.com/pg}
+    app-id: ${CASHFREE_APP_ID:}
+    secret-key: ${CASHFREE_SECRET_KEY:}
+    webhook-secret: ${CASHFREE_WEBHOOK_SECRET:}
+    api-version: ${CASHFREE_API_VERSION:2025-01-01}
+    reconciliation-age-ms: ${CASHFREE_RECONCILIATION_AGE_MS:120000}
+    reconciliation-sweep-ms: ${CASHFREE_RECONCILIATION_SWEEP:30000}
+    http-connect-timeout-ms: ${CASHFREE_CONNECT_TIMEOUT_MS:3000}
+    http-read-timeout-ms: ${CASHFREE_READ_TIMEOUT_MS:8000}
+    webhook-tolerance-ms: ${CASHFREE_WEBHOOK_TOLERANCE_MS:300000}
+  payment:
+    reconciliation-age-ms: ${PAYMENT_RECONCILIATION_AGE_MS:120000}
+    reconciliation-sweep-ms: ${PAYMENT_RECONCILIATION_SWEEP:30000}
+  initial-admin:
+    enabled: ${INITIAL_ADMIN_SETUP_ENABLED:false}
+    setup-token: ${INITIAL_ADMIN_SETUP_TOKEN:}
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    api-key: ${CLOUDINARY_API_KEY:}
+    api-secret: ${CLOUDINARY_API_SECRET:}
+    folder: ${CLOUDINARY_FOLDER:neelastack-events}
+    max-bytes: ${CLOUDINARY_MAX_BYTES:5242880}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
   rate-limit:
@@ -93,15 +129,17 @@ app:
     public-checkout-per-window: ${CHECKOUT_RATE_LIMIT_PER_WINDOW:20}
     scan-per-minute: ${CHECKIN_RATE_LIMIT_PER_MINUTE:240}
     window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+    fail-closed-on-redis-error: ${RATE_LIMIT_FAIL_CLOSED:true}
   checkout:
     max-tickets-per-order: ${MAX_TICKETS_PER_ORDER:20}
+    session-ttl: ${CHECKOUT_SESSION_TTL:20m}
   checkin:
     early-window: ${CHECKIN_EARLY_WINDOW:30m}
   branding:
     neelastack-name: ${NEELASTACK_NAME:Neelastack}
     neelastack-public-url: ${NEELASTACK_PUBLIC_URL:https://neelastack.com}
     neelastack-logo-url: ${NEELASTACK_LOGO_URL:/assets/neelastack-logo.svg}
-    default-organizer-logo-url: ${DEFAULT_ORGANIZER_LOGO_URL:/assets/lakhdatar-logo.svg}
+    default-organizer-logo-url: ${DEFAULT_ORGANIZER_LOGO_URL:/assets/neelastack_logo_dark_theme.png}
     promo-enabled: ${NEELASTACK_PROMO_ENABLED:true}
     promo-title: ${NEELASTACK_PROMO_TITLE:Powered by Neelastack}
     promo-description: ${NEELASTACK_PROMO_DESCRIPTION:Build modern digital experiences for your business.}
@@ -124,7 +162,7 @@ app:
 
 logging:
   pattern:
-    level: "%5p [%X{correlationId:-}]"
+    level: "%5p [%X{correlationId:-}] [ip=%X{clientIp:-}]"
   level:
     root: INFO
     com.neelastack.lakhdatar: INFO

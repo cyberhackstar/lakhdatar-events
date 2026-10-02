@@ -8,6 +8,7 @@ import com.neelastack.lakhdatar.repository.EventRepository;
 import com.neelastack.lakhdatar.repository.OrganizerRepository;
 import com.neelastack.lakhdatar.repository.TicketReservationRepository;
 import com.neelastack.lakhdatar.repository.TicketTypeRepository;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@Tag("integration")
 class TicketReservationConcurrencyTest extends AbstractPostgresIntegrationTest {
 
     @Autowired private TicketReservationService service;

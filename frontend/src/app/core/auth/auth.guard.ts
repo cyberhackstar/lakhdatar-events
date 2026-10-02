@@ -18,7 +18,7 @@ export const adminGuard: CanActivateFn = (_route, state) => {
   return auth.ensureSession().pipe(
     map(ok => {
       const role = auth.role();
-      return ok && ['ADMIN','ORGANIZER','EVENT_MANAGER','FINANCE','SUPPORT'].includes(role || '')
+      return ok && ['ADMIN','ORGANIZER','EVENT_MANAGER','FINANCE'].includes(role || '')
         ? true
         : router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
     }),

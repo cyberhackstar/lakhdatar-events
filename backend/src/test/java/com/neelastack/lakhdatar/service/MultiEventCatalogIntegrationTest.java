@@ -3,6 +3,7 @@ package com.neelastack.lakhdatar.service;
 import com.neelastack.lakhdatar.domain.*;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.*;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -13,6 +14,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Event isolation, visibility and catalogue filtering against a real PostgreSQL. */
+@Tag("integration")
 class MultiEventCatalogIntegrationTest extends AbstractPostgresIntegrationTest {
 
     @Autowired private PublicEventService publicEvents;

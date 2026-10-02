@@ -1,51 +1,32 @@
-# Lakhdatar Events — Final Enterprise Production Release Audit
+# Final Production Audit — v1.9.7
 
-Release: **1.0.13**
+## User-reported failure addressed
 
-## Merge source
+The user-side v1.9.6 full `mvn -B -ntp clean verify` run compiled 102 production Java classes and 33 test classes. All tests reached execution and the Spring contexts started successfully. The sole remaining test error was `CheckInConcurrencyTest.exactlyOneAcceptedUnderConcurrentScans`, which failed with `ApiException: Too many scan requests`.
 
-This release combines:
-- the newer 1.0.12 baseline and its security/build hardening; and
-- the previously verified 1.0.11 fix for the Windows/OneDrive Maven classpath failure involving `ProviderOrderRecoveryJob.class`.
+## Root cause
 
-## Included hardening
+`AbstractPostgresIntegrationTest` intentionally does not provide Redis and documents that `RateLimitService` should fall back to its bounded in-memory limiter. However, the integration test inherited the production setting `app.rate-limit.fail-closed-on-redis-error=true`. With Redis unavailable, every scan correctly failed closed before the concurrency test could exercise ticket row locking.
 
-- Refresh-token reuse revocation is committed with `@Transactional(noRollbackFor = ApiException.class)`.
-- Login performs one BCrypt comparison even when an account is absent, reducing account-enumeration timing differences.
-- Razorpay webhook authorization updates are protected by a payment row lock and terminal-state guard.
-- Production startup rejects default/short database and application secrets and requires HTTPS production origins/URLs.
-- New-ticket and new-ticket-type JPA version fields remain null until persistence so Spring Data selects `persist()` rather than `merge()` for new entities.
-- PostgreSQL/Testcontainers integration tests share infrastructure and Surefire test JVM memory is bounded.
-- Frontend dependency installation uses the committed `package-lock.json` with `npm ci` in CI and Docker builds.
-- ARM64 OCI images and immutable Git-SHA deployment are retained.
-- Database backup, health-gated deployment, and image rollback scripts are retained.
-- Nginx server fingerprinting is disabled with `server_tokens off`.
+## v1.9.7 correction
 
-## Regression fix in 1.0.13
+- Added an integration-test-only dynamic property: `app.rate-limit.fail-closed-on-redis-error=false`.
+- Kept production `RATE_LIMIT_FAIL_CLOSED=true` unchanged.
+- No production authorization, inventory, payment or rate-limit policy was weakened.
+- Existing Redis timeout reductions remain in place for integration tests.
+- Release metadata bumped to 1.9.7 without changing third-party dependency versions.
 
-`ProviderOrderRecoveryJob` is no longer a standalone Spring component. Its scheduled provider-order recovery sweep is hosted directly by `OrderService`, preserving the recovery behavior while eliminating the class boundary that produced the observed missing-class failure during Spring configuration scanning on the Windows/OneDrive workspace.
+## Validation performed in this environment
 
-A dedicated contract test asserts that the scheduler remains on `OrderService` and the standalone class does not return.
+- Baseline verifier: PASS.
+- Production Java files: 102.
+- Test Java files: 33.
+- POM/frontend JSON parsing: PASS.
+- Flyway sequence: V1..V17.
+- Package-lock semantic diff vs v1.9.6: only `/version` and `/packages//version`.
+- No secret-like patterns detected by release scan.
+- Archive hygiene/integrity checks prepared for final package.
 
-## Validation performed in the build sandbox
+## Runtime/build boundary
 
-- Java parser validation: **82 production Java files + 18 test Java files, 0 parse errors**.
-- Maven `pom.xml`: XML parse successful.
-- Frontend `package.json` / `package-lock.json`: JSON parse successful.
-- Spring and Docker Compose YAML: parse successful.
-- Deployment/backup shell scripts: `bash -n` successful.
-- Release version consistency: `VERSION`, Maven, frontend package manifest, and lockfile all report **1.0.13**.
-- No `.env`, backend `target`, frontend `node_modules`, `.class`, or `.jar` build artifacts are included.
-
-## External verification still required before live cutover
-
-A dependency-resolved `mvn -B -ntp clean verify` was not executable in this sandbox because Maven binaries/dependencies could not be downloaded. The repository's 1.0.12 release notes record the frontend production build as verified and the backend sources as syntax-checked; 1.0.13 changes the backend recovery placement plus version/docs/Nginx/deployment metadata.
-
-Before production cutover, run:
-
-```bash
-cd backend
-mvn -B -ntp clean verify
-```
-
-Then deploy the ARM64 images through GitHub Actions or the documented immutable-SHA deployment script and complete the payment/check-in/rollback smoke tests in the production environment.
+The user's Windows Maven/Testcontainers output is authoritative for dependency-backed runtime tests. This audit environment does not provide Docker/Maven execution, so the final `clean verify` result must be confirmed on the user's machine/CI.

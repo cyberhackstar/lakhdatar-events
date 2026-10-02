@@ -18,6 +18,7 @@ public class RateLimitService {
             "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]) end; return n", Long.class);
     private final StringRedisTemplate redis;
     private final Map<String,Bucket> local=new ConcurrentHashMap<>();
+    private final com.neelastack.lakhdatar.config.AppProperties props;
 
     public boolean allow(String key,int limit,Duration window){
         String normalized = key == null ? "unknown" : key.trim();
@@ -28,6 +29,7 @@ public class RateLimitService {
             Long n=redis.execute(RATE_SCRIPT, java.util.List.of(k), String.valueOf(Math.max(1, window.toMillis())));
             return n!=null && n<=limit;
         }catch(Exception ignored){
+            if (props.rateLimit().failClosedOnRedisError()) return false;
             String localKey = sha256(normalized);
             long now=System.nanoTime();
             if(local.size()>=MAX_LOCAL_KEYS && !local.containsKey(localKey)) {

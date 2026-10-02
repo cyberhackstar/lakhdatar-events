@@ -36,11 +36,11 @@ if (!pom.includes('<testcontainers.version>1.21.4</testcontainers.version>')) pr
 if (!pom.includes('<artifactId>spring-boot-starter-webmvc</artifactId>')) problems.push('Spring MVC starter mismatch');
 if (!pom.includes('<artifactId>spring-boot-jackson2</artifactId>')) problems.push('Jackson2 starter missing');
 if (!pom.includes('<postgresql.version>42.7.12</postgresql.version>')) problems.push('PostgreSQL driver baseline mismatch');
-if (version !== '1.5.1' || pkg.version !== '1.5.1' || !pom.includes('<artifactId>lakhdatar-events</artifactId>\n  <version>1.5.1</version>')) problems.push('release version mismatch');
+if (version !== '1.9.7' || pkg.version !== '1.9.7' || !pom.includes('<artifactId>lakhdatar-events</artifactId>\n  <version>1.9.7</version>')) problems.push('release version mismatch');
 if (angular.projects?.['lakhdatar-events-frontend']?.architect?.build?.builder !== '@angular/build:application') problems.push('Angular application builder mismatch');
 if (!styles.includes('input,select,textarea{font-size:16px') && !styles.includes('input, select, textarea { font-size: 16px')) problems.push('iOS input zoom guard missing');
 if (!index.includes('name="viewport"') || !index.includes('width=device-width')) problems.push('viewport metadata missing');
-if (!dockerfile.includes('node:22-alpine3.24')) problems.push('frontend Docker Node baseline mismatch');
-if (!ci.includes("node-version: '22'")) problems.push('CI Node baseline mismatch');
+if (!dockerfile.includes('node:24-alpine3.22')) problems.push('frontend Docker Node baseline mismatch');
+if (!ci.includes("node-version: '24'")) problems.push('CI Node baseline mismatch');
 if (problems.length) { console.error('Neelastack baseline verification FAILED:'); for (const p of problems) console.error(`- ${p}`); process.exit(1); }
 console.log('Neelastack stability baseline: PASS');

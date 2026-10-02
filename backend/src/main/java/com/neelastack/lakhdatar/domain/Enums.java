@@ -2,6 +2,7 @@ package com.neelastack.lakhdatar.domain;
 
 public final class Enums {
     private Enums() {}
+    public enum PaymentProvider { RAZORPAY, CASHFREE }
     public enum UserRole { ADMIN, ORGANIZER, EVENT_MANAGER, STAFF, FINANCE, SUPPORT, CUSTOMER }
     public enum EventStatus { DRAFT, PUBLISHED, UNPUBLISHED, CANCELLED, COMPLETED, ARCHIVED }
     public enum TicketTypeStatus { ACTIVE, PAUSED, CLOSED }

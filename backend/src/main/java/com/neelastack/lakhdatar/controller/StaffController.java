@@ -40,16 +40,21 @@ public class StaffController {
             return out;
         }
         if ("ORGANIZER".equals(p.role())) {
-            for (Event e : events.findAllByOrderByStartsAtDesc()) {
-                if (members.findByOrganizerIdAndUserId(e.getOrganizerId(), p.userId())
-                        .map(m -> "OWNER".equalsIgnoreCase(m.getRole()) || "ORGANIZER".equalsIgnoreCase(m.getRole()))
-                        .orElse(false)) add(out, e, "All gates");
-            }
+            List<Long> organizerIds=members.findByUserId(p.userId()).stream()
+                    .filter(m -> "OWNER".equalsIgnoreCase(m.getRole()) || "ORGANIZER".equalsIgnoreCase(m.getRole()))
+                    .map(com.neelastack.lakhdatar.domain.OrganizerMember::getOrganizerId).toList();
+            addEvents(out, events.findByOrganizerIdInOrderByStartsAtDesc(organizerIds), "All gates");
             return out;
         }
-        for (EventStaff s : staff.findByUserIdOrderByEventIdDesc(p.userId())) {
-            Event e = events.findById(s.getEventId()).orElse(null);
-            if (e != null) add(out, e, s.getGate());
+        List<EventStaff> assignments=staff.findByUserIdOrderByEventIdDesc(p.userId());
+        Map<Long,Event> eventsById=events.findAllById(assignments.stream().map(EventStaff::getEventId).toList()).stream()
+                .collect(java.util.stream.Collectors.toMap(Event::getId,java.util.function.Function.identity()));
+        Set<Long> organizerIds=eventsById.values().stream().map(Event::getOrganizerId).collect(java.util.stream.Collectors.toSet());
+        Map<Long,com.neelastack.lakhdatar.domain.Organizer> organizersById=organizers.findAllById(organizerIds).stream()
+                .collect(java.util.stream.Collectors.toMap(com.neelastack.lakhdatar.domain.Organizer::getId,java.util.function.Function.identity()));
+        for (EventStaff assignment : assignments) {
+            Event e=eventsById.get(assignment.getEventId());
+            if (e != null) add(out, e, assignment.getGate(), organizersById.get(e.getOrganizerId()));
         }
         return out;
     }
@@ -60,6 +65,10 @@ public class StaffController {
 
     private void add(List<StaffEvent> out, Event e, String gate) {
         var o = organizers.findById(e.getOrganizerId()).orElse(null);
+        add(out,e,gate,o);
+    }
+
+    private void add(List<StaffEvent> out, Event e, String gate, com.neelastack.lakhdatar.domain.Organizer o) {
         out.add(new StaffEvent(e.getPublicId(), e.getName(), e.getSlug(),
                 gate == null ? "All gates" : gate,
                 e.getStatus().name(), e.getStartsAt(), o == null ? "" : o.getName()));

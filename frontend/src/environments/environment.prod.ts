@@ -5,5 +5,6 @@ export const environment = {
   siteUrl: 'https://events.neelastack.com',
   platformName: 'Neelastack Events',
   neelastackPublicUrl: 'https://neelastack.com',
-  razorpayCheckoutUrl: 'https://checkout.razorpay.com/v1/checkout.js'
+  razorpayCheckoutUrl: 'https://checkout.razorpay.com/v1/checkout.js',
+  cashfreeCheckoutUrl: 'https://sdk.cashfree.com/js/v3/cashfree.js'
 };

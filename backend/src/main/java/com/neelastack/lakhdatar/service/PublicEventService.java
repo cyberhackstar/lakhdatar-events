@@ -62,7 +62,7 @@ public class PublicEventService {
                             List<String> gallery, List<String> highlights, Instant bookingStartsAt, Instant bookingEndsAt,
                             String terms, String refundPolicy, String ageRestriction, String city, String state,
                             String country, String mapUrl, boolean featured, String status, String salesState,
-                            Long startingPriceMinor, OrganizerView organizer) {}
+                            Long startingPriceMinor, OrganizerView organizer, String paymentProvider) {}
 
     public record EventCard(UUID id, String slug, String name, String shortDescription, String category,
                             String coverImageUrl, Instant startsAt, Instant endsAt, String timezone, String venueName,
@@ -180,7 +180,7 @@ public class PublicEventService {
                 e.getTerms() != null ? e.getTerms() : (o == null ? null : o.getTerms()), e.getRefundPolicy(), e.getAgeRestriction(),
                 v == null ? null : v.getCity(), v == null ? null : v.getState(), v == null ? null : v.getCountry(),
                 v == null ? null : v.getMapUrl(), e.isFeatured(), e.getStatus().name(),
-                salesState(e, hasOnSale, onSaleAvailable, total, now), minPrice, ov);
+                salesState(e, hasOnSale, onSaleAvailable, total, now), minPrice, ov, e.getPaymentProvider().name());
     }
 
     // ------------------------------------------------------------------ helpers

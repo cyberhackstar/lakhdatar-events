@@ -46,8 +46,8 @@ export class ApiService {
     items: Array<{ ticketTypeId: string; quantity: number }>;
   }) { return this.http.post<CheckoutResponse>(`${this.base}/public/checkout`, body); }
 
-  verifyPayment(body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) {
-    return this.http.post<VerifyResponse>(`${this.base}/public/checkout/verify`, body);
+  verifyPayment(body: { providerOrderId: string; providerPaymentId?: string; providerSignature?: string }) {
+    return this.http.post<VerifyResponse>(`${this.base}/public/checkout/verify`, body, { withCredentials: true });
   }
 
   recover(body: { orderNumber: string; email: string }) {
@@ -56,6 +56,18 @@ export class ApiService {
 
   ticket(ticketId: string, token: string) {
     return this.http.get<TicketView>(`${this.base}/public/tickets/${encodeURIComponent(ticketId)}`, { headers: { 'X-Ticket-Token': token } });
+  }
+
+
+  uploadAdminAsset(file: File, purpose: 'ORGANIZER_LOGO' | 'EVENT_LOGO' | 'EVENT_BANNER' | 'EVENT_COVER', eventId?: string, organizerSlug?: string) {
+    const form = new FormData(); form.append('file', file);
+    let params: Record<string, string> = { purpose }; if (eventId) params.eventId = eventId; if (organizerSlug) params.organizerSlug = organizerSlug;
+    return this.http.post<import('./api.models').AssetUploadResult>(`${this.base}/admin/assets/images`, form, { params });
+  }
+
+  initialAdminSetupStatus() { return this.http.get<import('./api.models').InitialAdminSetupStatus>(`${this.base}/setup/initial-admin/status`, { headers: { 'Cache-Control': 'no-store' } }); }
+  createInitialAdmin(body: { email: string; password: string; name: string; organizerName: string; organizerSlug: string }, token: string) {
+    return this.http.post<import('./api.models').InitialAdminSetupResult>(`${this.base}/setup/initial-admin`, body, { headers: { 'X-Initial-Setup-Token': token, 'Cache-Control': 'no-store' } });
   }
 
   createEvent(body: Record<string, unknown>) {

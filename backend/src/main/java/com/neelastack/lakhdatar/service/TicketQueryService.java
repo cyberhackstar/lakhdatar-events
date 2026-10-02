@@ -42,6 +42,9 @@ public class TicketQueryService {
         Venue v = e.getVenueId() == null ? null : venues.findById(e.getVenueId()).orElse(null);
         String address = v == null ? null : ((v.getAddress() == null ? "" : v.getAddress() + ", ") + (v.getCity() == null ? "" : v.getCity()));
 
+        if (t.getStatus()==Enums.TicketStatus.CANCELLED || t.getStatus()==Enums.TicketStatus.REFUNDED) {
+            throw new ApiException(HttpStatus.GONE,"TICKET_CLOSED","This ticket is no longer active");
+        }
         String displayStatus = t.getStatus().name();
         if (e.getStatus() == Enums.EventStatus.CANCELLED && t.getStatus() != Enums.TicketStatus.REFUNDED) {
             // Never tell a customer that an event-cancelled ticket is still valid.

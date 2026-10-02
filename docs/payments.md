@@ -1,39 +1,25 @@
-# Payment lifecycle
+# Payment Gateway Architecture
 
-## Local states
+Neelastack owns the payment orchestration layer. An event can select `RAZORPAY` or `CASHFREE`; the customer sees the selected provider's hosted checkout. Provider credentials remain server-side in the VM environment and are never exposed to Angular.
 
-```text
-CREATED → PENDING → CAPTURED → COMPLETED
+## Security contract
 
-PENDING → FAILED
-PENDING → CANCELLED
-COMPLETED → REFUND_PENDING → REFUNDED
-```
+1. The backend calculates the authoritative amount from ticket inventory.
+2. The backend creates the provider order/session.
+3. The browser receives only a provider order/session identifier and public checkout key where required.
+4. Razorpay browser responses require HMAC verification plus a server-side provider status fetch.
+5. Cashfree redirect completion is verified by querying the Cashfree order payments API; client redirect parameters are not trusted as proof of payment.
+6. Provider webhooks are signature-verified and idempotently persisted before processing.
+7. Ticket fulfillment occurs only after a captured/successful provider payment matches the local amount and currency.
+8. Refunds are queued and recovered asynchronously through the selected provider adapter.
+9. An event's provider cannot be changed after payment activity exists.
 
-## Checkout verification
+## Environment
 
-The browser provides `razorpay_order_id`, `razorpay_payment_id` and `razorpay_signature` to the backend. The backend:
+Configure only the provider credentials that are actually enabled. Use strong, private production secrets and keep them outside Git.
 
-1. finds the local payment by Razorpay order ID
-2. verifies the HMAC signature
-3. fetches the provider payment
-4. checks provider order ID, amount and currency
-5. requires provider status `captured`
-6. records the provider payment ID
-7. transactionally confirms the order and issues tickets
+- Razorpay: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`.
+- Cashfree: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_WEBHOOK_SECRET`.
 
-## Webhooks
-
-`POST /api/v1/webhooks/razorpay` verifies the Razorpay webhook signature over the raw body. The event body is persisted before business processing. Duplicate bodies are rejected as already seen, allowing safe webhook redelivery.
-
-## Reconciliation
-
-A scheduled sweep asks Razorpay for payments attached to old local `PENDING`/related states. A matching captured payment is reconciled into the local order and ticket flow.
-
-## Operational rule
-
-Never mark an order successful solely because Angular received a checkout callback. Never issue a ticket for an unverified provider state.
-
-
-## Webhook delivery semantics
-Razorpay webhook delivery is treated as at-least-once and may be duplicated or arrive out of order. The backend persists provider event IDs, atomically claims webhook work, and releases failed claims so provider retries can recover incomplete processing.
+Cashfree webhook endpoint: `/api/v1/webhooks/cashfree`; Cashfree orders also set the public `notify_url` to this endpoint and return to `/payment/success` for server-side verification.
+Razorpay webhook endpoint: `/api/v1/webhooks/razorpay`.

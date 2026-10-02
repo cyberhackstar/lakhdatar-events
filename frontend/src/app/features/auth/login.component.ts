@@ -53,7 +53,7 @@ export class LoginComponent {
         if (returnUrl) { this.router.navigateByUrl(returnUrl, { replaceUrl: true }); return; }
         if (r.role === 'STAFF') {
           this.router.navigateByUrl('/staff', { replaceUrl: true });
-        } else if (['ADMIN','ORGANIZER','EVENT_MANAGER','FINANCE','SUPPORT'].includes(r.role)) {
+        } else if (['ADMIN','ORGANIZER','EVENT_MANAGER','FINANCE'].includes(r.role)) {
           this.router.navigateByUrl('/admin', { replaceUrl: true });
         } else {
           this.router.navigateByUrl('/', { replaceUrl: true });

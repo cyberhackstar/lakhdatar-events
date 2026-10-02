@@ -1,12 +1,12 @@
-# Angular SSR web server. Node 22 matches the Neelastack frontend runtime baseline.
-FROM node:22-alpine3.24 AS build
+# Angular SSR web server. Node 24 LTS is the production runtime baseline.
+FROM node:24-alpine3.22 AS build
 WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build && npm prune --omit=dev --no-audit --no-fund
 
-FROM node:22-alpine3.24
+FROM node:24-alpine3.22
 ENV NODE_ENV=production PORT=3000 SSR_API_BASE_URL=http://backend:8080/api/v1
 WORKDIR /app
 COPY --from=build /build/dist/frontend ./dist/frontend

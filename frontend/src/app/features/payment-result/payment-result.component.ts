@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
+import { ApiService } from '../../core/api/api.service';
 import { VerifyResponse } from '../../core/api/api.models';
 import { BookingStoreService } from '../../shared/booking-store.service';
 
@@ -50,10 +51,14 @@ import { BookingStoreService } from '../../shared/booking-store.service';
 export class PaymentResultComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly booking = inject(BookingStoreService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly api = inject(ApiService);
   result?: VerifyResponse;
   copied = false;
 
   ngOnInit(): void {
+    const orderId = this.route.snapshot.queryParamMap.get('order_id');
+    if (orderId) { this.api.verifyPayment({ providerOrderId: orderId, providerPaymentId: undefined, providerSignature: undefined }).subscribe({ next: r => { this.result=r; this.booking.setPaymentResult(r); this.booking.clear(); }, error: () => this.router.navigateByUrl('/recover', { replaceUrl: true }) }); return; }
     this.result = this.booking.getPaymentResult() || (history.state?.result as VerifyResponse | undefined);
     if (!this.result) {
       this.router.navigateByUrl('/recover', { replaceUrl: true });

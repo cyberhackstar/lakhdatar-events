@@ -63,6 +63,7 @@ export interface EventView {
   salesState?: SalesState;
   startingPriceMinor?: number | null;
   organizer?: OrganizerView | null;
+  paymentProvider?: 'RAZORPAY' | 'CASHFREE';
 }
 
 export interface EventCard {
@@ -99,8 +100,12 @@ export interface EventQuery {
 export interface CheckoutResponse {
   orderPublicId: string;
   orderNumber: string;
-  razorpayOrderId: string;
-  razorpayKeyId: string;
+  provider: 'RAZORPAY' | 'CASHFREE';
+  providerOrderId: string;
+  providerPublicKey?: string;
+  providerSessionId?: string;
+  razorpayOrderId?: string;
+  razorpayKeyId?: string;
   amountMinorUnits: number;
   currency: string;
   reservationExpiresAt: string;
@@ -161,7 +166,7 @@ export interface AdminEventView {
   venueName?: string; venueAddress?: string; city?: string; state?: string; mapUrl?: string; coverImageUrl?: string;
   gallery: string[]; highlights: string[]; bookingStartsAt?: string; bookingEndsAt?: string; terms?: string;
   refundPolicy?: string; ageRestriction?: string; featured: boolean; displayOrder: number; status: string;
-  organizerName: string; organizerSlug?: string; ticketTypes: AdminTicketView[];
+  organizerName: string; organizerSlug?: string; paymentProvider: 'RAZORPAY' | 'CASHFREE'; brandingMode: 'TEXT_ONLY' | 'LOGO_ONLY' | 'BOTH'; organizerLogoUrl?: string; eventLogoUrl?: string; eventBannerUrl?: string; ticketTypes: AdminTicketView[];
 }
 
 export interface Dashboard {
@@ -212,3 +217,7 @@ export interface ScanResponse {
   ticketSource: string | null;
   issuedByName: string | null;
 }
+
+export interface InitialAdminSetupStatus { enabled: boolean; completed: boolean; }
+export interface InitialAdminSetupResult { email: string; organizerSlug: string; }
+export interface AssetUploadResult { secureUrl: string; publicId: string; purpose: 'ORGANIZER_LOGO' | 'EVENT_LOGO' | 'EVENT_BANNER' | 'EVENT_COVER'; }

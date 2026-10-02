@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -26,14 +27,17 @@ public class EventManagementService {
     private final TicketTypeRepository ticketTypes;
     private final AuditService audit;
     private final AppProperties props;
+    private final PaymentRepository payments;
+    private final PaymentGatewayRouter paymentGateways;
 
     public record CreateTicketType(String name, String description, long priceMinorUnits, int totalQuantity,
                                    int minPerOrder, int maxPerOrder, Instant saleStartsAt, Instant saleEndsAt) {}
     public record CreateEventRequest(String organizerSlug, String slug, String name, String description, Instant startsAt,
                                      Instant endsAt, Integer capacity, String venueName, String venueAddress, String city,
-                                     String organizerLogoUrl, String eventLogoUrl, String eventBannerUrl,
+                                     String organizerLogoUrl, String eventLogoUrl, String eventBannerUrl, String brandingMode,
                                      String primaryBrandColor, String secondaryBrandColor, String technologyPartnerUrl,
                                      List<CreateTicketType> ticketTypes,
+                                     String paymentProvider,
                                      String shortDescription, String category, String timezone, String coverImageUrl,
                                      List<String> galleryUrls, List<String> highlights, Instant bookingStartsAt,
                                      Instant bookingEndsAt, String terms, String refundPolicy, String ageRestriction,
@@ -43,7 +47,7 @@ public class EventManagementService {
                                      String state, String mapUrl, String coverImageUrl, List<String> galleryUrls,
                                      List<String> highlights, Instant bookingStartsAt, Instant bookingEndsAt, String terms,
                                      String refundPolicy, String ageRestriction, Boolean featured, Integer displayOrder,
-                                     Boolean clearEndsAt, Boolean clearBookingStartsAt, Boolean clearBookingEndsAt) {}
+                                     Boolean clearEndsAt, Boolean clearBookingStartsAt, Boolean clearBookingEndsAt, String paymentProvider, String organizerLogoUrl, String eventLogoUrl, String eventBannerUrl, String brandingMode) {}
     public record UpdateTicketType(String name, String description, Long priceMinorUnits, Integer totalQuantity,
                                    Integer minPerOrder, Integer maxPerOrder, Instant saleStartsAt, Instant saleEndsAt, String status,
                                    Boolean clearSaleStartsAt, Boolean clearSaleEndsAt) {}
@@ -57,7 +61,7 @@ public class EventManagementService {
                                  String mapUrl, String coverImageUrl, List<String> gallery, List<String> highlights,
                                  Instant bookingStartsAt, Instant bookingEndsAt, String terms, String refundPolicy,
                                  String ageRestriction, boolean featured, int displayOrder, String status,
-                                 String organizerName, String organizerSlug, List<AdminTicketView> ticketTypes) {}
+                                 String organizerName, String organizerSlug, String paymentProvider, String brandingMode, String organizerLogoUrl, String eventLogoUrl, String eventBannerUrl, List<AdminTicketView> ticketTypes) {}
 
     /** Slugs that would collide with fixed catalogue routes (/events/featured etc). */
     private static final java.util.Set<String> RESERVED_SLUGS = java.util.Set.of("featured", "upcoming", "search", "facets", "new", "admin");
@@ -106,6 +110,7 @@ public class EventManagementService {
         b.setScope("EVENT"); b.setOrganizerId(o.getId()); b.setOrganizerName(o.getName());
         b.setOrganizerLogoUrl(value(r.organizerLogoUrl(), o.getLogoUrl() != null ? o.getLogoUrl() : props.branding().defaultOrganizerLogoUrl()));
         b.setEventLogoUrl(r.eventLogoUrl()); b.setEventBannerUrl(r.eventBannerUrl());
+        b.setBrandingMode(parseBrandingMode(r.brandingMode()));
         b.setPrimaryBrandColor(value(r.primaryBrandColor(), "#D9A441")); b.setSecondaryBrandColor(value(r.secondaryBrandColor(), "#7A1F3D"));
         b.setTechnologyPartnerEnabled(true); b.setTechnologyPartnerName(props.branding().neelastackName());
         b.setTechnologyPartnerLogoUrl(props.branding().neelastackLogoUrl());
@@ -120,6 +125,8 @@ public class EventManagementService {
         e.setSlug(r.slug()); e.setName(r.name().trim()); e.setDescription(r.description()); e.setStartsAt(r.startsAt()); e.setEndsAt(r.endsAt());
         e.setCapacity(r.capacity()); e.setOrganizerId(o.getId()); e.setVenueId(v.getId()); e.setBrandConfigId(b.getId());
         e.setStatus(Enums.EventStatus.DRAFT); e.setCurrency("INR");
+        e.setPaymentProvider(parsePaymentProvider(r.paymentProvider()));
+        paymentGateways.requireConfigured(e.getPaymentProvider());
         e.setShortDescription(r.shortDescription()); e.setCategory(value(r.category(), "General").trim());
         e.setTimezone(value(r.timezone(), "Asia/Kolkata")); e.setCoverImageUrl(r.coverImageUrl());
         e.setGalleryUrls(join(r.galleryUrls())); e.setHighlights(join(r.highlights()));
@@ -179,7 +186,8 @@ public class EventManagementService {
                 v == null ? null : v.getState(), v == null ? null : v.getMapUrl(), e.getCoverImageUrl(), gallery, highlights,
                 e.getBookingStartsAt(), e.getBookingEndsAt(), e.getTerms(), e.getRefundPolicy(), e.getAgeRestriction(),
                 e.isFeatured(), e.getDisplayOrder(), e.getStatus().name(), o == null ? "Event organizer" : o.getName(),
-                o == null ? null : o.getSlug(), tv);
+                o == null ? null : o.getSlug(), e.getPaymentProvider().name(),
+                bFor(e).getBrandingMode(), bFor(e).getOrganizerLogoUrl(), bFor(e).getEventLogoUrl(), bFor(e).getEventBannerUrl(), tv);
     }
 
     @Transactional
@@ -250,6 +258,15 @@ public class EventManagementService {
         if (r.ageRestriction() != null) e.setAgeRestriction(r.ageRestriction());
         if (r.featured() != null) e.setFeatured(r.featured());
         if (r.displayOrder() != null) e.setDisplayOrder(r.displayOrder());
+        BrandConfiguration brand = e.getBrandConfigId() == null ? null : brands.findById(e.getBrandConfigId()).orElse(null);
+        if (brand != null) {
+            if (r.organizerLogoUrl() != null) { validateAssetUrl(r.organizerLogoUrl(), "organizer logo"); brand.setOrganizerLogoUrl(r.organizerLogoUrl().isBlank() ? null : r.organizerLogoUrl()); }
+            if (r.eventLogoUrl() != null) { validateAssetUrl(r.eventLogoUrl(), "event logo"); brand.setEventLogoUrl(r.eventLogoUrl().isBlank() ? null : r.eventLogoUrl()); }
+            if (r.eventBannerUrl() != null) { validateAssetUrl(r.eventBannerUrl(), "event banner"); brand.setEventBannerUrl(r.eventBannerUrl().isBlank() ? null : r.eventBannerUrl()); }
+            if (r.brandingMode() != null) brand.setBrandingMode(parseBrandingMode(r.brandingMode()));
+            brands.save(brand);
+        }
+        if (r.paymentProvider() != null) { Enums.PaymentProvider next=parsePaymentProvider(r.paymentProvider()); paymentGateways.requireConfigured(next); if (next != e.getPaymentProvider()) { require(e.getStatus()==Enums.EventStatus.DRAFT || paymentsForEvent(e.getId())==0, "Payment provider cannot be changed after payment activity exists"); e.setPaymentProvider(next); } }
         if (e.getVenueId() != null && (r.venueName() != null || r.venueAddress() != null || r.city() != null || r.state() != null || r.mapUrl() != null)) {
             Venue v = venues.findById(e.getVenueId()).orElseThrow();
             if (!v.getOrganizerId().equals(e.getOrganizerId())) throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Venue belongs to another organizer");
@@ -319,6 +336,10 @@ public class EventManagementService {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized for this event");
         }
     }
+    private long paymentsForEvent(Long eventId) { return payments.sumSuccessfulByEventId(eventId, java.util.List.of(Enums.PaymentStatus.PENDING, Enums.PaymentStatus.PAYMENT_INITIATED, Enums.PaymentStatus.AUTHORIZED, Enums.PaymentStatus.CAPTURED, Enums.PaymentStatus.COMPLETED, Enums.PaymentStatus.REFUND_PENDING, Enums.PaymentStatus.REFUNDED)); }
+    private BrandConfiguration bFor(Event e) { return e.getBrandConfigId() == null ? new BrandConfiguration() : brands.findById(e.getBrandConfigId()).orElse(new BrandConfiguration()); }
+    private String parseBrandingMode(String raw) { if (raw == null || raw.isBlank()) return "BOTH"; String v=raw.trim().toUpperCase(Locale.ROOT); if (!java.util.Set.of("TEXT_ONLY","LOGO_ONLY","BOTH").contains(v)) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_BRANDING_MODE","Unsupported branding display mode"); return v; }
+    private Enums.PaymentProvider parsePaymentProvider(String raw) { if (raw == null || raw.isBlank()) return Enums.PaymentProvider.RAZORPAY; try { return Enums.PaymentProvider.valueOf(raw.trim().toUpperCase(Locale.ROOT)); } catch (IllegalArgumentException ex) { throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PAYMENT_PROVIDER","Unsupported payment provider"); } }
     private void require(boolean ok, String message) { if (!ok) throw new ApiException(HttpStatus.CONFLICT, "INVALID_TRANSITION", message); }
     private void validateWindow(Instant from, Instant to, Instant eventStart) {
         if (from != null && to != null && !to.isAfter(from)) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOKING_WINDOW", "Booking end must be after booking start");

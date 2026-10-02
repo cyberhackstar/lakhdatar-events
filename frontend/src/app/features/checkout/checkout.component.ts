@@ -68,7 +68,7 @@ declare global {
               <span>{{ loadingPayment ? 'Opening secure checkout…' : paymentModalOpen ? 'Payment window open…' : reservationExpired ? 'Reservation expired' : 'Pay securely' }}</span>
               <span>→</span>
             </button>
-            <div class="gateway-note">Payments are processed by Razorpay. Your card / UPI credentials are never handled by {{ event?.organizer?.name || "the organizer" }} or Neelastack.</div>
+            <div class="gateway-note">Payments are processed securely by {{ event?.paymentProvider === 'CASHFREE' ? 'Cashfree' : 'Razorpay' }}. Your card / UPI credentials are never handled by {{ event?.organizer?.name || "the organizer" }} or Neelastack.</div>
             <div class="partner-note">Powered by <a href="https://neelastack.com" target="_blank" rel="noopener noreferrer">Neelastack</a></div>
           </form>
         </section>
@@ -193,78 +193,47 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.reservationExpiresAt = response.reservationExpiresAt;
     this.startCountdown(response.reservationExpiresAt);
     this.loadingPayment = false;
-
     const open = (): void => {
-      if (this.reservationExpired) {
-        this.error = 'Your reservation expired before payment could start. Please return to the event and choose tickets again.';
+      if (this.reservationExpired) { this.error = 'Your reservation expired before payment could start. Please return to the event and choose tickets again.'; return; }
+      if (response.provider === 'CASHFREE') {
+        const cf = (window as any).Cashfree;
+        if (!cf || !response.providerSessionId) { this.error = 'Cashfree secure checkout could not load. Check your connection and retry.'; return; }
+        this.paymentModalOpen = true;
+        try {
+          const checkout = cf({ mode: environment.production ? 'production' : 'sandbox' });
+          checkout.checkout({ paymentSessionId: response.providerSessionId, redirectTarget: '_self' });
+        } catch { this.paymentModalOpen = false; this.error = 'Secure payment checkout could not open. Please retry.'; }
         return;
       }
-      if (!window.Razorpay) {
-        this.error = 'Secure payment checkout could not load. Check your connection and retry.';
-        return;
-      }
-
+      if (!window.Razorpay || !response.providerOrderId || !response.providerPublicKey) { this.error = 'Razorpay secure checkout could not load. Check your connection and retry.'; return; }
       this.paymentModalOpen = true;
       const razorpay = new window.Razorpay({
-        key: response.razorpayKeyId,
-        amount: response.amountMinorUnits,
-        currency: response.currency,
+        key: response.providerPublicKey, amount: response.amountMinorUnits, currency: response.currency,
         name: this.event?.organizer?.name || this.event?.brand?.organizerName || 'Neelastack Events',
-        description: this.event?.name || 'Event ticket',
-        order_id: response.razorpayOrderId,
-        handler: (result: any) => this.verifyPayment(result),
-        modal: { ondismiss: () => { this.paymentModalOpen = false; } },
-        prefill: {
-          name: this.form.controls.customerName.value.trim(),
-          email: this.form.controls.customerEmail.value.trim(),
-          contact: this.form.controls.customerPhone.value.trim()
-        },
+        description: this.event?.name || 'Event ticket', order_id: response.providerOrderId,
+        handler: (result: any) => this.verifyPayment(result), modal: { ondismiss: () => { this.paymentModalOpen = false; } },
+        prefill: { name: this.form.controls.customerName.value.trim(), email: this.form.controls.customerEmail.value.trim(), contact: this.form.controls.customerPhone.value.trim() },
         theme: { color: '#17121a' }
       });
       razorpay.open();
     };
-
-    if (window.Razorpay) { open(); return; }
-    const scriptId = 'razorpay-checkout-js';
-    const existing = document.getElementById(scriptId) as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener('load', open, { once: true });
-      existing.addEventListener('error', () => { this.error = 'Secure payment checkout could not load.'; }, { once: true });
-      return;
+    if (response.provider === 'CASHFREE') {
+      const scriptId='cashfree-checkout-js'; const existing=document.getElementById(scriptId) as HTMLScriptElement|null;
+      if (existing) { existing.addEventListener('load',open,{once:true}); existing.addEventListener('error',()=>this.error='Cashfree secure checkout could not load.',{once:true}); return; }
+      const script=document.createElement('script'); script.id=scriptId; script.src=environment.cashfreeCheckoutUrl; script.async=true; script.onload=open; script.onerror=()=>this.error='Cashfree secure checkout could not load.'; document.body.appendChild(script); return;
     }
-    const script = document.createElement('script');
-    script.id = scriptId;
-    script.src = environment.razorpayCheckoutUrl;
-    script.async = true;
-    script.onload = open;
-    script.onerror = () => { this.error = 'Secure payment checkout could not load.'; };
-    document.body.appendChild(script);
+    if (window.Razorpay) { open(); return; }
+    const scriptId='razorpay-checkout-js'; const existing=document.getElementById(scriptId) as HTMLScriptElement|null;
+    if (existing) { existing.addEventListener('load',open,{once:true}); existing.addEventListener('error',()=>this.error='Secure payment checkout could not load.',{once:true}); return; }
+    const script=document.createElement('script'); script.id=scriptId; script.src=environment.razorpayCheckoutUrl; script.async=true; script.onload=open; script.onerror=()=>this.error='Secure payment checkout could not load.'; document.body.appendChild(script);
   }
 
   private verifyPayment(response: any): void {
-    if (!response?.razorpay_order_id || !response?.razorpay_payment_id || !response?.razorpay_signature) {
-      this.error = 'Payment response was incomplete. Do not make another payment yet. Recover the existing order if needed.';
-      return;
-    }
-    this.loadingPayment = true;
-    this.api.verifyPayment({
-      razorpayOrderId: response.razorpay_order_id,
-      razorpayPaymentId: response.razorpay_payment_id,
-      razorpaySignature: response.razorpay_signature
-    }).subscribe({
-      next: (result: VerifyResponse) => {
-        this.booking.setPaymentResult(result);
-        this.booking.clearCheckoutSession();
-        this.booking.clear();
-        this.stopCountdown();
-        this.loadingPayment = false;
-        this.router.navigateByUrl('/payment/success', { replaceUrl: true });
-      },
-      error: e => {
-        this.loadingPayment = false;
-        this.error = e?.error?.message || 'Payment is awaiting server verification. Do not make another payment.';
-        this.recoveryOrderNumber = this.recoveryOrderNumber || '';
-      }
+    if (!response?.razorpay_order_id || !response?.razorpay_payment_id || !response?.razorpay_signature) { this.error='Payment response was incomplete. Do not make another payment yet. Recover the existing order if needed.'; return; }
+    this.loadingPayment=true;
+    this.api.verifyPayment({ providerOrderId:response.razorpay_order_id, providerPaymentId:response.razorpay_payment_id, providerSignature:response.razorpay_signature }).subscribe({
+      next:(result:VerifyResponse)=>{this.booking.setPaymentResult(result);this.booking.clearCheckoutSession();this.booking.clear();this.stopCountdown();this.loadingPayment=false;this.router.navigateByUrl('/payment/success',{replaceUrl:true});},
+      error:e=>{this.loadingPayment=false;this.error=e?.error?.message||'Payment is awaiting server verification. Do not make another payment.';}
     });
   }
 

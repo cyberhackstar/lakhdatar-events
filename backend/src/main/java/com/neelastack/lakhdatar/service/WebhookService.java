@@ -20,7 +20,7 @@ import java.util.HexFormat;
 
 @Service @RequiredArgsConstructor
 public class WebhookService {
- private final RazorpayService razorpay; private final PaymentWebhookEventRepository events; private final PaymentRepository payments; private final OrderService orders; private final TransactionTemplate tx; private final ObjectMapper mapper=new ObjectMapper();
+ private final RazorpayService razorpay; private final PaymentGatewayRouter gateways; private final PaymentWebhookEventRepository events; private final PaymentRepository payments; private final OrderService orders; private final TransactionTemplate tx; private final ObjectMapper mapper=new ObjectMapper();
  public void handle(String raw,String signature,String headerEventId){
   if(signature==null||!razorpay.verifyWebhookSignature(raw,signature)) throw new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_WEBHOOK","Webhook signature invalid");
   JsonNode n; try{n=mapper.readTree(raw);}catch(Exception ex){throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_WEBHOOK_BODY","Webhook payload is invalid");}
@@ -48,7 +48,7 @@ public class WebhookService {
    var p=payments.findByRazorpayOrderId(orderId).orElseThrow(()->new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"PAYMENT_NOT_LINKED","Payment event arrived before the local payment was linked"));
    long amount=pe.path("amount").asLong(-1); String currency=pe.path("currency").asText(null);
    if(p.getAmountMinor()!=amount||!p.getCurrency().equalsIgnoreCase(currency)) throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_EVENT_MISMATCH","Payment webhook does not match the local order");
-   var provider=razorpay.fetchPayment(paymentId);
+   var provider=gateways.forProvider(com.neelastack.lakhdatar.domain.Enums.PaymentProvider.RAZORPAY).fetchPayment(paymentId);
    if("refunded".equalsIgnoreCase(provider.status())) orders.markProviderRefunded(p.getId(),provider);
    else if("captured".equalsIgnoreCase(provider.status())){var result=orders.reconcileCapturedPayment(p.getId(),provider);if("REFUND_PENDING".equals(result.status()))orders.completeQueuedRefundIfNeeded(p.getId(),"Reservation expired, event closed, or order no longer payable before payment capture");}
    else if("authorized".equalsIgnoreCase(provider.status())) {
@@ -58,7 +58,7 @@ public class WebhookService {
     tx.executeWithoutResult(s->payments.findByIdForUpdate(localPaymentId).ifPresent(locked->{
      var st=locked.getStatus();
      if(st==com.neelastack.lakhdatar.domain.Enums.PaymentStatus.CREATED||st==com.neelastack.lakhdatar.domain.Enums.PaymentStatus.PENDING||st==com.neelastack.lakhdatar.domain.Enums.PaymentStatus.PAYMENT_INITIATED){
-      locked.setStatus(com.neelastack.lakhdatar.domain.Enums.PaymentStatus.AUTHORIZED);
+      orders.transitionPaymentForWebhook(locked, com.neelastack.lakhdatar.domain.Enums.PaymentStatus.AUTHORIZED);
       locked.setRazorpayPaymentId(paymentId);
       locked.setProviderLastError(null);
       payments.save(locked);

@@ -43,10 +43,12 @@ abstract class AbstractPostgresIntegrationTest {
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("app.bootstrap.enabled", () -> false);
-        // No Redis in these tests: fail fast and let RateLimitService use its in-memory fallback
-        // instead of waiting on the default 60s Lettuce command timeout.
+        // Integration tests intentionally run without Redis. Use the bounded in-memory
+        // fallback rather than waiting on the default Lettuce timeout or failing closed.
+        // Production retains fail-closed behavior via application.yml.
         registry.add("spring.data.redis.timeout", () -> "300ms");
         registry.add("spring.data.redis.connect-timeout", () -> "300ms");
+        registry.add("app.rate-limit.fail-closed-on-redis-error", () -> false);
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> 30);
     }
 }

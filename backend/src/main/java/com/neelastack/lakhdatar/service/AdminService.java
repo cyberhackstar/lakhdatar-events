@@ -12,6 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -32,46 +35,36 @@ public class AdminService {
     private final EventAccessService eventAccess;
 
     public record EventSummary(UUID id, String slug, String name, String status,
-                               java.time.Instant startsAt, int ticketsSold, int ticketsCheckedIn,
+                               java.time.Instant startsAt, long ticketsSold, long ticketsCheckedIn,
                                long revenueMinor) {}
 
-    public record Dashboard(List<EventSummary> events, int totalSold, int totalCheckedIn,
+    public record Dashboard(List<EventSummary> events, long totalSold, long totalCheckedIn,
                             long totalRevenueMinor) {}
 
     public record ManagerView(UUID userId, String email, String fullName, String role, String eventName) {}
     public record ManagerTicketType(UUID id, String name, long priceMinorUnits, int availableQuantity, String status) {}
 
     public Dashboard dashboard(UserPrincipal p) {
-        if (p == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Authentication required");
-
-        List<Event> list = switch (p.role()) {
-            case "ADMIN" -> events.findAllByOrderByStartsAtDesc();
-            case "EVENT_MANAGER" -> events.findAllByManagerUserIdOrderByStartsAtDesc(p.userId());
-            case "ORGANIZER" -> events.findAllByOrderByStartsAtDesc().stream()
-                    .filter(e -> e.getOrganizerId() != null && canViewOrganizer(e.getOrganizerId(), p))
-                    .toList();
-            default -> events.findAllByOrderByStartsAtDesc().stream()
-                    .filter(e -> e.getOrganizerId() != null && canViewOrganizer(e.getOrganizerId(), p))
-                    .toList();
-        };
-
-        int sold = 0;
-        int checked = 0;
-        long revenue = 0;
-        List<EventSummary> out = new ArrayList<>();
-        for (Event e : list) {
-            int s = ticketTypes.findByEventIdOrderByPriceMinorUnitsAsc(e.getId()).stream()
-                    .mapToInt(TicketType::getSoldQuantity).sum();
-            long c = checkins.countAcceptedForEvent(e.getId());
-            long r = payments.sumSuccessfulByEventId(e.getId(),
-                    List.of(Enums.PaymentStatus.CAPTURED, Enums.PaymentStatus.COMPLETED));
-            sold += s;
-            checked += (int) c;
-            revenue += r;
-            out.add(new EventSummary(e.getPublicId(), e.getSlug(), e.getName(), e.getStatus().name(),
-                    e.getStartsAt(), s, (int) c, r));
+        List<Event> es;
+        if ("ADMIN".equals(p.role())) {
+            es=events.findAllByOrderByStartsAtDesc();
+        } else if ("EVENT_MANAGER".equals(p.role())) {
+            es=events.findAllByManagerUserIdOrderByStartsAtDesc(p.userId());
+        } else if ("ORGANIZER".equals(p.role())) {
+            es=events.findByOrganizerMembershipUserId(p.userId());
+        } else {
+            es=List.of();
         }
-        return new Dashboard(out, sold, checked, revenue);
+        Map<Long,Long> soldByEvent=new HashMap<>(), revenueByEvent=new HashMap<>(), checkedByEvent=new HashMap<>();
+        List<Long> ids=es.stream().map(Event::getId).toList();
+        if(!ids.isEmpty()) {
+            ticketTypes.soldByEventIds(ids).forEach(r->soldByEvent.put(((Number)r[0]).longValue(),((Number)r[1]).longValue()));
+            payments.successfulRevenueByEventIds(ids, List.of(Enums.PaymentStatus.CAPTURED,Enums.PaymentStatus.COMPLETED)).forEach(r->revenueByEvent.put(((Number)r[0]).longValue(),((Number)r[1]).longValue()));
+            tickets.countByEventIdsAndStatus(ids, Enums.TicketStatus.CHECKED_IN).forEach(r->checkedByEvent.put(((Number)r[0]).longValue(),((Number)r[1]).longValue()));
+        }
+        List<EventSummary> out=new ArrayList<>(); long sold=0,checked=0,revenue=0;
+        for(Event e:es){long s=soldByEvent.getOrDefault(e.getId(),0L),r=revenueByEvent.getOrDefault(e.getId(),0L),c=checkedByEvent.getOrDefault(e.getId(),0L); sold+=s;checked+=c;revenue+=r;out.add(new EventSummary(e.getPublicId(),e.getSlug(),e.getName(),e.getStatus().name(),e.getStartsAt(),s,c,r));}
+        return new Dashboard(out,sold,checked,revenue);
     }
 
     public List<EventSummary> events(UserPrincipal p) {
@@ -179,11 +172,10 @@ public class AdminService {
         if (!eventAccess.canManageEvent(e.getId(), p.userId(), p.role())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized for this event");
         }
-        List<ManagerView> out = new ArrayList<>();
-        for (EventManagerAssignment a : managerAssignments.findByEventIdOrderByUserIdAsc(e.getId())) {
-            users.findById(a.getUserId()).ifPresent(u -> out.add(new ManagerView(u.getPublicId(), u.getEmail(), u.getFullName(), u.getRole().name(), e.getName())));
-        }
-        return out;
+        List<EventManagerAssignment> assignments=managerAssignments.findByEventIdOrderByUserIdAsc(e.getId());
+        Map<Long,User> byId=users.findAllById(assignments.stream().map(EventManagerAssignment::getUserId).toList()).stream().collect(java.util.stream.Collectors.toMap(User::getId,java.util.function.Function.identity()));
+        return assignments.stream().map(EventManagerAssignment::getUserId).map(byId::get).filter(Objects::nonNull)
+                .map(u->new ManagerView(u.getPublicId(),u.getEmail(),u.getFullName(),u.getRole().name(),e.getName())).toList();
     }
 
     public String attendeesCsv(UUID eventPublicId, UserPrincipal p) {
@@ -193,9 +185,10 @@ public class AdminService {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized");
         }
         StringBuilder b = new StringBuilder("ticket_number,attendee_name,ticket_status,ticket_source,issued_by,created_at,checked_in_at\n");
-        for (Ticket t : tickets.findByEventIdOrderByTicketNumberAsc(e.getId())) {
-            String issuer = "";
-            if (t.getIssuedByUserId() != null) issuer = users.findById(t.getIssuedByUserId()).map(User::getEmail).orElse("");
+        List<Ticket> eventTickets=tickets.findByEventIdOrderByTicketNumberAsc(e.getId());
+        Map<Long,User> issuers=users.findAllById(eventTickets.stream().map(Ticket::getIssuedByUserId).filter(Objects::nonNull).toList()).stream().collect(java.util.stream.Collectors.toMap(User::getId,java.util.function.Function.identity()));
+        for (Ticket t : eventTickets) {
+            String issuer = t.getIssuedByUserId()==null?"":java.util.Optional.ofNullable(issuers.get(t.getIssuedByUserId())).map(User::getEmail).orElse("");
             b.append(csv(t.getTicketNumber())).append(',')
                     .append(csv(t.getAttendeeName())).append(',')
                     .append(t.getStatus()).append(',')

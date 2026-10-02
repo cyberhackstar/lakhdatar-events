@@ -12,6 +12,7 @@ export const routes: Routes = [
   { path: 'ticket/:ticketId', loadComponent: () => import('./features/ticket/ticket.component').then(m => m.TicketComponent) },
   { path: 'recover', loadComponent: () => import('./features/recover/recover.component').then(m => m.RecoverComponent) },
   { path: 'login', loadComponent: () => import('./features/auth/login.component').then(m => m.LoginComponent) },
+  { path: 'setup/initial-admin', loadComponent: () => import('./features/setup/initial-admin.component').then(m => m.InitialAdminComponent) },
   { path: 'not-found', loadComponent: () => import('./shared/not-found.component').then(m => m.NotFoundComponent) },
   { path: 'admin', loadComponent: () => import('./features/admin/admin.component').then(m => m.AdminComponent), canActivate: [adminGuard] },
   { path: 'staff', loadComponent: () => import('./features/staff/staff.component').then(m => m.StaffComponent), canActivate: [staffGuard] },

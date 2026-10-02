@@ -1,6 +1,7 @@
 export interface BrandConfig {
   organizerLogoUrl: string;
   organizerName: string;
+  brandingMode?: 'TEXT_ONLY' | 'LOGO_ONLY' | 'BOTH';
   eventLogoUrl?: string;
   eventBannerUrl?: string;
   primaryBrandColor?: string;

@@ -8,7 +8,9 @@ public class Refund {
  @Column(name="amount_minor",nullable=false) private Long amountMinor;
  private String reason;
  @Enumerated(EnumType.STRING) @Column(nullable=false,length=32) private Enums.RefundStatus status=Enums.RefundStatus.REQUESTED;
- @Column(name="razorpay_refund_id") private String razorpayRefundId;
+ /** @deprecated retained read-only for legacy schema compatibility; use providerRefundId. */
+ @Deprecated @Column(name="razorpay_refund_id", insertable=false, updatable=false) private String razorpayRefundId;
+ @Column(name="provider_refund_id",unique=true,length=100) private String providerRefundId;
  @Column(name="provider_receipt",length=80) private String providerReceipt;
  @Column(name="provider_status",length=32) private String providerStatus;
  @Column(name="attempt_count",nullable=false) private int attemptCount=0;

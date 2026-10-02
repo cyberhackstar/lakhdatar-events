@@ -29,7 +29,9 @@ public class StaffAccessService {
         EventStaff assignment = staff.findByEventIdAndUserId(event.getId(), userId).orElse(null);
         if (assignment == null) return false;
         String assigned = assignment.getGate();
-        return assigned == null || assigned.isBlank() || requestedGate == null || requestedGate.isBlank()
-                || assigned.equalsIgnoreCase(requestedGate.trim());
+        String requested = requestedGate == null ? null : requestedGate.trim();
+        // Staff permissions are gate-bound. A missing gate must never broaden access.
+        return assigned != null && !assigned.isBlank() && requested != null && !requested.isBlank()
+                && assigned.equalsIgnoreCase(requested);
     }
 }

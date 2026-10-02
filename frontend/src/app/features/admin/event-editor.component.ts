@@ -90,12 +90,21 @@ import { AdminEventView } from '../../core/api/api.models';
         </div>
 
         <div class="editor-section">
-          <div class="section-title"><span>06</span><div><h3>Presentation</h3><p>Control homepage emphasis without changing business ownership.</p></div></div>
+          <div class="section-title"><span>06</span><div><h3>Presentation & payments</h3><p>Configure the event brand and payment gateway without exposing provider secrets.</p></div></div>
           <div class="grid three">
+            <label>Payment provider<select formControlName="paymentProvider"><option value="RAZORPAY">Razorpay</option><option value="CASHFREE">Cashfree</option></select><small>Changing after payment activity is blocked.</small></label>
+            <label>Brand display<select formControlName="brandingMode"><option value="BOTH">Logo + text</option><option value="LOGO_ONLY">Logo only</option><option value="TEXT_ONLY">Text only</option></select></label>
             <label class="toggle"><input type="checkbox" formControlName="featured" /><span>Featured event</span></label>
             <label>Display order<input formControlName="displayOrder" type="number" min="0" /></label>
             <div class="read-only-brand"><span>Organizer</span><strong>{{ event.organizerName }}</strong><small>Platform owner: Neelastack</small></div>
           </div>
+          <div class="asset-grid">
+            <div class="asset-card"><div><strong>Organizer logo</strong><small>Updates the organizer identity across its events.</small></div><button type="button" class="small-action" (click)="chooseFile('ORGANIZER_LOGO')">Upload</button></div>
+            <div class="asset-card"><div><strong>Event logo</strong><small>Displayed as the event-specific mark.</small></div><button type="button" class="small-action" (click)="chooseFile('EVENT_LOGO')">Upload</button></div>
+            <div class="asset-card"><div><strong>Event banner</strong><small>Premium hero/banner artwork.</small></div><button type="button" class="small-action" (click)="chooseFile('EVENT_BANNER')">Upload</button></div>
+            <div class="asset-card"><div><strong>Event cover</strong><small>Used by cards and catalogue surfaces.</small></div><button type="button" class="small-action" (click)="chooseFile('EVENT_COVER')">Upload</button></div>
+          </div>
+          <input #assetInput type="file" accept="image/jpeg,image/png" hidden (change)="uploadSelected($event)" />
         </div>
 
         <div class="editor-section tickets">
@@ -146,6 +155,7 @@ import { AdminEventView } from '../../core/api/api.models';
     <div class="editor-loading" *ngIf="loading">Loading event editor…</div>
   `,
   styles: [`
+    .asset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.asset-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.025)}.asset-card strong{display:block;font-size:13px}.asset-card small{display:block;color:#8f8794;font-size:11px;margin-top:4px;line-height:1.4}@media(max-width:720px){.asset-grid{grid-template-columns:1fr}}
     :host{display:block}.editor{margin-top:18px;background:#fff;border:1px solid #e5dfd7;border-radius:26px;overflow:hidden;box-shadow:0 18px 55px rgba(33,24,31,.07)}
     .editor-head{display:flex;justify-content:space-between;gap:20px;padding:28px;border-bottom:1px solid #eee8e0;background:linear-gradient(145deg,#fffdf9,#f8f3eb)}
     .editor-head h2{margin:7px 0 5px;font-size:32px;letter-spacing:-.045em;color:#211923}.editor-sub{margin:0;color:#8a818b;font-size:11px}.editor-actions{display:flex;gap:8px;align-items:flex-start}.ghost{border:1px solid #ddd5cb;background:#fff;color:#403843;border-radius:11px;padding:10px 12px;font-size:10px;font-weight:800;text-decoration:none;cursor:pointer}
@@ -198,7 +208,12 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     refundPolicy: ['', Validators.maxLength(10000)],
     ageRestriction: ['', Validators.maxLength(80)],
     featured: [false],
-    displayOrder: [0, [Validators.min(0), Validators.max(100000)]] ,
+    displayOrder: [0, [Validators.min(0), Validators.max(100000)]],
+    paymentProvider: ['RAZORPAY'],
+    brandingMode: ['BOTH'],
+    organizerLogoUrl: [''],
+    eventLogoUrl: [''],
+    eventBannerUrl: [''],
     ticketTypes: this.fb.array([])
   });
 
@@ -226,7 +241,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
       timezone:e.timezone || 'Asia/Kolkata', capacity:e.capacity || 0, venueName:e.venueName || '', venueAddress:e.venueAddress || '',
       city:e.city || '', state:e.state || '', mapUrl:e.mapUrl || '', coverImageUrl:e.coverImageUrl || '',
       gallery:(e.gallery || []).join('\n'), highlights:(e.highlights || []).join('\n'), terms:e.terms || '', refundPolicy:e.refundPolicy || '',
-      ageRestriction:e.ageRestriction || '', featured:e.featured, displayOrder:e.displayOrder || 0
+      ageRestriction:e.ageRestriction || '', featured:e.featured, displayOrder:e.displayOrder || 0, paymentProvider:e.paymentProvider || 'RAZORPAY', brandingMode:e.brandingMode || 'BOTH', organizerLogoUrl:e.organizerLogoUrl || '', eventLogoUrl:e.eventLogoUrl || '', eventBannerUrl:e.eventBannerUrl || ''
     });
     this.ticketForms.clear();
     for (const t of e.ticketTypes) this.ticketForms.push(this.ticketGroup(t));
@@ -246,6 +261,27 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   addTicket(): void {
     const fallback: AdminEventView['ticketTypes'][number] = { id:'', name:'New ticket', description:'', priceMinorUnits:99900, currency:this.event?.currency || 'INR', totalQuantity:100, soldQuantity:0, reservedQuantity:0, availableQuantity:100, minPerOrder:1, maxPerOrder:10, status:'ACTIVE' };
     this.ticketForms.push(this.ticketGroup(fallback));
+  }
+
+  private selectedPurpose: 'ORGANIZER_LOGO' | 'EVENT_LOGO' | 'EVENT_BANNER' | 'EVENT_COVER' = 'EVENT_COVER';
+
+  chooseFile(purpose: 'ORGANIZER_LOGO' | 'EVENT_LOGO' | 'EVENT_BANNER' | 'EVENT_COVER'): void {
+    this.selectedPurpose = purpose;
+    const input = document.querySelector('#event-editor input[type="file"]') as HTMLInputElement | null;
+    input?.click();
+  }
+
+  uploadSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !this.event) return;
+    if (file.size > 5 * 1024 * 1024) { this.error = 'Image must be 5 MB or smaller.'; return; }
+    this.error = ''; this.success = '';
+    this.subscriptions.add(this.api.uploadAdminAsset(file, this.selectedPurpose, this.event.id, this.event.organizerSlug).subscribe({
+      next: () => { this.success = 'Brand asset uploaded securely.'; this.load(); },
+      error: err => { this.error = err?.error?.message || 'Image upload failed.'; }
+    }));
   }
 
   saveEvent(): void {
@@ -268,7 +304,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
       bookingStartsAt, bookingEndsAt, clearBookingStartsAt: !v.bookingStartsAt, clearBookingEndsAt: !v.bookingEndsAt,
       venueName: v.venueName || '', venueAddress: v.venueAddress || '', city: v.city || '', state: v.state || '', mapUrl: v.mapUrl || '',
       coverImageUrl: v.coverImageUrl || '', galleryUrls: this.lines(v.gallery), highlights: this.lines(v.highlights), terms: v.terms || '', refundPolicy: v.refundPolicy || '', ageRestriction: v.ageRestriction || '',
-      featured: !!v.featured, displayOrder: Number(v.displayOrder || 0)
+      featured: !!v.featured, displayOrder: Number(v.displayOrder || 0), paymentProvider: String(v.paymentProvider || 'RAZORPAY'), organizerLogoUrl: String(v.organizerLogoUrl || ''), eventLogoUrl: String(v.eventLogoUrl || ''), eventBannerUrl: String(v.eventBannerUrl || ''), brandingMode: String(v.brandingMode || 'BOTH')
     };
     // The backend update contract intentionally does not alter currency, slug, capacity, or organizer ownership.
     this.subscriptions.add(this.api.updateEvent(this.event.id, body).subscribe({

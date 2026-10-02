@@ -14,6 +14,7 @@ public class Order {
  @Column(nullable=false,length=8) private String currency="INR";
  @Enumerated(EnumType.STRING) @Column(nullable=false,length=32) private Enums.OrderStatus status=Enums.OrderStatus.CREATED;
  @Column(name="idempotency_key",nullable=false,unique=true,length=100) private String idempotencyKey;
+ @Column(name="checkout_session_hash",length=64) private String checkoutSessionHash;
  @Column(name="created_at",updatable=false) private Instant createdAt=Instant.now();
  @Column(name="updated_at") private Instant updatedAt=Instant.now();
  @PreUpdate void touch(){updatedAt=Instant.now();}

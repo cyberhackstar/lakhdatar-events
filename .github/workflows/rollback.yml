@@ -16,6 +16,7 @@ env:
 
 jobs:
   rollback:
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - name: Verify deployment secrets
