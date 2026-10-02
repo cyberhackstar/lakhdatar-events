@@ -1,3 +1,15 @@
+## v1.9.15 static validation
+
+- Release metadata synchronization: PASS
+- Redis production security configuration: PASS
+- Redis starts directly as UID 999 / GID 1000 to avoid the incompatible `setpriv` privilege-drop path under `cap_drop: ALL` and `no-new-privileges`.
+- Redis healthcheck authenticates through `REDISCLI_AUTH`.
+- Existing named Redis volume is preserved; no destructive data reset is required.
+
+## v1.9.15 production incident finding
+
+The v1.9.14 production deployment recreated Redis with a persisted named volume. The volume ownership was valid, but the hardened container failed in the Redis image entrypoint with `setpriv: setresuid failed: Operation not permitted`. A manual Redis 7 Alpine container using the same named volume successfully loaded the existing RDB and reached `Ready to accept connections`, isolating the fault to the Compose security configuration rather than the Redis data or password.
+
 ## v1.9.14 static validation
 
 - Release metadata synchronization: PASS

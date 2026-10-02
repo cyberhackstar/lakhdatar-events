@@ -1,3 +1,12 @@
+# Release 1.9.15 — Redis production hardening corrective pass
+
+- Corrects the Redis container security configuration that caused `setpriv: setresuid failed: Operation not permitted` during production recreation.
+- Starts Redis directly as UID 999 / GID 1000, matching the `redis` account in the Redis 7 Alpine image, so the image entrypoint does not require a root-to-user privilege transition.
+- Retains `no-new-privileges:true` and `cap_drop: ALL`; no additional Linux capabilities are granted to Redis.
+- Keeps the existing named `lakhdatar_redis_data` volume and does not require destructive data reset or migration.
+- Uses `REDISCLI_AUTH` in the healthcheck so the health probe authenticates without placing the password in the `redis-cli` command arguments.
+- Adds Redis process/resource limits consistent with the other production services.
+
 # Release 1.9.14 — supply-chain verification corrective pass
 
 - Keeps the v1.9.13 Alpine/OpenSSL security hotfix and all prior CI/CD hardening.

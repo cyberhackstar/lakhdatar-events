@@ -1,8 +1,10 @@
-# Release 1.9.14 — supply-chain verification corrective release
+# Release 1.9.15 — Redis production hardening corrective release
 
 This release retains the v1.9.13 Alpine/OpenSSL security hardening and corrects the final container supply-chain verification step by using GitHub Artifact Attestations for the exact pushed image digests, followed by GitHub CLI verification and Cosign signing.
 
 This release rebuilds from the verified v1.9.11 source baseline and fixes the CI regressions observed when the release was pushed: Testcontainers dependency management/version drift, release-version drift, shallow Gitleaks history, and unsupported dependency-review execution. It also retains the registry-backed security patches and multi-architecture image publication.
+
+This release corrects a production Redis container hardening conflict found during Oracle ARM64 deployment. Redis now starts directly as its non-root UID/GID while retaining `no-new-privileges` and `cap_drop: ALL`; the production healthcheck authenticates through `REDISCLI_AUTH`. Existing PostgreSQL and Redis named volumes are preserved.
 
 # Neelastack Events Platform
 

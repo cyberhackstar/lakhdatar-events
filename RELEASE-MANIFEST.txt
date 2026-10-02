@@ -1,5 +1,5 @@
-Lakhdatar Events Release 1.9.14
-Release type: enterprise CI/CD + dependency security + multi-architecture images + non-root edge hardening
+Lakhdatar Events Release 1.9.15
+Release type: enterprise CI/CD + dependency security + multi-architecture images + non-root edge hardening + Redis runtime hardening
 Git image tags: immutable 40-character SHA
 Flyway: V1..V17
 Frontend dependency major: Angular 20.x (runtime/CI baseline Node 24)
@@ -7,9 +7,15 @@ Backend runtime: Java 21 / Spring Boot 4.0.8 with security-patched Jackson, Http
 CI workflows: CI + Production (Gitleaks full-history scan; dependency review omitted because repository support is not enabled)
 Edge runtime: NGINX non-root on container port 8080; VM loopback port 4002 unchanged
 Image platforms: linux/amd64,linux/arm64
-Generated: 2026-10-02
+Generated: 2026-10-03
 Validation boundary: packaging-environment validation plus user-side registry-backed CI verification.
 
+
+v1.9.15 Redis production hardening corrective pass:
+- Starts Redis directly as UID 999 / GID 1000 to avoid the root-to-redis `setpriv` transition under a fully dropped capability set.
+- Retains `no-new-privileges` and `cap_drop: ALL`.
+- Uses `REDISCLI_AUTH` for the authenticated container healthcheck.
+- Preserves the existing named Redis data volume.
 
 v1.9.14 supply-chain verification corrective pass:
 - Replaces the incompatible Cosign verification of BuildKit in-index provenance with GitHub Artifact Attestations generated from the exact pushed image digest.

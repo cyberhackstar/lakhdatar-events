@@ -28,19 +28,52 @@ services:
     image: redis:7-alpine
     container_name: lakhdatar-redis
     restart: unless-stopped
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
-    command: ["redis-server","--appendonly","yes","--maxmemory","1024mb","--maxmemory-policy","noeviction","--requirepass","${REDIS_PASSWORD}"]
-    volumes: ["lakhdatar_redis_data:/data"]
-    networks: [lakhdatar_net]
+
+    # Redis 7 Alpine creates the redis account as UID 999 / GID 1000.
+    # Start directly as that account so the image entrypoint does not need a
+    # root -> redis setpriv transition while cap_drop/no-new-privileges are active.
+    user: "999:1000"
+
     security_opt:
       - no-new-privileges:true
-    cap_drop: [ALL]
+
+    cap_drop:
+      - ALL
+
+    pids_limit: 256
+    mem_limit: 1536m
+    cpus: "1.5"
+
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 1024mb
+      - --maxmemory-policy
+      - noeviction
+      - --requirepass
+      - ${REDIS_PASSWORD}
+
+    volumes:
+      - lakhdatar_redis_data:/data
+
+    networks:
+      - lakhdatar_net
+
     healthcheck:
-      test: ["CMD-SHELL", 'redis-cli -a "$${REDIS_PASSWORD}" ping | grep -q PONG']
+      test:
+        [
+          "CMD-SHELL",
+          'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -q PONG'
+        ]
       interval: 10s
       timeout: 3s
       retries: 12
+      start_period: 5s
   backend:
     image: ${IMAGE_NAMESPACE}/lakhdatar-backend:${IMAGE_TAG}
     container_name: lakhdatar-backend
