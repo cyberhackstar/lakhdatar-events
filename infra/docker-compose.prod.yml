@@ -139,22 +139,21 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    cap_add: [NET_BIND_SERVICE]
     pids_limit: 128
     mem_limit: 256m
     cpus: "1.0"
     read_only: true
     tmpfs:
-      - /var/cache/nginx:rw,noexec,nosuid,size=32m
-      - /var/run:rw,noexec,nosuid,size=8m
+      - /var/cache/nginx:rw,noexec,nosuid,size=32m,uid=101,gid=101,mode=0755
+      - /tmp:rw,noexec,nosuid,size=8m
     depends_on:
       web: {condition: service_healthy}
       backend: {condition: service_healthy}
     networks: [lakhdatar_net]
     # Cloudflare Tunnel target: http://localhost:4002 (loopback only). Other apps on this VM keep their own ports and are never touched.
-    ports: ["127.0.0.1:4002:80"]
+    ports: ["127.0.0.1:4002:8080"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/edge-health >/dev/null"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/edge-health >/dev/null"]
       interval: 15s
       timeout: 5s
       retries: 12

@@ -80,7 +80,7 @@ services:
       web: {condition: service_healthy}
       backend: {condition: service_healthy}
     networks: [lakhdatar_net]
-    ports: ["127.0.0.1:4002:80"]
+    ports: ["127.0.0.1:4002:8080"]
 
 networks:
   lakhdatar_net:

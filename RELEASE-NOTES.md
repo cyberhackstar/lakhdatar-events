@@ -1,6 +1,6 @@
-# Lakhdatar Events v1.9.9
+# Lakhdatar Events v1.9.10
 
-## Fixed in v1.9.9
+## Fixed in v1.9.10
 
 - Repaired the frontend npm lockfile so `npm ci` resolves `etag` to the real published `1.8.1` package instead of the invalid `1.9.0` tarball URL.
 - Replaced the invalid unversioned Trivy Action reference with the immutable commit for Trivy Action v0.36.0.
@@ -27,3 +27,11 @@
 - Preserved Angular 20.3.x application runtime; no Angular-major upgrade.
 - CI npm audit can now resolve the Oct 1 2026 piscina critical advisory without `npm audit fix --force`.
 - Release workflows remain consolidated into CI + Production.
+
+## v1.9.10 — hardened non-root edge
+
+- Hardened the NGINX edge image to run as the built-in non-root `nginx` user (UID/GID 101).
+- Moved NGINX to container port 8080 so the edge needs no `NET_BIND_SERVICE` capability.
+- Preserved the external Oracle VM entry point at loopback `127.0.0.1:4002`.
+- Added read-only-compatible runtime tmpfs ownership for NGINX cache and PID paths.
+- Updated Compose, contract tests, deployment docs and release metadata for the internal 8080 edge port.

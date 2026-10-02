@@ -1,8 +1,9 @@
-Lakhdatar Events Release 1.9.9
-Release type: enterprise CI/CD hardening + dependency lock repair
+Lakhdatar Events Release 1.9.10
+Release type: enterprise CI/CD + dependency security + non-root edge hardening
 Git image tags: immutable 40-character SHA
 Flyway: V1..V17
 Frontend dependency major: Angular 20.x (runtime/CI baseline Node 24)
 CI workflows: CI + Production (security schedule is integrated into CI)
+Edge runtime: NGINX non-root on container port 8080; VM loopback port 4002 unchanged
 Generated: 2026-10-02
-Validation boundary: user-side Maven/Angular builds required for dependency-backed verification.
+Validation boundary: packaging-environment validation plus user-side registry-backed CI verification.

@@ -30,7 +30,7 @@ Cloudflare Tunnel: events.neelastack.com
         v
 127.0.0.1:4002  (host, loopback only)
         |
-   edge (nginx :80)
+   edge (nginx :808080)
      |-- /api/*, /robots.txt, /sitemap.xml --> backend (Spring Boot :8080) --> PostgreSQL, Redis
      |-- everything else ---------------------> web (Angular SSR, Node :3000) --> backend (private network)
 ```

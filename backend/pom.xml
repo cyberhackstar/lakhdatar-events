@@ -12,7 +12,7 @@
 
   <groupId>com.neelastack</groupId>
   <artifactId>lakhdatar-events</artifactId>
-  <version>1.9.9</version>
+  <version>1.9.10</version>
   <name>Neelastack Event Platform</name>
   <description>Production event ticketing, Razorpay payments and secure QR check-in platform powered by Neelastack</description>
 

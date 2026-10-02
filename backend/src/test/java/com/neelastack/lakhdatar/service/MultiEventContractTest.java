@@ -63,7 +63,7 @@ class MultiEventContractTest {
             assertFalse(Pattern.compile("[:\\s\"'](4000|4001)\\b").matcher(s).find(), f + " must not claim ports 4000/4001");
         }
         String compose = Files.readString(Path.of("../infra/docker-compose.prod.yml"));
-        assertTrue(compose.contains("127.0.0.1:4002:80"), "public entry must be host port 4002, bound to loopback");
+        assertTrue(compose.contains("127.0.0.1:4002:8080"), "public entry must be host port 4002, bound to loopback");
         assertTrue(Files.readString(Path.of("../.github/workflows/production.yml")).contains("/home/ubuntu/apps/lakhdatar-events"));
     }
 
