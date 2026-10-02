@@ -56,6 +56,11 @@ if (!edgeDockerfile.includes('apk upgrade --no-cache')) problems.push('edge Dock
 if (!ci.includes('node-version-file: .nvmrc')) problems.push('CI Node baseline file mismatch');
 if (!ci.includes('fetch-depth: 0')) problems.push('CI secret-scan history depth mismatch');
 if (ci.includes('actions/dependency-review-action@')) problems.push('Unsupported dependency-review job must not run until GitHub dependency graph is enabled');
+if (!ci.includes('artifact-metadata: write')) problems.push('GitHub artifact attestation permission missing');
+if (ci.match(/uses: actions\/attest@v4/g)?.length !== 3) problems.push('GitHub artifact attestation steps mismatch');
+for (const id of ['push-backend','push-web','push-edge']) if (!ci.includes(`id: ${id}`)) problems.push(`Docker build output id missing: ${id}`);
+if (!ci.includes('gh attestation verify')) problems.push('GitHub artifact provenance verification missing');
+if (ci.includes('cosign verify-attestation')) problems.push('Legacy Cosign provenance verification must not be used for BuildKit attestations');
 if (read('.nvmrc').trim() !== '24') problems.push('Node runtime baseline mismatch');
 if (problems.length) { console.error('Neelastack baseline verification FAILED:'); for (const p of problems) console.error(`- ${p}`); process.exit(1); }
 console.log('Neelastack stability baseline: PASS');

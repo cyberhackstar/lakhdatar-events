@@ -1,3 +1,12 @@
+# Release 1.9.14 — supply-chain verification corrective pass
+
+- Keeps the v1.9.13 Alpine/OpenSSL security hotfix and all prior CI/CD hardening.
+- Replaces `cosign verify-attestation --type slsaprovenance` for BuildKit provenance with GitHub Artifact Attestations.
+- Each image is attested from the exact `docker/build-push-action` digest and published to GHCR.
+- CI verifies each immutable image with `gh attestation verify` before running `cosign sign`.
+- Adds `artifact-metadata: write`, required for registry-backed GitHub Artifact Attestations.
+- Strengthens the baseline validator so the legacy incompatible provenance-verification pattern cannot be reintroduced.
+
 # Release 1.9.13 — Alpine security hotfix
 
 - Keeps the corrected v1.9.12 release metadata and CI/CD hardening intact.

@@ -1,8 +1,24 @@
+## v1.9.14 static validation
+
+- Release metadata synchronization: PASS
+- Baseline validator: PASS
+- JavaScript syntax validation: PASS
+- CI and Production workflow YAML parsing: PASS
+- Docker Compose YAML parsing: PASS
+- Deployment/backup shell syntax: PASS
+- Legacy `cosign verify-attestation` workflow check: PASS (not present as an active CI command)
+- GitHub Artifact Attestation steps: 3
+- Docker build output IDs for attestation digests: 3
+
+## v1.9.14 supply-chain verification corrective pass
+
+The latest registry-backed run reached all three Trivy scans successfully: backend, web, and edge reported zero vulnerabilities at the HIGH/CRITICAL gate. The remaining failure was the final `cosign verify-attestation --type slsaprovenance` check, which returned `no matching attestations`. The workflow now uses GitHub Artifact Attestations with `actions/attest@v4` and verifies them through `gh attestation verify` against the exact image subject before Cosign signing.
+
 ## v1.9.13 Alpine security corrective pass
 
 The v1.9.13 hotfix adds Alpine package upgrades to the frontend and edge image builds. The latest CI run reached registry-backed Trivy successfully and showed the backend image clean, while the frontend image was blocked by four HIGH OpenSSL findings on Alpine 3.22.4. The fixed versions are available in the Alpine v3.22 repository.
 
-# Final Production Audit — 1.9.13
+# Final Production Audit — 1.9.14
 
 ## Release status
 

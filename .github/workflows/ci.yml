@@ -139,6 +139,7 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+      artifact-metadata: write
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v4.2.0
@@ -150,6 +151,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push backend multi-architecture image
+        id: push-backend
         uses: docker/build-push-action@v7.4.0
         with:
           context: ./backend
@@ -159,6 +161,7 @@ jobs:
           provenance: true
           sbom: true
       - name: Build and push web multi-architecture image
+        id: push-web
         uses: docker/build-push-action@v7.4.0
         with:
           context: ./frontend
@@ -168,6 +171,7 @@ jobs:
           provenance: true
           sbom: true
       - name: Build and push edge multi-architecture image
+        id: push-edge
         uses: docker/build-push-action@v7.4.0
         with:
           context: ./edge
@@ -211,20 +215,47 @@ jobs:
           ignore-unfixed: false
           exit-code: '1'
 
+      - name: Generate backend GitHub artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/lakhdatar-backend
+          subject-digest: ${{ steps.push-backend.outputs.digest }}
+          push-to-registry: true
+      - name: Generate web GitHub artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/lakhdatar-web
+          subject-digest: ${{ steps.push-web.outputs.digest }}
+          push-to-registry: true
+      - name: Generate edge GitHub artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/lakhdatar-edge
+          subject-digest: ${{ steps.push-edge.outputs.digest }}
+          push-to-registry: true
+
+      - name: Verify GitHub artifact provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
+            gh attestation verify \
+              "oci://ghcr.io/${OWNER}/${image}:${SHA}" \
+              -R "${REPOSITORY}"
+          done
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@v4.1.0
-      - name: Verify provenance and sign immutable release images
+      - name: Sign immutable release images
         env:
           OWNER: ${{ github.repository_owner }}
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
-            ref="ghcr.io/${OWNER}/${image}:${SHA}"
-            cosign verify-attestation \
-              --type slsaprovenance \
-              --certificate-identity-regexp 'https://github.com/.*/.github/workflows/.*' \
-              --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-              "$ref" >/dev/null
-            cosign sign --yes "$ref"
+            cosign sign --yes "ghcr.io/${OWNER}/${image}:${SHA}"
           done

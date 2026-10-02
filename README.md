@@ -1,4 +1,6 @@
-# Release 1.9.13 — Alpine security hotfix enterprise production baseline
+# Release 1.9.14 — supply-chain verification corrective release
+
+This release retains the v1.9.13 Alpine/OpenSSL security hardening and corrects the final container supply-chain verification step by using GitHub Artifact Attestations for the exact pushed image digests, followed by GitHub CLI verification and Cosign signing.
 
 This release rebuilds from the verified v1.9.11 source baseline and fixes the CI regressions observed when the release was pushed: Testcontainers dependency management/version drift, release-version drift, shallow Gitleaks history, and unsupported dependency-review execution. It also retains the registry-backed security patches and multi-architecture image publication.
 
