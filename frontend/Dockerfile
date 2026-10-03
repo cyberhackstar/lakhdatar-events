@@ -1,5 +1,5 @@
 # Angular SSR web server. Node 24 LTS is the production runtime baseline.
-FROM node:24-alpine3.22 AS build
+FROM node:26-alpine3.22 AS build
 RUN apk upgrade --no-cache
 WORKDIR /build
 COPY package.json package-lock.json ./
@@ -10,7 +10,7 @@ RUN npm run build \
     && test -s dist/frontend/browser/assets/og-default.png \
     && npm prune --omit=dev --no-audit --no-fund
 
-FROM node:24-alpine3.22
+FROM node:26-alpine3.22
 RUN apk upgrade --no-cache
 ENV NODE_ENV=production PORT=3000 SSR_API_BASE_URL=http://backend:8080/api/v1
 WORKDIR /app
