@@ -1,7 +1,7 @@
-LAKHDATAR EVENTS v1.9.17 FINAL PACKAGE AUDIT
+LAKHDATAR EVENTS v1.9.18 FINAL PACKAGE AUDIT
 ============================================
 Package file count (excluding audit/manifest): 271
-Release VERSION: 1.9.17
+Release VERSION: 1.9.18
 Frontend Angular baseline: 20.x
 Frontend package/lock metadata: consistent
 Cashfree webhook: provider Secret Key + raw-body/timestamp HMAC

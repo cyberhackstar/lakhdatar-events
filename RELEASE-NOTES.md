@@ -100,7 +100,16 @@
 - Updated Compose, contract tests, deployment docs and release metadata for the internal 8080 edge port.
 
 
-## v1.9.17 deployment-hardening release
+
+## v1.9.18 — Redis authentication and readiness fix
+
+- Removed `spring.data.redis.url` from the application configuration because Spring Boot treats the URL as authoritative and ignores separate host/port/password properties when it is present.
+- Configured Redis explicitly through `REDIS_HOST`, `REDIS_PORT`, `REDIS_DATABASE`, and `REDIS_PASSWORD`, preserving password authentication without embedding secrets in a URI.
+- Updated production and development Compose environments to use the explicit Redis connection contract.
+- Unified the development backend healthcheck with `/actuator/health/readiness`.
+- Disabled Spring Boot's generated in-memory security user auto-configuration because the platform provides its own JWT-based security chain; production logs no longer generate a random development password.
+
+## v1.9.18 deployment-hardening release
 
 - Unified backend readiness on `/actuator/health/readiness` across the container image, production Compose healthcheck, and deploy gate.
 - Increased backend readiness allowance to 300 seconds at deploy time and aligned Compose health checks with a 90-second startup period plus bounded retries.

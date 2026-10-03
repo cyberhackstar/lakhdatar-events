@@ -1,17 +1,22 @@
-LAKHDATAR EVENTS v1.9.17 FINAL RELEASE MANIFEST
-==============================================
-Release: 1.9.17
-Base: v1.9.15 Redis-hardening release
-Primary correction: production deployment readiness contract unified across image, Compose, and deploy gate; CI frontend security audit remains scoped to runtime dependencies.
+LAKHDATAR EVENTS v1.9.18 FINAL ENTERPRISE RELEASE MANIFEST
+=========================================================
+Release: 1.9.18
+Base: v1.9.15 Redis-hardening release, carried forward through v1.9.17 deployment hardening.
+Primary correction: fixed Redis authentication/readiness failure by removing spring.data.redis.url precedence and using explicit host/port/database/password properties.
+Deployment hardening: unified /actuator/health/readiness contract; bounded 300s backend readiness; fail-fast terminal-state detection; diagnostic capture; no automatic rollback after Flyway-backed startup.
+Security: disabled Spring Boot generated in-memory development user auto-configuration; retained JWT-based application security.
 Angular baseline: 20.x (major upgrades blocked by Dependabot until planned migration).
 Cashfree: CASHFREE_SECRET_KEY used for webhook HMAC verification; no separate webhook secret.
-Production Redis: direct UID/GID 999:1000, no-new-privileges, cap_drop ALL.
+Production Redis: direct UID/GID 999:1000, no-new-privileges, cap_drop ALL, authenticated redis-cli healthcheck.
 Dev Compose: isolated container names and persistent volumes.
 Validation:
   - Project baseline: PASS
-  - JSON/XML/YAML parsing: PASS
+  - JSON/YAML parsing: PASS
   - Shell syntax: PASS
   - Angular 22 drift: PASS/none
+  - Redis URL precedence regression: PASS/none
   - Production Cashfree secret scan: PASS
   - Backend readiness contract: PASS
   - Final archive integrity: PASS after archive creation
+Notes:
+  - Full networked Maven/Docker execution must still be performed by GitHub Actions/Oracle VM because those toolchains are not available in this sandbox.

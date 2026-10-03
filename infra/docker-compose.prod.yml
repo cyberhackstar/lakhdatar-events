@@ -93,7 +93,9 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/lakhdatar
       DB_USERNAME: lakhdatar
       DB_PASSWORD: ${DB_PASSWORD}
-      REDIS_URL: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DATABASE: "0"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_REFRESH_TOKEN: ${JWT_REFRESH_TOKEN:-14d}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
