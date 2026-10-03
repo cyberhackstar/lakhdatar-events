@@ -3,14 +3,14 @@ name: lakhdatar-events-dev
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: lakhdatar-postgres
+    container_name: lakhdatar-dev-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: lakhdatar
       POSTGRES_USER: lakhdatar
       POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
     volumes:
-      - lakhdatar_pg_data:/var/lib/postgresql/data
+      - lakhdatar_pg_data_dev:/var/lib/postgresql/data
     networks: [lakhdatar_net]
     ports: ["127.0.0.1:5433:5432"]
     healthcheck:
@@ -20,10 +20,10 @@ services:
       retries: 10
   redis:
     image: redis:7-alpine
-    container_name: lakhdatar-redis
+    container_name: lakhdatar-dev-redis
     restart: unless-stopped
     command: ["redis-server","--appendonly","yes"]
-    volumes: ["lakhdatar_redis_data:/data"]
+    volumes: ["lakhdatar_redis_data_dev:/data"]
     networks: [lakhdatar_net]
     healthcheck:
       test: ["CMD","redis-cli","ping"]
@@ -32,7 +32,7 @@ services:
       retries: 10
   backend:
     build: ./backend
-    container_name: lakhdatar-backend
+    container_name: lakhdatar-dev-backend
     restart: unless-stopped
     depends_on:
       postgres: {condition: service_healthy}
@@ -63,7 +63,7 @@ services:
       retries: 10
   web:
     build: ./frontend
-    container_name: lakhdatar-web
+    container_name: lakhdatar-dev-web
     restart: unless-stopped
     depends_on: {backend: {condition: service_healthy}}
     networks: [lakhdatar_net]
@@ -74,7 +74,7 @@ services:
       retries: 10
   edge:
     build: ./edge
-    container_name: lakhdatar-edge
+    container_name: lakhdatar-dev-edge
     restart: unless-stopped
     depends_on:
       web: {condition: service_healthy}
@@ -87,7 +87,7 @@ networks:
     name: lakhdatar_net
 
 volumes:
-  lakhdatar_pg_data:
-    name: lakhdatar_pg_data
-  lakhdatar_redis_data:
-    name: lakhdatar_redis_data
+  lakhdatar_pg_data_dev:
+    name: lakhdatar_pg_data_dev
+  lakhdatar_redis_data_dev:
+    name: lakhdatar_redis_data_dev

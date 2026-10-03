@@ -8,6 +8,9 @@
 # v1.9.16 static validation
 
 - Release metadata synchronization: PASS
+- Angular baseline and lockfile: PASS (Angular 20.x; no Angular 22 references)
+- Dependabot Angular-major protection: PASS
+- Local Compose isolation: PASS (dev containers and persistent volumes use separate names)
 - Redis production security configuration: PASS
 - Redis starts directly as UID 999 / GID 1000 to avoid the incompatible `setpriv` privilege-drop path under `cap_drop: ALL` and `no-new-privileges`.
 - Redis healthcheck authenticates through `REDISCLI_AUTH`.

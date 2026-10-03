@@ -1,3 +1,8 @@
+# Lakhdatar Events 1.9.16 — Stability Protection
+
+- Blocks unplanned Angular-major Dependabot PRs while the supported frontend baseline remains Angular 20.x; patch/minor security updates remain enabled.
+- Isolates local Docker Compose container names and PostgreSQL/Redis volumes from production so local development cannot collide with the production stack.
+
 # Lakhdatar Events 1.9.16 — Cashfree Webhook Secret Model Correction
 
 - Removed the non-existent application-side `CASHFREE_WEBHOOK_SECRET` configuration.

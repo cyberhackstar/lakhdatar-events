@@ -72,6 +72,7 @@ Configure Cloudinary only when branding uploads are required: `CLOUDINARY_CLOUD_
 cp .env.example .env      # fill the secrets
 docker compose up --build
 # open http://localhost:4002
+# Development uses isolated containers/volumes and will not attach to production data.
 ```
 
 Backend tests: `cd backend && mvn -B verify` (integration tests need Docker; `mvn verify -Punit` skips them).

@@ -15,6 +15,9 @@ v1.9.16 Cashfree webhook correction:
 - Verifies Cashfree webhook HMAC with the provider CASHFREE_SECRET_KEY, matching the documented signing flow.
 - Updated backend configuration, deployment environment, docs, and regression contracts.
 
+v1.9.16 CI/development stability protection:
+- Blocks unplanned Angular-major Dependabot pull requests while Angular 20.x remains the supported baseline.
+- Isolates local development containers and persistent volumes from the production stack.
 
 v1.9.16 Redis production hardening corrective pass:
 - Starts Redis directly as UID 999 / GID 1000 to avoid the root-to-redis `setpriv` transition under a fully dropped capability set.
