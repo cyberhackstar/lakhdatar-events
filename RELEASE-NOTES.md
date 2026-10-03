@@ -1,4 +1,10 @@
-# Release 1.9.15 — Redis production hardening corrective pass
+# Lakhdatar Events 1.9.16 — Cashfree Webhook Secret Model Correction
+
+- Removed the non-existent application-side `CASHFREE_WEBHOOK_SECRET` configuration.
+- Cashfree webhook HMAC verification now uses the Cashfree `CASHFREE_SECRET_KEY`, matching Cashfree's documented verification flow.
+- Updated production guard, Compose environment, example environment, payment documentation, and regression tests accordingly.
+
+# Release 1.9.16 — Redis production hardening corrective pass
 
 - Corrects the Redis container security configuration that caused `setpriv: setresuid failed: Operation not permitted` during production recreation.
 - Starts Redis directly as UID 999 / GID 1000, matching the `redis` account in the Redis 7 Alpine image, so the image entrypoint does not require a root-to-user privilege transition.

@@ -29,7 +29,7 @@ class RazorpaySignatureTest {
                 new AppProperties.Cors("http://localhost:4200"),
                 new AppProperties.RateLimit(10, 20, 240, 60),
                 new AppProperties.Razorpay("rzp_test", KEY_SECRET, WEBHOOK_SECRET, "https://example.invalid/v1", 120000, 30000, 3000, 8000),
-                new AppProperties.Cashfree("", "", "", "https://example.invalid/pg", "2025-01-01", 120000, 30000, 3000, 8000, 300000),
+                new AppProperties.Cashfree("", "", "https://example.invalid/pg", "2025-01-01", 120000, 30000, 3000, 8000, 300000),
                 new AppProperties.Payment(120000, 30000),
                 new AppProperties.InitialAdmin(false, ""),
                 new AppProperties.Cloudinary("", "", "", "neelastack-events", 5242880),
@@ -71,7 +71,7 @@ class RazorpaySignatureTest {
                 new AppProperties.Cors("http://localhost:4200"),
                 new AppProperties.RateLimit(10, 20, 240, 60),
                 new AppProperties.Razorpay("rzp_test", KEY_SECRET, WEBHOOK_SECRET, "https://example.invalid/v1", 120000, 30000, 3000, 8000),
-                new AppProperties.Cashfree("cf_app", "cf_secret", "cf_webhook_secret", "https://example.invalid/pg", "2025-01-01", 120000, 30000, 3000, 8000, 300000),
+                new AppProperties.Cashfree("cf_app", "cf_secret", "https://example.invalid/pg", "2025-01-01", 120000, 30000, 3000, 8000, 300000),
                 new AppProperties.Payment(120000, 30000),
                 new AppProperties.InitialAdmin(false, ""),
                 new AppProperties.Cloudinary("", "", "", "neelastack-events", 5242880),
@@ -81,7 +81,7 @@ class RazorpaySignatureTest {
         String timestamp = "" + System.currentTimeMillis();
         String raw = "{\"type\":\"PAYMENT_SUCCESS_WEBHOOK\"}";
         Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec("cf_webhook_secret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        mac.init(new SecretKeySpec("cf_secret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         String signature = Base64.getEncoder().encodeToString(mac.doFinal((timestamp + raw).getBytes(StandardCharsets.UTF_8)));
         assertTrue(cashfree.verifyWebhookSignature(raw, signature, timestamp));
         assertFalse(cashfree.verifyWebhookSignature(raw + " ", signature, timestamp));

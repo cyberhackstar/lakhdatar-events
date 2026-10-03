@@ -103,7 +103,6 @@ app:
     base-url: ${CASHFREE_BASE_URL:https://api.cashfree.com/pg}
     app-id: ${CASHFREE_APP_ID:}
     secret-key: ${CASHFREE_SECRET_KEY:}
-    webhook-secret: ${CASHFREE_WEBHOOK_SECRET:}
     api-version: ${CASHFREE_API_VERSION:2025-01-01}
     reconciliation-age-ms: ${CASHFREE_RECONCILIATION_AGE_MS:120000}
     reconciliation-sweep-ms: ${CASHFREE_RECONCILIATION_SWEEP:30000}

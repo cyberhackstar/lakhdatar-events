@@ -19,7 +19,7 @@ Neelastack owns the payment orchestration layer. An event can select `RAZORPAY` 
 Configure only the provider credentials that are actually enabled. Use strong, private production secrets and keep them outside Git.
 
 - Razorpay: `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`.
-- Cashfree: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_WEBHOOK_SECRET`.
+- Cashfree: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`. Cashfree webhook signatures are verified with the same provider Secret Key; this project does not define a separate Cashfree webhook secret.
 
 Cashfree webhook endpoint: `/api/v1/webhooks/cashfree`; Cashfree orders also set the public `notify_url` to this endpoint and return to `/payment/success` for server-side verification.
 Razorpay webhook endpoint: `/api/v1/webhooks/razorpay`.

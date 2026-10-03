@@ -71,7 +71,7 @@ public record AppProperties(
     }
     public record Razorpay(String keyId, String keySecret, String webhookSecret, String baseUrl,
                            long reconciliationAgeMs, long reconciliationSweepMs, long httpConnectTimeoutMs, long httpReadTimeoutMs) {}
-    public record Cashfree(String appId, String secretKey, String webhookSecret, String baseUrl, String apiVersion,
+    public record Cashfree(String appId, String secretKey, String baseUrl, String apiVersion,
                            long reconciliationAgeMs, long reconciliationSweepMs, long httpConnectTimeoutMs, long httpReadTimeoutMs, long webhookToleranceMs) {}
     public record Payment(long reconciliationAgeMs, long reconciliationSweepMs) {}
     public record InitialAdmin(boolean enabled, String setupToken) {}

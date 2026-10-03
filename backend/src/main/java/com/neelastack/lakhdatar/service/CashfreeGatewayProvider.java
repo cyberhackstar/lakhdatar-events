@@ -38,7 +38,7 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
     @Override public Enums.PaymentProvider provider() { return Enums.PaymentProvider.CASHFREE; }
 
     @Override public boolean isConfigured() {
-        return present(props.cashfree().appId()) && present(props.cashfree().secretKey()) && present(props.cashfree().webhookSecret());
+        return present(props.cashfree().appId()) && present(props.cashfree().secretKey());
     }
 
     private boolean present(String value) { return value != null && !value.isBlank(); }
@@ -134,10 +134,11 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
     @Override public boolean verifyPaymentSignature(String orderId, String paymentId, String signature) { return false; }
 
     @Override public boolean verifyWebhookSignature(String raw, String signature, String timestamp) {
-        if (!present(signature) || !present(timestamp) || !present(props.cashfree().webhookSecret()) || raw == null) return false;
+        if (!present(signature) || !present(timestamp) || !present(props.cashfree().secretKey()) || raw == null) return false;
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(props.cashfree().webhookSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            // Cashfree signs webhook payloads with the merchant Secret Key; there is no separate webhook secret in this integration.
+            mac.init(new SecretKeySpec(props.cashfree().secretKey().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             String expected = Base64.getEncoder().encodeToString(mac.doFinal((timestamp + raw).getBytes(StandardCharsets.UTF_8)));
             return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {

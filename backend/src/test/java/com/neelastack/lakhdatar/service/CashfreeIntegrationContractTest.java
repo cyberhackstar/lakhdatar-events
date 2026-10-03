@@ -16,6 +16,8 @@ class CashfreeIntegrationContractTest {
         String source = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/CashfreeGatewayProvider.java"));
         String webhook = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/CashfreeWebhookService.java"));
         assertTrue(source.contains("return false;"));
+        assertTrue(source.contains("props.cashfree().secretKey()"));
+        assertFalse(source.contains("props.cashfree().webhookSecret()"));
         assertTrue(webhook.contains("webhookToleranceMs()"));
         assertTrue(webhook.contains("DataIntegrityViolationException"));
         assertFalse(webhook.contains("headerEventId"));

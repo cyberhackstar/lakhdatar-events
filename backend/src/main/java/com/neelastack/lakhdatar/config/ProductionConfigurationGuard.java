@@ -22,10 +22,10 @@ public class ProductionConfigurationGuard {
         String redisPassword = environment.getProperty("REDIS_PASSWORD");
         if (redisPassword == null || redisPassword.isBlank() || redisPassword.startsWith("change-me") || redisPassword.length() < 32) throw new IllegalStateException("REDIS_PASSWORD must be a unique secret of at least 32 characters in production");
         boolean razorpayConfigured = present(props.razorpay().keyId()) || present(props.razorpay().keySecret()) || present(props.razorpay().webhookSecret());
-        boolean cashfreeConfigured = present(props.cashfree().appId()) || present(props.cashfree().secretKey()) || present(props.cashfree().webhookSecret());
+        boolean cashfreeConfigured = present(props.cashfree().appId()) || present(props.cashfree().secretKey());
         if (!razorpayConfigured && !cashfreeConfigured) throw new IllegalStateException("At least one payment provider must be configured in production");
         if (razorpayConfigured) { requireProviderCredential("RAZORPAY_KEY_SECRET", props.razorpay().keySecret()); requireSecret("RAZORPAY_WEBHOOK_SECRET", props.razorpay().webhookSecret()); requireNonBlank("RAZORPAY_KEY_ID", props.razorpay().keyId()); requireHttps("RAZORPAY_BASE_URL", props.razorpay().baseUrl()); }
-        if (cashfreeConfigured) { requireProviderCredential("CASHFREE_SECRET_KEY", props.cashfree().secretKey()); requireSecret("CASHFREE_WEBHOOK_SECRET", props.cashfree().webhookSecret()); requireNonBlank("CASHFREE_APP_ID", props.cashfree().appId()); requireHttps("CASHFREE_BASE_URL", props.cashfree().baseUrl()); }
+        if (cashfreeConfigured) { requireProviderCredential("CASHFREE_SECRET_KEY", props.cashfree().secretKey()); requireNonBlank("CASHFREE_APP_ID", props.cashfree().appId()); requireHttps("CASHFREE_BASE_URL", props.cashfree().baseUrl()); }
         requireHttps("NEELASTACK_PUBLIC_URL", props.branding().neelastackPublicUrl());
         requireHttpsOrigins("CORS_ALLOWED_ORIGINS", props.cors().allowedOrigins());
         if (!props.security().refreshCookieSecure()) throw new IllegalStateException("AUTH_COOKIE_SECURE must be true in production");
