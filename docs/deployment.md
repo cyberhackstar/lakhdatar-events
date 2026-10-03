@@ -23,8 +23,10 @@ Target directory: `/home/ubuntu/apps/lakhdatar-events`. Public host port: `4002`
 
 GitHub Actions uses two workflows only: `CI` and `Production`. `CI` builds/tests the backend, builds/validates the SSR frontend (including an SSR server smoke test), runs security/dependency scans and the weekly security sweep, and pushes three ARM64 images tagged with the full Git SHA: `lakhdatar-backend`, `lakhdatar-web`, `lakhdatar-edge`. `Production` then follows the same deployment model used by the Neelastack production project: the VM repository is fast-forwarded/reset to the exact release SHA and `infra/deploy/deploy.sh <sha>` is executed in place, which:
 
-1. validates the Compose model, 2. takes a database backup, 3. pulls the immutable images, 4. starts PostgreSQL/Redis, 5. starts the backend (Flyway applies migrations) and waits for health,
-6. starts web and edge, 7. smoke-tests `/`, `/api/v1/public/events/upcoming`, `/robots.txt`, `/sitemap.xml` on `127.0.0.1:4002`.
+1. validates the Compose model, 2. takes a database backup, 3. pulls the immutable images, 4. starts PostgreSQL/Redis, 5. starts the backend (Flyway applies migrations) and waits for the Spring readiness group (`/actuator/health/readiness`) for up to 300 seconds,
+6. starts web and edge and waits for the local edge health endpoint, 7. smoke-tests `/`, `/api/v1/public/events/upcoming`, `/robots.txt`, `/sitemap.xml` on `127.0.0.1:4002`.
+
+Backend readiness failures after startup are diagnosed in-place: the deploy script records Compose status, container health state, and the last 250 backend log lines. The backend, production Compose healthcheck, and deploy gate all use the same readiness contract.
 
 Failures before Flyway-backed application startup can roll back automatically. Once Flyway has run, the release is not automatically downgraded because database schema changes are forward-only; the deployment is marked failed and the operator must use a forward fix or a verified schema-compatible rollback.
 Manual rollback: run the `Production` workflow with operation `rollback`, or run `./infra/deploy/rollback.sh` on the VM after confirming the previous release is schema-compatible. Manual deploy accepts an explicit 40-character release SHA; it must already have passed CI and have corresponding GHCR images. Application rollback is intentionally not automatic after Flyway has run.
@@ -43,6 +45,8 @@ The edge maps `X-Forwarded-Proto` from Cloudflare, forwards `Host`, `X-Forwarded
 public origin (`PUBLIC_BASE_URL` / `environment.prod.ts`), never the request Host, so `localhost` or internal container names can never appear in customer-facing URLs.
 
 ## Verification
+
+Backend readiness inside the container should return `status=UP` before the web and edge services are started. The production deploy gate defaults to 300 seconds for backend readiness and 180 seconds for edge readiness. These bounds are configurable with positive-integer environment variables.
 
 ```bash
 curl -fsS http://127.0.0.1:4002/edge-health

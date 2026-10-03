@@ -67,6 +67,21 @@ class MultiEventContractTest {
         assertTrue(Files.readString(Path.of("../.github/workflows/production.yml")).contains("/home/ubuntu/apps/lakhdatar-events"));
     }
 
+    @Test void backendReadinessContractIsConsistentAcrossDeploymentLayers() throws Exception {
+        String deploy = Files.readString(Path.of("../infra/deploy/deploy.sh"));
+        String compose = Files.readString(Path.of("../infra/docker-compose.prod.yml"));
+        String dockerfile = Files.readString(Path.of("../backend/Dockerfile"));
+        String readiness = "/actuator/health/readiness";
+        assertTrue(deploy.contains(readiness), "deploy gate must use the readiness group");
+        assertTrue(compose.contains(readiness), "production Compose healthcheck must use the readiness group");
+        assertTrue(dockerfile.contains(readiness), "backend image healthcheck must use the readiness group");
+        assertTrue(deploy.contains("BACKEND_READINESS_TIMEOUT_SECONDS=\"${BACKEND_READINESS_TIMEOUT_SECONDS:-300}\""), "deploy gate must allow slow ARM/DB startup");
+        assertTrue(compose.contains("start_period: 90s"), "Compose must allow application startup before readiness failures count");
+        assertTrue(compose.contains("retries: 24"), "Compose readiness retries must provide a bounded recovery window");
+        assertTrue(deploy.contains("print_backend_diagnostics"), "readiness failures must emit actionable backend diagnostics");
+        assertFalse(deploy.contains("{1..40}"), "legacy 120-second backend gate must not return");
+    }
+
     @Test void mobileFormControlsStayAtSixteenPixelsAndViewportRemainsAccessible() throws Exception {
         String html = Files.readString(Path.of("../frontend/src/index.html")).toLowerCase();
         assertTrue(html.contains("width=device-width"));

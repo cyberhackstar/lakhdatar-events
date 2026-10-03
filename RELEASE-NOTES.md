@@ -98,3 +98,12 @@
 - Preserved the external Oracle VM entry point at loopback `127.0.0.1:4002`.
 - Added read-only-compatible runtime tmpfs ownership for NGINX cache and PID paths.
 - Updated Compose, contract tests, deployment docs and release metadata for the internal 8080 edge port.
+
+
+## v1.9.17 deployment-hardening release
+
+- Unified backend readiness on `/actuator/health/readiness` across the container image, production Compose healthcheck, and deploy gate.
+- Increased backend readiness allowance to 300 seconds at deploy time and aligned Compose health checks with a 90-second startup period plus bounded retries.
+- Added fail-fast detection for exited/dead backend containers and automatic diagnostic capture of Compose state, container health state, and recent backend logs.
+- Added equivalent bounded readiness diagnostics for the local edge endpoint before smoke testing.
+- Preserved the Flyway safety rule: no automatic image rollback after backend startup.

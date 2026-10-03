@@ -12,8 +12,11 @@ const angular = JSON.parse(read('frontend/angular.json'));
 const styles = read('frontend/src/styles.css');
 const index = read('frontend/src/index.html');
 const dockerfile = read('frontend/Dockerfile');
+const backendDockerfile = read('backend/Dockerfile');
 const edgeDockerfile = read('edge/Dockerfile');
 const ci = read('.github/workflows/ci.yml');
+const deploy = read('infra/deploy/deploy.sh');
+const prodCompose = read('infra/docker-compose.prod.yml');
 const version = read('VERSION').trim();
 
 const expected = {
@@ -63,6 +66,13 @@ if (ci.match(/uses: actions\/attest@v4/g)?.length !== 3) problems.push('GitHub a
 for (const id of ['push-backend','push-web','push-edge']) if (!ci.includes(`id: ${id}`)) problems.push(`Docker build output id missing: ${id}`);
 if (!ci.includes('gh attestation verify')) problems.push('GitHub artifact provenance verification missing');
 if (ci.includes('cosign verify-attestation')) problems.push('Legacy Cosign provenance verification must not be used for BuildKit attestations');
+if (!backendDockerfile.includes('/actuator/health/readiness')) problems.push('backend Docker healthcheck readiness contract missing');
+if (!prodCompose.includes('/actuator/health/readiness')) problems.push('production Compose backend readiness contract missing');
+if (!deploy.includes('/actuator/health/readiness')) problems.push('deployment backend readiness contract missing');
+if (!deploy.includes('BACKEND_READINESS_TIMEOUT_SECONDS="${BACKEND_READINESS_TIMEOUT_SECONDS:-300}"')) problems.push('deployment readiness timeout baseline mismatch');
+if (!deploy.includes('print_backend_diagnostics')) problems.push('deployment readiness diagnostics missing');
+if (deploy.includes('/actuator/health >/dev/null')) problems.push('legacy aggregate backend health gate must not be used');
+if (!prodCompose.includes('start_period: 90s')) problems.push('production backend healthcheck startup period mismatch');
 if (read('.nvmrc').trim() !== '24') problems.push('Node runtime baseline mismatch');
 if (problems.length) { console.error('Neelastack baseline verification FAILED:'); for (const p of problems) console.error(`- ${p}`); process.exit(1); }
 console.log('Neelastack stability baseline: PASS');

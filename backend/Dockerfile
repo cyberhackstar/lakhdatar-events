@@ -14,5 +14,5 @@ COPY --from=build /build/target/lakhdatar-events-*.jar app.jar
 RUN chown app:app /app/app.jar
 USER app
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=35s --retries=3 CMD wget -qO- http://localhost:8080/actuator/health >/dev/null || exit 1
+HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=24 CMD wget -qO- --timeout=5 http://127.0.0.1:8080/actuator/health/readiness >/dev/null || exit 1
 ENTRYPOINT ["java","-XX:MaxRAMPercentage=75","-XX:+UseContainerSupport","-XX:+ExitOnOutOfMemoryError","-Djava.security.egd=file:/dev/urandom","-jar","/app/app.jar"]

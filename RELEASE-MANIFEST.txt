@@ -1,8 +1,8 @@
-LAKHDATAR EVENTS v1.9.16 FINAL RELEASE MANIFEST
+LAKHDATAR EVENTS v1.9.17 FINAL RELEASE MANIFEST
 ==============================================
-Release: 1.9.16
+Release: 1.9.17
 Base: v1.9.15 Redis-hardening release
-Primary correction: CI frontend security audit scoped to runtime dependencies.
+Primary correction: production deployment readiness contract unified across image, Compose, and deploy gate; CI frontend security audit remains scoped to runtime dependencies.
 Angular baseline: 20.x (major upgrades blocked by Dependabot until planned migration).
 Cashfree: CASHFREE_SECRET_KEY used for webhook HMAC verification; no separate webhook secret.
 Production Redis: direct UID/GID 999:1000, no-new-privileges, cap_drop ALL.
@@ -13,4 +13,5 @@ Validation:
   - Shell syntax: PASS
   - Angular 22 drift: PASS/none
   - Production Cashfree secret scan: PASS
-  - Final archive integrity: pending after archive creation
+  - Backend readiness contract: PASS
+  - Final archive integrity: PASS after archive creation
