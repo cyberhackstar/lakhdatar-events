@@ -1,3 +1,14 @@
+# Lakhdatar Events v1.9.19 — NGINX edge startup corrective release
+
+- Permanently fixes the production edge CrashLoop caused by passing `pid /tmp/nginx.pid` through `nginx -g` while the official NGINX base configuration already defines a `pid` directive.
+- Rewrites the base image PID path to `/tmp/nginx.pid` at image build time and starts NGINX with only `daemon off;`, eliminating duplicate PID configuration.
+- Removes the redundant root-oriented `user nginx;` directive from the base NGINX configuration because the container already runs as the unprivileged `nginx` user.
+- Adds a dedicated non-root startup validator that runs `nginx -t` before the master process starts and fails with a clear configuration error.
+- Retains the correct Compose DNS topology (`backend:8080` and `web:3000`); standalone `docker run` tests are not the production network model.
+- Hardens deployment edge readiness to distinguish restarting/exited containers, internal NGINX readiness failures, and host port `4002` binding failures; diagnostics now use direct Docker inspection/log commands instead of relying on Compose service arguments.
+- Adds an edge startup grace period to the production healthcheck.
+- Adds static regression checks so the duplicate-PID pattern cannot be reintroduced without CI detecting it.
+
 # Lakhdatar Events 1.9.16 — CI security-audit correction
 
 - The failed 1.9.16 CI run was caused by `npm audit --audit-level=high` evaluating development-only tooling dependencies.

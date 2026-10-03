@@ -94,30 +94,65 @@ wait_for_backend_readiness() {
   return 1
 }
 
+print_edge_diagnostics() {
+  echo "--- edge container state/health ---" >&2
+  docker inspect --format '{{json .State}}' lakhdatar-edge >&2 || true
+  echo "--- edge port bindings ---" >&2
+  docker inspect --format '{{json .NetworkSettings.Ports}}' lakhdatar-edge >&2 || true
+  echo "--- edge nginx config test ---" >&2
+  docker exec lakhdatar-edge nginx -t >&2 || true
+  echo "--- edge internal health ---" >&2
+  docker exec lakhdatar-edge wget -S -O- --timeout=5 http://127.0.0.1:8080/edge-health >&2 || true
+  echo "--- host port 4002 ---" >&2
+  curl -v --max-time 10 "$LOCAL_URL/edge-health" >&2 || true
+  echo "--- host listener 4002 ---" >&2
+  ss -lntp 2>/dev/null | grep ':4002' >&2 || true
+  echo "--- edge logs (tail 250) ---" >&2
+  docker logs --tail=250 lakhdatar-edge >&2 || true
+}
+
 wait_for_edge_readiness() {
   local deadline=$((SECONDS + WEB_READINESS_TIMEOUT_SECONDS))
   local attempt=0
   while (( SECONDS < deadline )); do
     attempt=$((attempt + 1))
-    if curl -fsS --max-time 10 "$LOCAL_URL/edge-health" >/dev/null 2>&1; then
-      echo "Edge readiness passed on attempt $attempt."
-      return 0
+    local state='' health='' restart_count='' exit_code=''
+    if ! docker inspect lakhdatar-edge >/dev/null 2>&1; then
+      echo "Edge container is not present yet (attempt $attempt)." >&2
+      sleep "$WEB_READINESS_INTERVAL_SECONDS"
+      continue
     fi
-    if docker inspect --format '{{.State.Status}}' lakhdatar-edge >/dev/null 2>&1; then
-      local state
-      state="$(docker inspect --format '{{.State.Status}}' lakhdatar-edge 2>/dev/null || true)"
-      if [[ "$state" == "exited" || "$state" == "dead" ]]; then
-        echo "Edge container entered terminal state '$state'." >&2
-        "${COMPOSE[@]} ps edge >&2 || true"
-        "${COMPOSE[@]} logs --no-color --tail=200 edge >&2 || true"
-        return 1
+
+    state="$(docker inspect --format '{{.State.Status}}' lakhdatar-edge 2>/dev/null || true)"
+    health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' lakhdatar-edge 2>/dev/null || true)"
+    restart_count="$(docker inspect --format '{{.RestartCount}}' lakhdatar-edge 2>/dev/null || true)"
+    exit_code="$(docker inspect --format '{{.State.ExitCode}}' lakhdatar-edge 2>/dev/null || true)"
+
+    if [[ "$state" == "restarting" || "$state" == "exited" || "$state" == "dead" ]]; then
+      echo "Edge container is not runnable: state=$state health=$health restart_count=$restart_count exit_code=$exit_code." >&2
+      print_edge_diagnostics
+      return 1
+    fi
+
+    if [[ "$state" == "running" ]]; then
+      if docker exec lakhdatar-edge wget -qO- --timeout=5 http://127.0.0.1:8080/edge-health >/dev/null 2>&1; then
+        if curl -fsS --max-time 10 "$LOCAL_URL/edge-health" >/dev/null 2>&1; then
+          echo "Edge readiness passed on attempt $attempt."
+          return 0
+        fi
+        echo "Edge is running internally but host port 4002 is not ready yet (attempt $attempt)." >&2
+      else
+        echo "Edge container is running but internal /edge-health is not ready yet (attempt $attempt)." >&2
       fi
+    else
+      echo "Edge container state is '$state' (attempt $attempt); waiting." >&2
     fi
+
     sleep "$WEB_READINESS_INTERVAL_SECONDS"
   done
+
   echo "Edge readiness timed out after ${WEB_READINESS_TIMEOUT_SECONDS}s." >&2
-  "${COMPOSE[@]} ps web edge >&2 || true"
-  "${COMPOSE[@]} logs --no-color --tail=200 web edge >&2 || true"
+  print_edge_diagnostics
   return 1
 }
 

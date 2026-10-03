@@ -1,22 +1,22 @@
-LAKHDATAR EVENTS v1.9.18 FINAL ENTERPRISE RELEASE MANIFEST
+LAKHDATAR EVENTS v1.9.19 FINAL ENTERPRISE RELEASE MANIFEST
 =========================================================
-Release: 1.9.18
-Base: v1.9.15 Redis-hardening release, carried forward through v1.9.17 deployment hardening.
-Primary correction: fixed Redis authentication/readiness failure by removing spring.data.redis.url precedence and using explicit host/port/database/password properties.
-Deployment hardening: unified /actuator/health/readiness contract; bounded 300s backend readiness; fail-fast terminal-state detection; diagnostic capture; no automatic rollback after Flyway-backed startup.
-Security: disabled Spring Boot generated in-memory development user auto-configuration; retained JWT-based application security.
-Angular baseline: 20.x (major upgrades blocked by Dependabot until planned migration).
-Cashfree: CASHFREE_SECRET_KEY used for webhook HMAC verification; no separate webhook secret.
-Production Redis: direct UID/GID 999:1000, no-new-privileges, cap_drop ALL, authenticated redis-cli healthcheck.
-Dev Compose: isolated container names and persistent volumes.
-Validation:
-  - Project baseline: PASS
-  - JSON/YAML parsing: PASS
+Release: 1.9.19
+Base: v1.9.18 Redis-authentication and readiness release.
+Primary correction: permanently fixes the production NGINX edge CrashLoop caused by a duplicate PID directive in the official nginx base configuration plus an `nginx -g` PID override.
+Edge hardening: rewrites the base NGINX PID path to /tmp/nginx.pid, removes the redundant non-root user directive, validates nginx configuration at container startup, and keeps the edge compatible with read-only runtime storage.
+Deployment hardening: edge readiness now fails fast on restarting/exited/dead containers, checks both internal :8080 and host 127.0.0.1:4002 readiness, records port bindings and listener state, and captures direct container logs without Compose argument ambiguity.
+Topology: production edge continues to proxy to Docker Compose DNS names `backend:8080` and `web:3000`; host exposure remains loopback-only on 127.0.0.1:4002 for Cloudflare Tunnel.
+Security: NGINX edge remains non-root, cap_drop ALL, no-new-privileges, read-only root filesystem, bounded resources, and Alpine security upgrades.
+Backend/data: v1.9.18 Redis authentication fix and Flyway safety behavior are retained unchanged.
+Frontend: Angular 20.x baseline retained; no framework-major upgrade introduced.
+CI/CD: multi-architecture images, Trivy gates, GitHub artifact attestations, provenance verification, immutable SHA deployment, and production dependency audit retained.
+Validation performed in packaging sandbox:
+  - Project baseline validator: PASS
+  - JSON/package-lock parsing: PASS
+  - YAML parsing: PASS
   - Shell syntax: PASS
-  - Angular 22 drift: PASS/none
-  - Redis URL precedence regression: PASS/none
-  - Production Cashfree secret scan: PASS
-  - Backend readiness contract: PASS
-  - Final archive integrity: PASS after archive creation
-Notes:
-  - Full networked Maven/Docker execution must still be performed by GitHub Actions/Oracle VM because those toolchains are not available in this sandbox.
+  - Edge Dockerfile regression checks: PASS
+  - Edge NGINX static configuration checks: PASS
+  - Release metadata consistency: PASS
+  - Archive integrity: PASS after archive creation
+  - Networked Maven/Docker/npm-registry execution: unavailable in this sandbox; GitHub Actions/Oracle VM remain authoritative for those checks.

@@ -184,6 +184,32 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Regression-test edge container startup
+        env:
+          EDGE_IMAGE: ghcr.io/${{ github.repository_owner }}/lakhdatar-edge:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          container=lakhdatar-edge-regression
+          cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run -d \
+            --name "$container" \
+            --add-host backend:127.0.0.1 \
+            --add-host web:127.0.0.1 \
+            -p 127.0.0.1:18082:8080 \
+            "$EDGE_IMAGE" >/dev/null
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 3 http://127.0.0.1:18082/edge-health >/dev/null; then
+              echo "Edge container startup regression test passed."
+              exit 0
+            fi
+            sleep 1
+          done
+          docker inspect "$container" || true
+          docker logs "$container" || true
+          echo "::error::Edge image failed startup/readiness regression test"
+          exit 1
+
       - name: Scan backend image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:

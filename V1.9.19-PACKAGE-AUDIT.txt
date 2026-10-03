@@ -1,0 +1,24 @@
+LAKHDATAR EVENTS v1.9.19 FINAL PACKAGE AUDIT
+============================================
+Package file count (excluding package-audit/manifest files): 271
+Release VERSION: 1.9.19
+Frontend Angular baseline: 20.x
+Frontend package/lock metadata: consistent
+Cashfree webhook: provider Secret Key + raw-body/timestamp HMAC
+Redis production: UID/GID 999:1000 + no-new-privileges + cap_drop ALL
+Dependabot: Angular major updates blocked pending planned migration
+Local Compose: dev containers/volumes isolated from production
+CI security gate: production dependencies only (`npm ci --omit=dev` + `npm audit --omit=dev --audit-level=high`)
+Edge NGINX: non-root, read-only compatible, Alpine security-updated, PID path relocated to /tmp/nginx.pid
+Edge startup: dedicated `nginx -t` validation before master startup
+Edge regression: duplicate `nginx -g ... pid ...` pattern removed
+Production edge routing: backend:8080 + web:3000 preserved on the Compose network
+Deployment edge gate: internal + host readiness with restart-loop fail-fast diagnostics
+Structured-file parsing: PASS
+Shell syntax validation: PASS
+Project baseline validator: PASS
+Release metadata consistency: PASS
+Angular-major drift check: retained from v1.9.18 baseline
+Production Cashfree secret-reference check: retained from v1.9.18 baseline
+Local Maven/Docker execution: unavailable in packaging sandbox
+Local npm registry audit endpoint: unavailable in packaging sandbox
