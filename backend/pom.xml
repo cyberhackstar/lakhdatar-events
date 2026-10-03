@@ -219,7 +219,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.5.2</version>
+        <version>3.6.0</version>
         <configuration>
           <!-- Bound the forked test JVM so a Docker Desktop VM with ~3 GB is not exhausted
                (the previous build crashed with "insufficient memory for the Java Runtime Environment"). -->
