@@ -109,6 +109,7 @@ jobs:
           set -euo pipefail
           test -f dist/frontend/server/server.mjs
           test -f dist/frontend/browser/assets/og-default.png
+          test -s dist/frontend/browser/assets/neelastack-logo.png
           if grep -rl "localhost:8081" dist/frontend/browser; then
             echo "Dev API URL leaked into production bundle" >&2
             exit 1

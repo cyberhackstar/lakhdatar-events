@@ -5,7 +5,10 @@ WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
-RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+RUN npm run build \
+    && test -s dist/frontend/browser/assets/neelastack-logo.png \
+    && test -s dist/frontend/browser/assets/og-default.png \
+    && npm prune --omit=dev --no-audit --no-fund
 
 FROM node:24-alpine3.22
 RUN apk upgrade --no-cache

@@ -1,28 +1,34 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, inject } from '@angular/core';
+import { Component, ElementRef, Input, OnChanges, OnDestroy, SimpleChanges, ViewChild, inject } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
 import { map, Subscription } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { AdminEventView } from '../../core/api/api.models';
+import { DEFAULT_TZ, TIMEZONES, toIsoInZone, toLocalInput } from '../../core/datetime';
+import { ADMIN_UI_STYLES } from './admin.styles';
+import { AdminStore } from './admin-store.service';
 
 @Component({
   selector: 'lk-event-editor',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
-    <section class="editor" id="event-editor" *ngIf="!loading && event">
+    <a class="back" routerLink="/admin/events">← All events</a>
+    <section class="editor" id="event-editor" *ngIf="event">
       <div class="editor-head">
         <div>
           <div class="eyebrow">Event editor</div>
           <h2>{{ event.name }}</h2>
-          <p class="editor-sub">/{{ event.slug }} · {{ event.organizerName }} · {{ event.status }}</p>
+          <p class="editor-sub"><span class="state-pill" [class.published]="event.status==='PUBLISHED'">{{ event.status }}</span> /{{ event.slug }} · {{ event.organizerName }}</p>
         </div>
         <div class="editor-actions">
-          <a class="ghost" [href]="'/events/' + event.slug" target="_blank" rel="noopener">View public page ↗</a>
-          <button type="button" class="ghost" (click)="closed.emit()">Close</button>
+          <a class="a-btn" [href]="'/events/' + event.slug" target="_blank" rel="noopener">View public page ↗</a>
+          <a class="a-btn" routerLink="/admin/events">Close</a>
         </div>
       </div>
 
+      <div class="editor-message success" *ngIf="created && !success" role="status">Draft created. Add branding and review the details below, then publish when you are ready.</div>
       <div class="editor-message error" *ngIf="error" role="alert">{{ error }}</div>
       <div class="editor-message success" *ngIf="success" role="status">{{ success }}</div>
 
@@ -41,16 +47,7 @@ import { AdminEventView } from '../../core/api/api.models';
           <div class="section-title"><span>02</span><div><h3>Schedule & booking</h3><p>Times are stored as instants and displayed in the selected event timezone.</p></div></div>
           <div class="grid two">
             <label>Timezone
-              <select formControlName="timezone">
-                <option value="Asia/Kolkata">Asia/Kolkata</option>
-                <option value="Asia/Dubai">Asia/Dubai</option>
-                <option value="Asia/Singapore">Asia/Singapore</option>
-                <option value="Europe/London">Europe/London</option>
-                <option value="Europe/Paris">Europe/Paris</option>
-                <option value="America/New_York">America/New_York</option>
-                <option value="America/Los_Angeles">America/Los_Angeles</option>
-                <option value="Australia/Sydney">Australia/Sydney</option>
-              </select>
+              <select formControlName="timezone"><option *ngFor="let tz of timezones" [value]="tz">{{ tz }}</option></select>
             </label>
             <label>Event capacity <input formControlName="capacity" type="number" readonly aria-readonly="true" /><small>Capacity is fixed after creation for inventory safety.</small></label>
             <label>Starts<input formControlName="startsAt" type="datetime-local" /></label>
@@ -119,7 +116,7 @@ import { AdminEventView } from '../../core/api/api.models';
               </div>
               <div class="grid ticket-grid">
                 <label>Name<input formControlName="name" /></label>
-                <label>Price (₹)<input formControlName="priceRupees" type="number" min="0" step="1" /></label>
+                <label>Price (₹)<input formControlName="priceRupees" type="number" min="1" step="1" inputmode="numeric" /></label>
                 <label>Total inventory<input formControlName="totalQuantity" type="number" min="1" /></label>
                 <label>Min / order<input formControlName="minPerOrder" type="number" min="1" max="20" /></label>
                 <label>Max / order<input formControlName="maxPerOrder" type="number" min="1" max="20" /></label>
@@ -152,38 +149,83 @@ import { AdminEventView } from '../../core/api/api.models';
       </form>
     </section>
 
-    <div class="editor-loading" *ngIf="loading">Loading event editor…</div>
+    <div class="editor-loading" *ngIf="loading && !event">Loading event editor…</div>
+    <div class="editor-message error standalone" *ngIf="!event && !loading && error" role="alert">{{ error }} <a class="a-btn sm" routerLink="/admin/events">Back to events</a></div>
   `,
-  styles: [`
-    .asset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.asset-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.025)}.asset-card strong{display:block;font-size:13px}.asset-card small{display:block;color:#8f8794;font-size:11px;margin-top:4px;line-height:1.4}@media(max-width:720px){.asset-grid{grid-template-columns:1fr}}
-    :host{display:block}.editor{margin-top:18px;background:#fff;border:1px solid #e5dfd7;border-radius:26px;overflow:hidden;box-shadow:0 18px 55px rgba(33,24,31,.07)}
-    .editor-head{display:flex;justify-content:space-between;gap:20px;padding:28px;border-bottom:1px solid #eee8e0;background:linear-gradient(145deg,#fffdf9,#f8f3eb)}
-    .editor-head h2{margin:7px 0 5px;font-size:32px;letter-spacing:-.045em;color:#211923}.editor-sub{margin:0;color:#8a818b;font-size:11px}.editor-actions{display:flex;gap:8px;align-items:flex-start}.ghost{border:1px solid #ddd5cb;background:#fff;color:#403843;border-radius:11px;padding:10px 12px;font-size:10px;font-weight:800;text-decoration:none;cursor:pointer}
-    .editor-message{margin:16px 24px 0;padding:11px 13px;border-radius:11px;font-size:11px}.editor-message.error{background:#fff0f0;color:#8d3f43}.editor-message.success{background:#edf7ef;color:#416b4b}
-    .editor form{display:block}.editor-section{padding:26px 28px;border-bottom:1px solid #eee8e0}.section-title{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;margin-bottom:18px}.section-title>span{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#17121a;color:#fff;font-size:9px;font-weight:800}.section-title h3{margin:0 0 3px;font-size:19px;letter-spacing:-.02em}.section-title p{margin:0;color:#918992;font-size:10px;line-height:1.5}
-    .grid{display:grid;gap:12px}.grid.two{grid-template-columns:1fr 1fr}.grid.three{grid-template-columns:1fr .65fr 1fr}.grid .wide,.grid label.wide{grid-column:1/-1}.grid label{display:grid;gap:7px;color:#625965;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.grid label small{font-size:9px;text-transform:none;letter-spacing:0;color:#9a929a;font-weight:500}.grid input,.grid select,.grid textarea{width:100%;box-sizing:border-box;border:1px solid #dcd4cb;background:#fff;border-radius:11px;padding:11px 12px;color:#211923;outline:0;font:inherit;font-size:16px;line-height:1.35;letter-spacing:0;text-transform:none}.grid textarea{resize:vertical;min-height:82px}.grid input:focus,.grid select:focus,.grid textarea:focus{border-color:#9e8150;box-shadow:0 0 0 3px rgba(158,129,80,.09)}.grid input[readonly]{background:#f7f4ef;color:#847b84}.toggle{display:flex!important;align-items:center;grid-template-columns:none!important;gap:10px!important;min-height:44px}.toggle input{width:20px;height:20px;accent-color:#17121a}.toggle span{text-transform:none;letter-spacing:0;font-size:11px}
-    .read-only-brand{border:1px dashed #d6cec4;background:#faf7f3;border-radius:12px;padding:12px;display:grid;gap:4px;align-content:center}.read-only-brand span,.read-only-brand small{font-size:9px;color:#938a92}.read-only-brand strong{font-size:12px}
-    .ticket-editor-list{display:grid;gap:14px}.ticket-editor{border:1px solid #e2dbd3;border-radius:18px;padding:18px;background:#fcfaf7}.ticket-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.ticket-top strong{display:block;font-size:15px}.ticket-top small{display:block;color:#9a9198;font-size:8px;margin-top:3px}.ticket-top select{border:1px solid #dcd4cb;border-radius:9px;background:#fff;padding:8px 10px;font-size:16px}.ticket-grid{grid-template-columns:1.35fr .75fr .8fr .65fr .65fr}.ticket-stats{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #e7e0d8}.ticket-stats span{font-size:9px;color:#867d86}.ticket-stats b{color:#2b242c}.small-action,.add-ticket{border:1px solid #d8d0c7;background:#fff;color:#342d35;border-radius:10px;padding:9px 12px;font-size:10px;font-weight:800;cursor:pointer}.small-action{margin-left:auto}.small-action:disabled{opacity:.45}.add-ticket{margin-top:12px;border-style:dashed}
-    .editor-footer{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 28px;background:#faf8f5}.lifecycle{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.lifecycle .state{padding:8px 10px;border-radius:999px;background:#ece6dc;color:#5b5045;font-size:9px;font-weight:800}.lifecycle button{border:1px solid #d8d0c7;background:#fff;border-radius:9px;padding:9px 11px;font-size:9px;font-weight:800;cursor:pointer}.lifecycle button.danger{color:#8f3e42;border-color:#ebcdcf}.save-event{min-width:190px;border:0;background:#17121a;color:#fff;border-radius:12px;padding:14px 16px;font-weight:800;cursor:pointer}.save-event:disabled{opacity:.45}.editor-loading{text-align:center;padding:34px;color:#8b828c;font-size:11px}
-    @media(max-width:900px){.grid.two,.grid.three{grid-template-columns:1fr}.ticket-grid{grid-template-columns:1fr 1fr}.editor-footer{align-items:stretch;flex-direction:column}.save-event{width:100%}.small-action{margin-left:0}.editor-actions{flex-wrap:wrap;justify-content:flex-end}}
-    @media(max-width:600px){.editor-head{padding:22px 16px;display:block}.editor-head h2{font-size:26px}.editor-actions{margin-top:14px;justify-content:stretch}.editor-actions>*{flex:1;text-align:center}.editor-section{padding:22px 16px}.section-title{grid-template-columns:30px 1fr}.ticket-grid{grid-template-columns:1fr}.ticket-top{align-items:flex-start}.editor-footer{padding:18px 16px}.lifecycle{display:grid;grid-template-columns:1fr 1fr}.lifecycle .state{grid-column:1/-1;text-align:center}.lifecycle button{min-height:42px}.editor .grid input,.editor .grid select,.editor .grid textarea{font-size:16px}}
+  styles: [ADMIN_UI_STYLES, `
+    .back{display:inline-block;margin-bottom:18px;color:#6b6270;text-decoration:none;font-size:13px}.back:hover{color:var(--ink)}
+    .editor{background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 18px 55px rgba(33,24,31,.06)}
+    .editor-head{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:26px 28px;border-bottom:1px solid #eee8e0;background:linear-gradient(145deg,#fffdf9,#f8f3eb)}
+    .editor-head h2{margin:7px 0 6px;font-family:var(--display);font-size:clamp(26px,3.4vw,36px);letter-spacing:-.04em;font-weight:600}
+    .editor-sub{margin:0;color:#8a818b;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .state-pill{font-size:10px;font-weight:800;letter-spacing:.08em;padding:4px 9px;border-radius:999px;background:#fff3d6;color:#7a5a12}.state-pill.published{background:#e4f2e7;color:#2f6a3d}
+    .editor-actions{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+    .editor-message{margin:16px 24px 0;padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.5}.editor-message.standalone{margin:0}
+    .editor-message.error{background:#fdeeee;border:1px solid #efb9b9;color:#8c2f2f}.editor-message.success{background:#eaf6ee;border:1px solid #b8dcc3;color:#23623a}
+    .editor-section{padding:26px 28px;border-bottom:1px solid #eee8e0}
+    .section-title{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;margin-bottom:18px}
+    .section-title>span{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#17121a;color:#fff;font-size:10px;font-weight:800}
+    .section-title h3{margin:0 0 3px;font-family:var(--display);font-size:20px;letter-spacing:-.02em;font-weight:600}.section-title p{margin:0;color:#8a8190;font-size:13px;line-height:1.5}
+    .grid{display:grid;gap:14px}.grid.two{grid-template-columns:1fr 1fr}.grid.three{grid-template-columns:1fr .65fr 1fr}.grid .wide{grid-column:1/-1}
+    .grid label{display:grid;gap:6px;color:#4a414d;font-size:13px;font-weight:700;min-width:0}
+    .grid label small{font-size:12px;color:#8a8190;font-weight:400;line-height:1.4}
+    .grid input,.grid select,.grid textarea{width:100%;min-width:0;min-height:46px;border:1px solid #d9d2c8;border-radius:12px;padding:10px 13px;background:#fff;color:var(--ink);font:inherit;font-size:16px;line-height:1.35;outline:0;color-scheme:light}
+    .grid textarea{resize:vertical;min-height:90px}
+    .grid input:focus,.grid select:focus,.grid textarea:focus,.ticket-top select:focus{border-color:#9e8150;box-shadow:0 0 0 3px rgba(158,129,80,.14)}
+    .grid input[readonly]{background:#f7f4ef;color:#847b84}
+    .grid input.ng-invalid.ng-touched,.grid select.ng-invalid.ng-touched{border-color:#d49a9a;background:#fffafa}
+    .toggle{display:flex!important;align-items:center;gap:10px!important;min-height:46px}.toggle input{width:20px;min-height:20px;height:20px;accent-color:#17121a}
+    .read-only-brand{border:1px dashed #d6cec4;background:var(--soft);border-radius:12px;padding:12px;display:grid;gap:4px;align-content:center}.read-only-brand span,.read-only-brand small{font-size:12px;color:#8a8190}.read-only-brand strong{font-size:14px}
+    .asset-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+    .asset-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--soft)}
+    .asset-card strong{display:block;font-size:14px}.asset-card small{display:block;color:#8a8190;font-size:12px;margin-top:4px;line-height:1.4}
+    .ticket-editor-list{display:grid;gap:14px}.ticket-editor{border:1px solid #e2dbd3;border-radius:16px;padding:18px;background:var(--soft)}
+    .ticket-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.ticket-top strong{display:block;font-size:16px}.ticket-top small{display:block;color:#9a9198;font-size:11px;margin-top:3px}
+    .ticket-top select{min-height:40px;border:1px solid #d9d2c8;border-radius:10px;background:#fff;color:var(--ink);padding:0 10px;font-size:16px;color-scheme:light}
+    .ticket-grid{grid-template-columns:1.35fr .75fr .8fr .65fr .65fr}
+    .ticket-stats{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #e7e0d8}.ticket-stats span{font-size:13px;color:#7a717b}.ticket-stats b{color:var(--ink)}
+    .small-action{margin-left:auto;min-height:38px;border:1px solid #d8d0c7;background:#fff;color:#342d35;border-radius:10px;padding:0 14px;font-size:13px;font-weight:700;cursor:pointer}.small-action:disabled{opacity:.45;cursor:not-allowed}
+    .add-ticket{margin-top:12px;min-height:42px;border:1px dashed #c8c0b7;background:transparent;color:#342d35;border-radius:10px;padding:0 14px;font-size:13px;font-weight:700;cursor:pointer}
+    .editor-footer{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 28px;background:var(--soft)}
+    .lifecycle{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .lifecycle .state{padding:8px 12px;border-radius:999px;background:#ece6dc;color:#5b5045;font-size:11px;font-weight:800;letter-spacing:.06em}
+    .lifecycle button{min-height:38px;border:1px solid #d8d0c7;background:#fff;color:var(--ink);border-radius:10px;padding:0 14px;font-size:13px;font-weight:700;cursor:pointer}.lifecycle button.danger{color:#8f3e42;border-color:#ebcdcf}
+    .save-event{min-width:210px;min-height:48px;border:0;background:#17121a;color:#fff;border-radius:12px;padding:0 18px;font-weight:800;font-size:14px;cursor:pointer;display:inline-flex;justify-content:space-between;align-items:center;gap:12px}.save-event:disabled{opacity:.45;cursor:not-allowed}
+    .editor-loading{text-align:center;padding:40px;color:#8b828c;font-size:14px}
+    @media(max-width:900px){.grid.two,.grid.three{grid-template-columns:1fr}.ticket-grid{grid-template-columns:1fr 1fr}.asset-grid{grid-template-columns:1fr}.small-action{margin-left:0}.editor-footer{align-items:stretch;flex-direction:column}.save-event{width:100%}}
+    @media(max-width:600px){.editor-head{padding:20px 16px}.editor-section{padding:22px 16px}.section-title{grid-template-columns:30px 1fr}.ticket-grid{grid-template-columns:1fr}.editor-footer{padding:18px 16px}.lifecycle button{flex:1 1 40%}.editor-actions{width:100%}.editor-actions .a-btn{flex:1}}
   `]
 })
 export class EventEditorComponent implements OnChanges, OnDestroy {
+  /** Bound from the route parameter `/admin/events/:eventId`. */
   @Input({ required: true }) eventId = '';
-  @Output() saved = new EventEmitter<void>();
-  @Output() closed = new EventEmitter<void>();
+  /** Bound from `?created=1` right after the create page redirects here. */
+  @Input() created: string | number | null = null;
+  @ViewChild('assetInput') private assetInput?: ElementRef<HTMLInputElement>;
 
   private readonly api = inject(ApiService);
   private readonly fb = inject(FormBuilder);
+  private readonly router = inject(Router);
+  private readonly store = inject(AdminStore);
   private readonly subscriptions = new Subscription();
+  readonly timezones = TIMEZONES;
 
   event?: AdminEventView;
   loading = false;
   saving = false;
   savingTicketIndex = -1;
-  error = '';
-  success = '';
+  private _error = '';
+  private _success = '';
+  get error(): string { return this._error; }
+  set error(v: string) { this._error = v; if (v) this.reveal(); }
+  get success(): string { return this._success; }
+  set success(v: string) { this._success = v; if (v) this.reveal(); }
+
+  /** Messages render at the top of the editor; bring them into view so a failed save is never silent. */
+  private reveal(): void {
+    if (typeof document === 'undefined') return;
+    setTimeout(() => document.querySelector('#event-editor .editor-message:not(.standalone)')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+  }
 
   form = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(180)]],
@@ -194,7 +236,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     endsAt: [''],
     bookingStartsAt: [''],
     bookingEndsAt: [''],
-    timezone: ['Asia/Kolkata', Validators.required],
+    timezone: [DEFAULT_TZ, Validators.required],
     capacity: [{ value: 0, disabled: true }],
     venueName: ['', Validators.maxLength(255)],
     venueAddress: ['', Validators.maxLength(1000)],
@@ -220,13 +262,14 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   get ticketForms(): FormArray { return this.form.controls.ticketTypes as FormArray; }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['eventId'] && this.eventId) this.load();
+    if (changes['eventId'] && this.eventId) { this.event = undefined; this.load(); }
   }
 
   ngOnDestroy(): void { this.subscriptions.unsubscribe(); }
 
-  private load(): void {
-    this.loading = true; this.error = ''; this.success = '';
+  private load(keepMessages = false): void {
+    this.loading = true;
+    if (!keepMessages) { this.error = ''; this.success = ''; }
     this.subscriptions.add(this.api.adminEvent(this.eventId).subscribe({
       next: e => { this.event = e; this.populate(e); this.loading = false; },
       error: err => { this.loading = false; this.error = err?.error?.message || 'Event details could not be loaded.'; }
@@ -238,7 +281,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
       name:e.name, shortDescription:e.shortDescription || '', description:e.description || '', category:e.category || '',
       startsAt:this.toLocalInput(e.startsAt, e.timezone), endsAt:this.toLocalInput(e.endsAt, e.timezone),
       bookingStartsAt:this.toLocalInput(e.bookingStartsAt, e.timezone), bookingEndsAt:this.toLocalInput(e.bookingEndsAt, e.timezone),
-      timezone:e.timezone || 'Asia/Kolkata', capacity:e.capacity || 0, venueName:e.venueName || '', venueAddress:e.venueAddress || '',
+      timezone:e.timezone || DEFAULT_TZ, capacity:e.capacity || 0, venueName:e.venueName || '', venueAddress:e.venueAddress || '',
       city:e.city || '', state:e.state || '', mapUrl:e.mapUrl || '', coverImageUrl:e.coverImageUrl || '',
       gallery:(e.gallery || []).join('\n'), highlights:(e.highlights || []).join('\n'), terms:e.terms || '', refundPolicy:e.refundPolicy || '',
       ageRestriction:e.ageRestriction || '', featured:e.featured, displayOrder:e.displayOrder || 0, paymentProvider:e.paymentProvider || 'RAZORPAY', brandingMode:e.brandingMode || 'BOTH', organizerLogoUrl:e.organizerLogoUrl || '', eventLogoUrl:e.eventLogoUrl || '', eventBannerUrl:e.eventBannerUrl || ''
@@ -250,10 +293,10 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   private ticketGroup(t: AdminEventView['ticketTypes'][number]) {
     return this.fb.group({
       id: [t.id], name: [t.name, [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
-      description: [t.description || '', Validators.maxLength(2000)], priceRupees: [Math.round(t.priceMinorUnits / 100), [Validators.required, Validators.min(0), Validators.max(10000000)]],
+      description: [t.description || '', Validators.maxLength(2000)], priceRupees: [Math.round(t.priceMinorUnits / 100), [Validators.required, Validators.min(1), Validators.max(10000000)]],
       totalQuantity: [t.totalQuantity, [Validators.required, Validators.min(1), Validators.max(1000000)]], minPerOrder: [t.minPerOrder, [Validators.required, Validators.min(1), Validators.max(20)]],
       maxPerOrder: [t.maxPerOrder, [Validators.required, Validators.min(1), Validators.max(20)]],
-      saleStartsAt: [this.toLocalInput(t.saleStartsAt, this.event?.timezone || 'Asia/Kolkata')], saleEndsAt: [this.toLocalInput(t.saleEndsAt, this.event?.timezone || 'Asia/Kolkata')],
+      saleStartsAt: [this.toLocalInput(t.saleStartsAt, this.event?.timezone || DEFAULT_TZ)], saleEndsAt: [this.toLocalInput(t.saleEndsAt, this.event?.timezone || DEFAULT_TZ)],
       status: [t.status, Validators.required], soldQuantity: [t.soldQuantity], reservedQuantity: [t.reservedQuantity], availableQuantity: [t.availableQuantity]
     });
   }
@@ -267,8 +310,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
 
   chooseFile(purpose: 'ORGANIZER_LOGO' | 'EVENT_LOGO' | 'EVENT_BANNER' | 'EVENT_COVER'): void {
     this.selectedPurpose = purpose;
-    const input = document.querySelector('#event-editor input[type="file"]') as HTMLInputElement | null;
-    input?.click();
+    this.assetInput?.nativeElement.click();
   }
 
   uploadSelected(event: Event): void {
@@ -279,7 +321,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     if (file.size > 5 * 1024 * 1024) { this.error = 'Image must be 5 MB or smaller.'; return; }
     this.error = ''; this.success = '';
     this.subscriptions.add(this.api.uploadAdminAsset(file, this.selectedPurpose, this.event.id, this.event.organizerSlug).subscribe({
-      next: () => { this.success = 'Brand asset uploaded securely.'; this.load(); },
+      next: () => { this.success = 'Brand asset uploaded securely.'; this.load(true); },
       error: err => { this.error = err?.error?.message || 'Image upload failed.'; }
     }));
   }
@@ -287,7 +329,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   saveEvent(): void {
     if (!this.event || this.form.invalid) { this.form.markAllAsTouched(); return; }
     const v = this.form.getRawValue();
-    const timezone = String(v.timezone || this.event.timezone || 'Asia/Kolkata');
+    const timezone = String(v.timezone || this.event.timezone || DEFAULT_TZ);
     const startsAt = this.toIsoInZone(v.startsAt || '', timezone);
     const endsAt = this.optionalIso(v.endsAt, timezone);
     const bookingStartsAt = this.optionalIso(v.bookingStartsAt, timezone);
@@ -308,7 +350,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     };
     // The backend update contract intentionally does not alter currency, slug, capacity, or organizer ownership.
     this.subscriptions.add(this.api.updateEvent(this.event.id, body).subscribe({
-      next: () => { this.saving=false; this.success='Event changes saved.'; this.load(); this.saved.emit(); },
+      next: () => { this.saving=false; this.success='Event changes saved.'; this.load(true); this.store.load(true); },
       error: err => { this.saving=false; this.error=err?.error?.message || 'Event could not be updated.'; }
     }));
   }
@@ -318,8 +360,8 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     if (!group || group.invalid || !this.event) { group?.markAllAsTouched(); return; }
     const v = group.getRawValue();
     if (Number(v.maxPerOrder) < Number(v.minPerOrder)) { this.error='Maximum tickets per order must be at least the minimum.'; return; }
-    if (Number(v.priceRupees) < 0) { this.error='Ticket price cannot be negative.'; return; }
-    const timezone = this.event.timezone || 'Asia/Kolkata';
+    if (Number(v.priceRupees) < 1) { this.error='Ticket price must be at least ₹1. Use the complimentary tickets page for free passes.'; return; }
+    const timezone = this.event.timezone || DEFAULT_TZ;
     const saleStartsAt = this.optionalIso(v.saleStartsAt, timezone);
     const saleEndsAt = this.optionalIso(v.saleEndsAt, timezone);
     if (saleStartsAt && saleEndsAt && new Date(saleEndsAt).getTime() <= new Date(saleStartsAt).getTime()) { this.error='Ticket sale end must be after sale start.'; return; }
@@ -333,7 +375,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
       ? this.api.updateTicketType(existingId, body)
       : this.api.addTicketType(this.event.id, body).pipe(map(() => void 0));
     this.subscriptions.add(request$.subscribe({
-      next: () => { this.savingTicketIndex=-1; this.success=existingId?'Ticket type updated.':'Ticket type added.'; this.load(); },
+      next: () => { this.savingTicketIndex=-1; this.success=existingId?'Ticket type updated.':'Ticket type added.'; this.load(true); },
       error: err => { this.savingTicketIndex=-1; this.error=err?.error?.message || 'Ticket type could not be saved.'; }
     }));
   }
@@ -343,43 +385,18 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     if ((action === 'cancel' || action === 'archive') && !globalThis.confirm(`Are you sure you want to ${action} this event?`)) return;
     this.error=''; this.success='';
     const label = action.charAt(0).toUpperCase()+action.slice(1);
+    const DONE: Record<string, string> = { publish: 'published', unpublish: 'unpublished', cancel: 'cancelled', complete: 'marked as completed', archive: 'archived' };
     const request$ = action === 'publish'
       ? this.api.publishEvent(this.event.id)
       : this.api.adminTransition(this.event.id, action);
     this.subscriptions.add(request$.subscribe({
-      next: () => { this.success=`Event ${action}ed successfully.`; this.load(); this.saved.emit(); },
+      next: () => { this.success=`Event ${DONE[action]} successfully.`; this.load(true); this.store.load(true); },
       error: err => { this.error=err?.error?.message || `${label} failed.`; }
     }));
   }
 
   private lines(value: string | null | undefined): string[] { return String(value || '').split(/\r?\n/).map(x=>x.trim()).filter(Boolean); }
-  private optionalIso(value: string | null | undefined, timezone: string): string | undefined { return value ? this.toIsoInZone(value, timezone) : undefined; }
-
-  private toIsoInZone(local: string, timezone: string): string | undefined {
-    if (!local) return undefined;
-    const m = local.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/); if (!m) return undefined;
-    const [year,month,day,hour,minute] = m.slice(1).map(Number);
-    const naiveMs = Date.UTC(year, month-1, day, hour, minute);
-    const offset1 = this.offsetMinutes(new Date(naiveMs), timezone);
-    const candidate = new Date(naiveMs - offset1*60000);
-    const offset2 = this.offsetMinutes(candidate, timezone);
-    return new Date(naiveMs - offset2*60000).toISOString();
-  }
-
-  private offsetMinutes(date: Date, timezone: string): number {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName:'longOffset', hour:'2-digit', minute:'2-digit', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(date);
-    const raw = parts.find(p=>p.type==='timeZoneName')?.value || 'GMT';
-    const match = raw.match(/GMT([+-])(\d{2}):(\d{2})/);
-    if (!match) return 0;
-    const mins = Number(match[2])*60 + Number(match[3]); return match[1]==='-' ? -mins : mins;
-  }
-
-  private toLocalInput(iso: string | undefined | null, timezone: string): string {
-    if (!iso) return '';
-    try {
-      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(new Date(iso));
-      const get=(type:string)=>parts.find(p=>p.type===type)?.value || '';
-      return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
-    } catch { return ''; }
-  }
+  private optionalIso(value: string | null | undefined, timezone: string): string | undefined { return value ? toIsoInZone(value, timezone) : undefined; }
+  private toIsoInZone(local: string, timezone: string): string | undefined { return toIsoInZone(local, timezone); }
+  private toLocalInput(iso: string | undefined | null, timezone: string): string { return toLocalInput(iso, timezone); }
 }

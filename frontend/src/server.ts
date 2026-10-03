@@ -14,6 +14,9 @@ app.get('/healthz', (_req, res) => { res.status(200).type('text/plain').send('ok
 
 // Un-hashed brand assets (neelastack-logo.png, og-default.png) must be replaceable without waiting a year for caches to expire.
 app.use('/assets', express.static(join(browserDistFolder, 'assets'), { maxAge: '10m', index: false, redirect: false }));
+// A missing brand asset must be an honest 404. Without this it fell through to the Angular router, whose catch-all
+// redirects to /not-found (HTTP 302 + an HTML page), so the logo rendered as a broken image and every page view paid for an extra SSR render.
+app.use('/assets', (_req, res) => { res.status(404).type('text/plain').set('Cache-Control', 'no-store').send('Not found'); });
 
 // Hashed build assets are immutable.
 app.use(express.static(browserDistFolder, { maxAge: '1y', immutable: true, index: false, redirect: false }));

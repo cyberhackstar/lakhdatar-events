@@ -39,3 +39,10 @@ export const staffGuard: CanActivateFn = (_route, state) => {
     catchError(() => of(router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } })))
   );
 };
+
+/** Restricts an admin child route to the given roles; anyone else lands back on the console overview. */
+export const roleGuard = (...allowed: string[]): CanActivateFn => () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  return allowed.includes(auth.role() || '') ? true : router.createUrlTree(['/admin']);
+};

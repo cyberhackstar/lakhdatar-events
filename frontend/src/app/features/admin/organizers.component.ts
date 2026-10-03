@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { AdminOrganizer } from '../../core/api/api.models';
 import { safeImage } from '../../core/format';
+import { slugify } from '../../core/datetime';
+import { AdminStore } from './admin-store.service';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -17,11 +18,10 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 @Component({
   selector: 'lk-organizers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <main class="org-page">
-      <a routerLink="/admin" class="back">← Back to operations console</a>
-      <div class="eyebrow">Neelastack Events · Organizers</div>
+    <div class="org-page">
+      <div class="eyebrow">Event companies</div>
       <h1>Organizers</h1>
       <p class="intro">Each organizer is an event company whose events are sold on this platform. Add the organizer's name and logo here; the logo is stored securely on Cloudinary.</p>
 
@@ -49,6 +49,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
       </section>
       <input #replaceInput type="file" accept="image/png,image/jpeg" hidden (change)="replacementSelected($event)" />
       <div class="success" *ngIf="message" role="status">{{ message }}</div>
+      <div class="error" *ngIf="error" role="alert">{{ error }}</div>
 
       <section class="create" *ngIf="loaded && canCreate">
         <h2>Add an organizer</h2>
@@ -80,19 +81,18 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
               <button type="button" class="link" *ngIf="logoFile" (click)="clearLogo()">Remove selected logo</button>
             </div>
           </div>
-          <div class="error" *ngIf="error" role="alert">{{ error }}</div>
           <button type="submit" class="primary" [disabled]="busy || form.invalid">{{ busy ? 'Creating…' : 'Create organizer' }}</button>
         </form>
       </section>
       <p class="muted" *ngIf="loaded && !canCreate">Only platform administrators can create organizers.</p>
-    </main>
+    </div>
   `,
   styles: [`
-    :host{display:block;min-height:100vh;background:#f4f1ec;color:#1a151b}
-    .org-page{max-width:860px;margin:0 auto;padding:28px 20px 80px}
-    .back{display:inline-block;margin-bottom:22px;color:#6b6270;text-decoration:none;font-size:13px}
+    :host{display:block;color:#1a151b}
+    input,select,textarea{color-scheme:light}
+    .org-page{max-width:860px;margin:0}
     .eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:10px;font-weight:800;color:#9a7424}
-    h1{font-size:clamp(34px,6vw,52px);letter-spacing:-.04em;margin:8px 0 10px}
+    h1{font-family:var(--display);font-weight:600;font-size:clamp(30px,4.2vw,46px);letter-spacing:-.04em;line-height:1;margin:8px 0 10px}
     h2{font-size:22px;margin:0 0 16px}
     .intro,.muted{color:#6b6270;line-height:1.6;font-size:14px;max-width:640px}
     .notice,.error,.success{padding:12px 14px;border-radius:12px;margin:16px 0;font-size:13px;line-height:1.5}
@@ -127,6 +127,7 @@ export class OrganizersComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
+  private readonly store = inject(AdminStore);
 
   organizers: AdminOrganizer[] = [];
   loaded = false; loadError = ''; mediaStorageConfigured = false;
@@ -152,15 +153,14 @@ export class OrganizersComponent implements OnInit, OnDestroy {
   load(): void {
     this.loadError = '';
     this.api.listOrganizers().subscribe({
-      next: r => { this.organizers = r.organizers; this.mediaStorageConfigured = r.mediaStorageConfigured; this.loaded = true; },
+      next: r => { this.organizers = r.organizers; this.mediaStorageConfigured = r.mediaStorageConfigured; this.loaded = true; this.store.loadOrganizers(true); },
       error: e => { this.loaded = true; this.loadError = e?.error?.message || 'Organizers could not be loaded.'; }
     });
   }
 
   onNameInput(): void {
     if (this.slugTouched) return;
-    const slug = this.form.controls.name.value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+    const slug = slugify(this.form.controls.name.value);
     this.form.controls.slug.setValue(slug);
   }
 
