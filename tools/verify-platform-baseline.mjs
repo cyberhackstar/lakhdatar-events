@@ -103,5 +103,9 @@ if (read('.nvmrc').trim() !== '24') problems.push('Node runtime baseline mismatc
 if (!prodCompose.includes('NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-events.neelastack.com}')) problems.push('Angular SSR allowed-host baseline missing');
 if (!prodCompose.includes('NG_TRUST_PROXY_HEADERS: ${NG_TRUST_PROXY_HEADERS:-X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO}')) problems.push('Angular SSR trusted-proxy baseline missing');
 if (!ci.includes('NG_ALLOWED_HOSTS=127.0.0.1,localhost,events.neelastack.com')) problems.push('CI SSR test host allowlist baseline missing');
+const edgeNginx = read('edge/nginx.conf');
+if (/map\s+\$http_cf_connecting_ip\s+\$client_rate_key\s*\{[^}]*\$binary_remote_addr/.test(edgeNginx)) problems.push('edge NGINX must not fall back to $binary_remote_addr: it is forwarded as X-Forwarded-For/X-Real-IP and raw bytes make Node/Tomcat answer 400');
+if (/proxy_set_header\s+\S+\s+\$binary_remote_addr/.test(edgeNginx)) problems.push('edge NGINX must never forward $binary_remote_addr in a request header');
+if (!edgeNginx.includes('"~^[0-9A-Fa-f:.]{3,45}$"')) problems.push('edge NGINX must validate CF-Connecting-IP as an IP literal before forwarding it');
 if (problems.length) { console.error('Neelastack baseline verification FAILED:'); for (const p of problems) console.error(`- ${p}`); process.exit(1); }
 console.log('Neelastack stability baseline: PASS');

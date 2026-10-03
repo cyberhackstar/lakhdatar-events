@@ -11,7 +11,7 @@ import { AuthService } from '../../core/auth/auth.service';
   template: `
     <div class="login-page">
       <section class="login-brand">
-        <div class="brand-mark"><img src="/assets/neelastack-logo.svg" alt="Neelastack" /></div>
+        <div class="brand-mark"><img src="/assets/neelastack-logo.png" alt="Neelastack" /></div>
         <span>NEELASTACK EVENTS</span><small>Event operations platform</small>
         <div class="brand-rule"></div><p>One secure workspace for event management, payments and event-day entry.</p>
         <a href="https://neelastack.com" target="_blank" rel="noopener noreferrer">Technology by Neelastack ↗</a>

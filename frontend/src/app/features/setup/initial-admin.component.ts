@@ -20,8 +20,8 @@ import { ApiService } from '../../core/api/api.service';
           <label>Administrator name<input formControlName="name" autocomplete="name" /></label>
           <label>Email<input formControlName="email" type="email" autocomplete="email" /></label>
           <label>Password<input formControlName="password" type="password" autocomplete="new-password" /></label>
-          <label>Organizer name<input formControlName="organizerName" autocomplete="organization" /></label>
-          <label>Organizer slug<input formControlName="organizerSlug" autocomplete="off" placeholder="lakhdatar-events" /></label>
+          <label>First organizer name<input formControlName="organizerName" autocomplete="organization" placeholder="Your event company" /></label>
+          <label>First organizer slug (URL-safe)<input formControlName="organizerSlug" autocomplete="off" placeholder="my-events-company" /></label>
           <div class="error" *ngIf="error" role="alert">{{ error }}</div>
           <button type="submit" [disabled]="busy || form.invalid">{{ busy ? 'Creating securely…' : 'Create administrator' }}</button>
         </form>
@@ -45,7 +45,7 @@ export class InitialAdminComponent {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
-  form = this.fb.nonNullable.group({ token:['', Validators.required], name:['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]], email:['', [Validators.required, Validators.email]], password:['', [Validators.required, Validators.minLength(12), Validators.maxLength(128)]], organizerName:['Lakhdatar Events', [Validators.required, Validators.minLength(2), Validators.maxLength(255)]], organizerSlug:['lakhdatar-events', [Validators.required, Validators.pattern(/^[a-z0-9]+(?:-[a-z0-9]+){0,80}$/)]] });
+  form = this.fb.nonNullable.group({ token:['', Validators.required], name:['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]], email:['', [Validators.required, Validators.email]], password:['', [Validators.required, Validators.minLength(12), Validators.maxLength(128)]], organizerName:['', [Validators.required, Validators.minLength(2), Validators.maxLength(255)]], organizerSlug:['', [Validators.required, Validators.pattern(/^[a-z0-9]+(?:-[a-z0-9]+){0,80}$/)]] });
   loading = true; enabled = false; completed = false; busy = false; error = '';
 
   constructor(){

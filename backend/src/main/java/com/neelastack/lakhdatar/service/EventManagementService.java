@@ -108,7 +108,7 @@ public class EventManagementService {
 
         BrandConfiguration b = new BrandConfiguration();
         b.setScope("EVENT"); b.setOrganizerId(o.getId()); b.setOrganizerName(o.getName());
-        b.setOrganizerLogoUrl(value(r.organizerLogoUrl(), o.getLogoUrl() != null ? o.getLogoUrl() : props.branding().defaultOrganizerLogoUrl()));
+        b.setOrganizerLogoUrl(value(r.organizerLogoUrl(), o.getLogoUrl()));
         b.setEventLogoUrl(r.eventLogoUrl()); b.setEventBannerUrl(r.eventBannerUrl());
         b.setBrandingMode(parseBrandingMode(r.brandingMode()));
         b.setPrimaryBrandColor(value(r.primaryBrandColor(), "#D9A441")); b.setSecondaryBrandColor(value(r.secondaryBrandColor(), "#7A1F3D"));

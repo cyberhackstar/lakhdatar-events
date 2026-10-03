@@ -40,6 +40,29 @@ public class CloudinaryAssetService {
         validateConfiguration();
         if (!"ADMIN".equals(role) && !"ORGANIZER".equals(role))
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Only administrators and organizer owners can manage branding assets");
+        byte[] bytes = validatedImageBytes(file);
+        Target target = resolveTarget(purpose, eventPublicId, organizerSlug, actorId, role);
+        UploadResult result = uploadBytes(bytes, purpose);
+        apply(target, result.secureUrl());
+        return result;
+    }
+
+    /**
+     * Validates and uploads an image to Cloudinary without attaching it to any existing record.
+     * Used when an organizer is created: the caller stores the returned secure URL on the new organizer.
+     * Callers are responsible for authorization.
+     */
+    public UploadResult storeImage(MultipartFile file, Purpose purpose) {
+        validateConfiguration();
+        return uploadBytes(validatedImageBytes(file), purpose);
+    }
+
+    /** Whether Cloudinary credentials are present, so the UI can explain why a logo cannot be uploaded. */
+    public boolean isConfigured() {
+        return notBlank(props.cloudinary().cloudName()) && notBlank(props.cloudinary().apiKey()) && notBlank(props.cloudinary().apiSecret());
+    }
+
+    private byte[] validatedImageBytes(MultipartFile file) {
         if (file == null || file.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_FILE", "Choose an image to upload");
         if (file.getSize() > props.cloudinary().maxBytes()) throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "IMAGE_TOO_LARGE", "Image exceeds the configured upload limit");
         String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
@@ -53,8 +76,10 @@ public class CloudinaryAssetService {
             if (image == null || image.getWidth() < 1 || image.getHeight() < 1 || image.getWidth() > 8000 || image.getHeight() > 8000 || pixels > 25_000_000L)
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_IMAGE", "The uploaded image is invalid or has unsupported dimensions");
         } catch (IOException e) { throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_IMAGE", "The uploaded image is invalid"); }
+        return bytes;
+    }
 
-        Target target = resolveTarget(purpose, eventPublicId, organizerSlug, actorId, role);
+    private UploadResult uploadBytes(byte[] bytes, Purpose purpose) {
         String publicId = props.cloudinary().folder().replaceAll("[^A-Za-z0-9/_-]", "_") + "/" + purpose.name().toLowerCase(Locale.ROOT) + "/" + UUID.randomUUID();
         try {
             Cloudinary cloudinary = new Cloudinary(Map.of(
@@ -72,11 +97,12 @@ public class CloudinaryAssetService {
                     "fetch_format", "auto"));
             String secureUrl = String.valueOf(result.get("secure_url"));
             if (secureUrl.isBlank() || !secureUrl.startsWith("https://")) throw new IllegalStateException("Cloudinary returned an invalid secure URL");
-            apply(target, secureUrl);
             return new UploadResult(secureUrl, String.valueOf(result.get("public_id")), purpose);
         } catch (ApiException e) { throw e; }
         catch (Exception e) { throw new ApiException(HttpStatus.BAD_GATEWAY, "MEDIA_PROVIDER_ERROR", "Image storage is temporarily unavailable"); }
     }
+
+    private static boolean notBlank(String v) { return v != null && !v.isBlank(); }
 
     private Target resolveTarget(Purpose purpose, UUID eventPublicId, String organizerSlug, Long actorId, String role) {
         if (purpose == Purpose.ORGANIZER_LOGO) {

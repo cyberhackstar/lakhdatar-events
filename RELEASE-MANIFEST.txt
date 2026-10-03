@@ -1,6 +1,6 @@
-LAKHDATAR EVENTS v1.9.20 FINAL ENTERPRISE RELEASE MANIFEST
+LAKHDATAR EVENTS v1.9.22 FINAL ENTERPRISE RELEASE MANIFEST
 =========================================================
-Release: 1.9.20
+Release: 1.9.22
 Base: v1.9.19 edge-startup corrective release.
 Primary correction: fixes the production deployment smoke-test contract so local origin checks emulate the canonical public Host and HTTPS proxy scheme instead of sending Host: 127.0.0.1, which Angular SSR correctly rejects with HTTP 400 under its host/SSRF protection.
 Frontend SSR hardening: explicitly configures NG_ALLOWED_HOSTS and NG_TRUST_PROXY_HEADERS for the trusted NGINX edge; production accepts only events.neelastack.com while CI localhost SSR tests use an explicit test-only allowlist.

@@ -8,7 +8,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
     <header class="hdr">
       <div class="container hdr-in">
         <a routerLink="/" class="brand" aria-label="Neelastack Events home">
-          <img src="/assets/neelastack-logo.svg" alt="" width="28" height="28" />
+          <img src="/assets/neelastack-logo.png" alt="" width="28" height="28" />
           <span><b>Neelastack</b> Events</span>
         </a>
         <nav aria-label="Primary">

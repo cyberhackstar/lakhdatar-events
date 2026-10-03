@@ -47,16 +47,12 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
 
+    # The password is read from the container environment ($$ is Compose's escape for a literal $),
+    # so it never appears in the Compose-rendered command line, `docker inspect`, or the process list.
     command:
-      - redis-server
-      - --appendonly
-      - "yes"
-      - --maxmemory
-      - 1024mb
-      - --maxmemory-policy
-      - noeviction
-      - --requirepass
-      - ${REDIS_PASSWORD}
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --maxmemory 1024mb --maxmemory-policy noeviction --requirepass "$$REDIS_PASSWORD"
 
     volumes:
       - lakhdatar_redis_data:/data
@@ -97,7 +93,10 @@ services:
       REDIS_PORT: "6379"
       REDIS_DATABASE: "0"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_ACCESS_TOKEN: ${JWT_ACCESS_TOKEN:-15m}
       JWT_REFRESH_TOKEN: ${JWT_REFRESH_TOKEN:-14d}
+      TICKET_VIEW_TTL: ${TICKET_VIEW_TTL:-24h}
+      CHECKIN_EARLY_WINDOW: ${CHECKIN_EARLY_WINDOW:-30m}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
       REFRESH_TOKEN_CLEANUP_SWEEP: ${REFRESH_TOKEN_CLEANUP_SWEEP:-3600000}
       JWT_SECRET: ${JWT_SECRET}
@@ -105,9 +104,12 @@ services:
       QR_SIGNING_SECRET: ${QR_SIGNING_SECRET}
       QR_SIGNING_SECRET_PREVIOUS: ${QR_SIGNING_SECRET_PREVIOUS:-}
       TICKET_VIEW_SECRET_PREVIOUS: ${TICKET_VIEW_SECRET_PREVIOUS:-}
-      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
-      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
-      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      RAZORPAY_BASE_URL: ${RAZORPAY_BASE_URL:-https://api.razorpay.com/v1}
+      PAYMENT_RECONCILIATION_AGE_MS: ${PAYMENT_RECONCILIATION_AGE_MS:-120000}
+      PAYMENT_RECONCILIATION_SWEEP: ${PAYMENT_RECONCILIATION_SWEEP:-30000}
       CASHFREE_APP_ID: ${CASHFREE_APP_ID:-}
       CASHFREE_SECRET_KEY: ${CASHFREE_SECRET_KEY:-}
       CASHFREE_BASE_URL: ${CASHFREE_BASE_URL:-https://api.cashfree.com/pg}

@@ -1,4 +1,8 @@
-# Release 1.9.20 — production smoke-test + SSR proxy correction
+# Release 1.9.22 — organizer management, PNG platform logo, env wiring fixes
+
+See `CHANGES-1.9.22.md`, `IMPLEMENTATION-STATUS.md`, `ADMIN-SETUP-GUIDE.md` and `ENV-LINKAGE-AUDIT.md`.
+
+# Release 1.9.21 — production smoke-test + SSR proxy correction
 
 This release retains the v1.9.13 Alpine/OpenSSL security hardening and corrects the final container supply-chain verification step by using GitHub Artifact Attestations for the exact pushed image digests, followed by GitHub CLI verification and Cosign signing.
 
@@ -63,6 +67,8 @@ booking-closed are derived states, computed from live inventory and the booking 
 ## First production administrator setup
 
 Production must keep `BOOTSTRAP_ENABLED=false`. For a fresh deployment, set `INITIAL_ADMIN_SETUP_ENABLED=true` and a unique `INITIAL_ADMIN_SETUP_TOKEN` of at least 32 bytes in the VM `.env`, deploy, then open `/setup/initial-admin` or call the setup endpoint. The setup creates the first `ADMIN` account and an `OWNER` membership for the first organizer, but never creates a sample event. The database marks setup complete under a row lock, so the endpoint cannot be reused even if the environment flag remains enabled. After successful provisioning, set `INITIAL_ADMIN_SETUP_ENABLED=false` and redeploy.
+
+After setup, add organizers (name + logo) under **Admin console -> Organizers**; logos are uploaded to Cloudinary and only the URL is stored. The Neelastack logo is the file `frontend/src/assets/neelastack-logo.png`. Full steps: `ADMIN-SETUP-GUIDE.md`.
 
 Configure Cloudinary only when branding uploads are required: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_FOLDER`, and `CLOUDINARY_MAX_BYTES`. The API secret remains backend-only.
 

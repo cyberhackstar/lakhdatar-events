@@ -24,3 +24,6 @@ input,select,textarea{color-scheme:dark}
 /* iOS/Safari form stability: keep editable controls at >=16px so focusing fields does not trigger automatic page zoom. */
 input, select, textarea { font-size: 16px !important; }
 @media (max-width: 480px) { html, body { width: 100%; min-width: 0; overflow-x: hidden; } img, video, canvas { max-width: 100%; height: auto; } .btn, button { min-height: 44px; } }
+
+/* Platform mark: whatever shape the supplied logo PNG has, never stretch it inside its fixed-size slot. */
+img[src="/assets/neelastack-logo.png"]{object-fit:contain}

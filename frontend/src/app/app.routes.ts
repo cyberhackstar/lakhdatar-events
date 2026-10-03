@@ -14,6 +14,7 @@ export const routes: Routes = [
   { path: 'login', loadComponent: () => import('./features/auth/login.component').then(m => m.LoginComponent) },
   { path: 'setup/initial-admin', loadComponent: () => import('./features/setup/initial-admin.component').then(m => m.InitialAdminComponent) },
   { path: 'not-found', loadComponent: () => import('./shared/not-found.component').then(m => m.NotFoundComponent) },
+  { path: 'admin/organizers', loadComponent: () => import('./features/admin/organizers.component').then(m => m.OrganizersComponent), canActivate: [adminGuard] },
   { path: 'admin', loadComponent: () => import('./features/admin/admin.component').then(m => m.AdminComponent), canActivate: [adminGuard] },
   { path: 'staff', loadComponent: () => import('./features/staff/staff.component').then(m => m.StaffComponent), canActivate: [staffGuard] },
   { path: 'staff/events/:eventId/scanner', loadComponent: () => import('./features/scanner/scanner.component').then(m => m.ScannerComponent), canActivate: [staffGuard] },

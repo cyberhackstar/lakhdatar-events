@@ -17,7 +17,7 @@ public class JwtService {
     public JwtService(AppProperties props){
         this.props=props;
         if(props.jwt()==null || props.jwt().secret()==null || props.jwt().secret().getBytes(StandardCharsets.UTF_8).length < 32)
-            throw new IllegalStateException("APP_JWT_SECRET must be at least 32 bytes");
+            throw new IllegalStateException("JWT_SECRET must be at least 32 bytes");
         this.key=Keys.hmacShaKeyFor(props.jwt().secret().getBytes(StandardCharsets.UTF_8));
     }
     public String issueAccessToken(UserPrincipal principal){

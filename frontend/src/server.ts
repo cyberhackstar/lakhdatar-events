@@ -12,6 +12,9 @@ app.set('trust proxy', 1);
 // Liveness for container orchestration. Does not touch the backend on purpose.
 app.get('/healthz', (_req, res) => { res.status(200).type('text/plain').send('ok'); });
 
+// Un-hashed brand assets (neelastack-logo.png, og-default.png) must be replaceable without waiting a year for caches to expire.
+app.use('/assets', express.static(join(browserDistFolder, 'assets'), { maxAge: '10m', index: false, redirect: false }));
+
 // Hashed build assets are immutable.
 app.use(express.static(browserDistFolder, { maxAge: '1y', immutable: true, index: false, redirect: false }));
 

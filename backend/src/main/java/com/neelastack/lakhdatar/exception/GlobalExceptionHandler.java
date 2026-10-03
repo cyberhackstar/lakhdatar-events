@@ -37,6 +37,13 @@ public class GlobalExceptionHandler {
             jakarta.validation.ConstraintViolationException.class})
     ResponseEntity<ApiError> handleBadInput(Exception ex){ return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Invalid request parameters"); }
 
+    @ExceptionHandler(org.springframework.web.multipart.MultipartException.class)
+    ResponseEntity<ApiError> handleMultipart(org.springframework.web.multipart.MultipartException ex){
+        if (ex instanceof org.springframework.web.multipart.MaxUploadSizeExceededException)
+            return error(HttpStatus.PAYLOAD_TOO_LARGE, "IMAGE_TOO_LARGE", "Image exceeds the configured upload limit");
+        return error(HttpStatus.BAD_REQUEST, "INVALID_UPLOAD", "The upload could not be read");
+    }
+
     @ExceptionHandler({org.springframework.web.servlet.resource.NoResourceFoundException.class,
             org.springframework.web.HttpRequestMethodNotSupportedException.class})
     ResponseEntity<ApiError> handleNotFound(Exception ex){

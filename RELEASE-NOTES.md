@@ -1,3 +1,21 @@
+# Lakhdatar Events v1.9.22 — organizer management, PNG logo, env wiring
+
+- New: `GET/POST /api/v1/admin/organizers` and an Organizers admin page. Organizer name and logo are entered at creation; the logo goes to Cloudinary and only its HTTPS URL is stored. ADMIN only for creation.
+- Fixed: event creation sent no organizer, failing with ORGANIZER_REQUIRED once two organizers existed. The create form now has an organizer selector.
+- Removed hardcoded Lakhdatar branding (default organizer logo, pre-filled setup form, bootstrap logo) and `DEFAULT_ORGANIZER_LOGO_URL` / `NEELASTACK_LOGO_URL`.
+- Neelastack logo is now `frontend/src/assets/neelastack-logo.png` (placeholder shipped; replace the file). Brand view always uses the bundled logo, V18 migrates old rows, `/assets` cache is 10 minutes.
+- Fixed: `JWT_ACCESS_TOKEN`, `TICKET_VIEW_TTL`, `CHECKIN_EARLY_WINDOW`, `RAZORPAY_BASE_URL`, `PAYMENT_RECONCILIATION_*` were documented but never passed to the backend container. Dev compose now passes setup, Cloudinary and Cashfree variables.
+- Fixed misleading JWT error text and a broken image when an organizer has no logo.
+- Version 1.9.22 in VERSION, pom.xml, package.json, package-lock.json.
+
+# Lakhdatar Events v1.9.21 — edge forwarded-IP correction (fixes failed v1.9.20 smoke test)
+
+- **Root cause of the `Smoke test failed: http://127.0.0.1:4002/ (HTTP 400)` deployment failure:** `edge/nginx.conf` fell back to `$binary_remote_addr` when no `CF-Connecting-IP` header was present, and forwarded that value upstream as `X-Real-IP` / `X-Forwarded-For` / `CF-Connecting-IP`. `$binary_remote_addr` is 4 (IPv4) or 16 (IPv6) raw bytes, which are illegal in an HTTP header; Node's HTTP parser answers `400 Bad Request` with an empty body before Express/Angular ever run (hence no `Cache-Control` in the logged headers and an empty body). The deployment smoke test calls the loopback port directly, so it never carries a Cloudflare header and always hit the fallback. Real Cloudflare traffic was unaffected.
+- The forwarded client key is now always printable text: a validated `CF-Connecting-IP` (IPv4/IPv6 literal) or `$remote_addr`. Rate-limit zones, logs and upstream headers all use it.
+- `tools/verify-platform-baseline.mjs` now fails CI if `$binary_remote_addr` is ever forwarded in a header again.
+- Verified with the real Angular SSR build behind real NGINX: old config -> 400 without CF header; new config -> 200 with and without it.
+- Because Flyway had already migrated before the smoke test failed, the v1.9.20 containers are running; deploying v1.9.21 over them is safe (forward-only, no schema change in this release).
+
 # Lakhdatar Events v1.9.20 — production smoke-test and SSR proxy correction
 
 - Fixes the false production deployment failure where the stack became fully healthy but the local smoke tests sent `Host: 127.0.0.1`; Angular SSR and backend request processing correctly rejected that synthetic host with HTTP 400.

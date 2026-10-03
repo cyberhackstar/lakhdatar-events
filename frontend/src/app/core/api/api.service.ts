@@ -18,7 +18,9 @@ import {
   VerifyResponse,
   EventManagerView,
   ManagerTicketType,
-  ManagerTicketIssueResponse
+  ManagerTicketIssueResponse,
+  AdminOrganizer,
+  AdminOrganizerList
 } from './api.models';
 
 @Injectable({ providedIn: 'root' })
@@ -63,6 +65,17 @@ export class ApiService {
     const form = new FormData(); form.append('file', file);
     let params: Record<string, string> = { purpose }; if (eventId) params.eventId = eventId; if (organizerSlug) params.organizerSlug = organizerSlug;
     return this.http.post<import('./api.models').AssetUploadResult>(`${this.base}/admin/assets/images`, form, { params });
+  }
+
+  listOrganizers() { return this.http.get<AdminOrganizerList>(`${this.base}/admin/organizers`); }
+  /** Organizer name + optional logo. The logo is uploaded to Cloudinary by the backend; only its URL is stored. */
+  createOrganizer(body: { name: string; slug: string; description?: string; website?: string }, logo?: File | null) {
+    const form = new FormData();
+    form.append('name', body.name); form.append('slug', body.slug);
+    if (body.description) form.append('description', body.description);
+    if (body.website) form.append('website', body.website);
+    if (logo) form.append('logo', logo);
+    return this.http.post<AdminOrganizer>(`${this.base}/admin/organizers`, form);
   }
 
   initialAdminSetupStatus() { return this.http.get<import('./api.models').InitialAdminSetupStatus>(`${this.base}/setup/initial-admin/status`, { headers: { 'Cache-Control': 'no-store' } }); }

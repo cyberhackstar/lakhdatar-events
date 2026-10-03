@@ -7,7 +7,9 @@ import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -19,8 +21,26 @@ public class AdminController {
     private final AdminService admin;
     private final EventManagementService eventService;
     private final RefundService refunds;
+    private final OrganizerAdminService organizerAdmin;
 
     private UserPrincipal p(Authentication a) { return (UserPrincipal) a.getPrincipal(); }
+
+    @GetMapping("/organizers")
+    OrganizerAdminService.OrganizerList organizers(Authentication a) {
+        UserPrincipal u = p(a); return organizerAdmin.list(u.userId(), u.role());
+    }
+
+    /** Organizer name and logo are provided here; the logo is uploaded to Cloudinary and only its URL is stored. */
+    @PostMapping(value = "/organizers", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    ResponseEntity<OrganizerAdminService.OrganizerSummary> createOrganizer(@RequestParam String name,
+                                                                          @RequestParam String slug,
+                                                                          @RequestParam(required = false) String description,
+                                                                          @RequestParam(required = false) String website,
+                                                                          @RequestPart(value = "logo", required = false) MultipartFile logo,
+                                                                          Authentication a) {
+        UserPrincipal u = p(a);
+        return ResponseEntity.status(201).body(organizerAdmin.create(name, slug, description, website, logo, u.userId(), u.role()));
+    }
 
     @GetMapping("/dashboard") AdminService.Dashboard dashboard(Authentication a) { return admin.dashboard(p(a)); }
     @GetMapping("/events") List<AdminService.EventSummary> events(Authentication a) { return admin.events(p(a)); }

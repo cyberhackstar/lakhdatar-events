@@ -12,7 +12,7 @@ import { BrandConfig } from './branding.model';
       </a>
       <div class="header-spacer"></div>
       <div class="organizer-brand" [attr.aria-label]="brand.organizerName">
-        <img *ngIf="brand.brandingMode !== 'TEXT_ONLY'" [src]="brand.eventLogoUrl || brand.organizerLogoUrl" [alt]="brand.organizerName" />
+        <img *ngIf="brand.brandingMode !== 'TEXT_ONLY' && (brand.eventLogoUrl || brand.organizerLogoUrl)" [src]="brand.eventLogoUrl || brand.organizerLogoUrl" [alt]="brand.organizerName" />
         <span *ngIf="brand.brandingMode !== 'LOGO_ONLY' || !(brand.eventLogoUrl || brand.organizerLogoUrl)">{{ brand.organizerName }}</span>
       </div>
     </header>

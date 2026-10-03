@@ -4,7 +4,7 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { Dashboard, EventManagerView, ManagerTicketType, ManagerTicketIssueResponse } from '../../core/api/api.models';
+import { AdminOrganizer, Dashboard, EventManagerView, ManagerTicketType, ManagerTicketIssueResponse } from '../../core/api/api.models';
 import { EventEditorComponent } from './event-editor.component';
 
 @Component({
@@ -14,12 +14,13 @@ import { EventEditorComponent } from './event-editor.component';
   template: `
     <div class="admin-shell">
       <aside>
-        <div class="brand"><img src="/assets/neelastack-logo.svg" alt="Neelastack"/><span>OPERATIONS<br><i>CONSOLE</i></span></div>
+        <div class="brand"><img src="/assets/neelastack-logo.png" alt="Neelastack"/><span>OPERATIONS<br><i>CONSOLE</i></span></div>
         <div class="role">{{canAdministerEvents()?"CONTROL CENTER":"ASSIGNED EVENTS ONLY"}}</div>
         <nav>
           <a class="active" href="#overview">Overview</a>
           <a href="#events">Events</a>
           <a href="#event-day">Event day</a>
+          <a routerLink="/admin/organizers" *ngIf="canCreateOrganizer()">Organizers</a>
           <a href="#neelastack">Technology</a>
           <a routerLink="/staff">Scanner console</a>
         </nav>
@@ -95,6 +96,12 @@ import { EventEditorComponent } from './event-editor.component';
             <form class="create-form" *ngIf="showCreate" [formGroup]="createForm" (ngSubmit)="createEvent()">
               <div class="form-title"><div class="eyebrow">New event</div><h3>Create an event</h3><p>Build the event shell first; publishing it makes it public.</p></div>
               <div class="form-grid">
+                <label class="wide" *ngIf="organizers.length">Organizer
+                  <select formControlName="organizerSlug">
+                    <option value="" *ngIf="organizers.length>1">Choose the organizer…</option>
+                    <option *ngFor="let o of organizers" [value]="o.slug">{{o.name}}</option>
+                  </select>
+                </label>
                 <label>Name<input formControlName="name" placeholder="Dandiya Night 2026" autocomplete="off"/></label>
                 <label>URL slug<input formControlName="slug" placeholder="dandiya-night-2026" autocomplete="off" autocapitalize="none"/></label>
                 <label>Starts<input type="datetime-local" formControlName="startsAt"/></label>
@@ -248,7 +255,10 @@ export class AdminComponent implements OnInit {
   managerCreateError = '';
   editingEventId = '';
 
+  organizers: AdminOrganizer[] = [];
+
   createForm = this.fb.group({
+    organizerSlug: [''],
     name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(180)]],
     slug: ['', [Validators.required, Validators.pattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), Validators.maxLength(180)]],
     startsAt: ['', Validators.required], endsAt: [''], capacity: [5000, [Validators.min(1), Validators.max(1000000)]],
@@ -279,6 +289,7 @@ export class AdminComponent implements OnInit {
   isEventManager(): boolean { return this.auth.role() === 'EVENT_MANAGER'; }
   canAssignManagers(): boolean { const r = this.auth.role(); return r === 'ADMIN' || r === 'ORGANIZER'; }
   canCreateManager(): boolean { return this.auth.role() === 'ADMIN'; }
+  canCreateOrganizer(): boolean { return this.auth.role() === 'ADMIN'; }
 
   private issueKey(): string { return `MGR-${globalThis.crypto.randomUUID()}`; }
   ticketUrl(t: { ticketId: string; accessToken: string }): string { return `/ticket/${encodeURIComponent(t.ticketId)}#access=${encodeURIComponent(t.accessToken)}`; }
@@ -369,6 +380,19 @@ export class AdminComponent implements OnInit {
   load(): void {
     this.loading = true; this.loadError = '';
     this.api.dashboard().subscribe({ next: d => { this.dash = d; this.loading = false; }, error: e => { this.loading = false; this.loadError = e?.error?.message || 'Operations data could not be loaded. Please retry.'; } });
+    if (this.canAdministerEvents()) this.loadOrganizers();
+  }
+
+  private loadOrganizers(): void {
+    this.api.listOrganizers().subscribe({
+      next: r => {
+        this.organizers = r.organizers;
+        const current = this.createForm.controls.organizerSlug.value;
+        if (r.organizers.length === 1) this.createForm.controls.organizerSlug.setValue(r.organizers[0].slug);
+        else if (current && !r.organizers.some(o => o.slug === current)) this.createForm.controls.organizerSlug.setValue('');
+      },
+      error: () => { this.organizers = []; }
+    });
   }
 
   publish(eventId: string): void {
@@ -385,13 +409,14 @@ export class AdminComponent implements OnInit {
     }));
     const totalTicketCapacity = tickets.reduce((sum, t) => sum + Math.max(0, t.totalQuantity), 0);
     if (v.capacity && totalTicketCapacity > Number(v.capacity)) { this.creating = false; this.createError = 'Ticket quantities cannot exceed the event capacity.'; return; }
+    if (this.organizers.length > 1 && !v.organizerSlug) { this.creating = false; this.createError = 'Choose which organizer this event belongs to.'; return; }
     const startsAt = this.toIso(v.startsAt!); const endsAt = v.endsAt ? this.toIso(v.endsAt) : undefined;
     if (!startsAt || (v.endsAt && !endsAt)) { this.creating = false; this.createError = 'Enter valid event start/end times.'; return; }
     if (endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) { this.creating = false; this.createError = 'Event end time must be after the start time.'; return; }
     for (const t of tickets) if (t.maxPerOrder < t.minPerOrder) { this.creating = false; this.createError = 'Maximum tickets per order must be at least the minimum.'; return; }
-    const body = { slug: v.slug!, name: v.name!, description: v.description || '', startsAt, endsAt, capacity: v.capacity || undefined, venueName: v.venueName!, venueAddress: v.venueAddress || '', city: v.city || '', ticketTypes: tickets };
+    const body = { organizerSlug: v.organizerSlug || undefined, slug: v.slug!, name: v.name!, description: v.description || '', startsAt, endsAt, capacity: v.capacity || undefined, venueName: v.venueName!, venueAddress: v.venueAddress || '', city: v.city || '', ticketTypes: tickets };
     this.api.createEvent(body).subscribe({ next: created => {
-      this.creating = false; this.showCreate = false; this.createForm.reset({ name: '', slug: '', description: '', startsAt: '', endsAt: '', capacity: 5000, venueName: '', city: 'Jaipur', venueAddress: '' });
+      this.creating = false; this.showCreate = false; this.createForm.reset({ organizerSlug: v.organizerSlug || '', name: '', slug: '', description: '', startsAt: '', endsAt: '', capacity: 5000, venueName: '', city: 'Jaipur', venueAddress: '' });
       this.ticketForms.clear(); this.addTicket(); this.load();
       this.assignmentForm.controls.eventId.setValue(created.id);
       this.editingEventId = created.id;

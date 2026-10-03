@@ -142,8 +142,10 @@ app:
   branding:
     neelastack-name: ${NEELASTACK_NAME:Neelastack}
     neelastack-public-url: ${NEELASTACK_PUBLIC_URL:https://neelastack.com}
-    neelastack-logo-url: ${NEELASTACK_LOGO_URL:/assets/neelastack-logo.svg}
-    default-organizer-logo-url: ${DEFAULT_ORGANIZER_LOGO_URL:/assets/lakhdatar-logo.svg}
+    # Platform mark bundled with the frontend (frontend/src/assets/neelastack-logo.png). Intentionally not configurable by env.
+    neelastack-logo-url: /assets/neelastack-logo.png
+    # Organizers have no built-in logo: name and logo are entered (Cloudinary upload) when the organizer is created.
+    default-organizer-logo-url: ""
     promo-enabled: ${NEELASTACK_PROMO_ENABLED:true}
     promo-title: ${NEELASTACK_PROMO_TITLE:Powered by Neelastack}
     promo-description: ${NEELASTACK_PROMO_DESCRIPTION:Build modern digital experiences for your business.}

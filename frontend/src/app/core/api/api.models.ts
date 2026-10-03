@@ -221,3 +221,6 @@ export interface ScanResponse {
 export interface InitialAdminSetupStatus { enabled: boolean; completed: boolean; }
 export interface InitialAdminSetupResult { email: string; organizerSlug: string; }
 export interface AssetUploadResult { secureUrl: string; publicId: string; purpose: 'ORGANIZER_LOGO' | 'EVENT_LOGO' | 'EVENT_BANNER' | 'EVENT_COVER'; }
+
+export interface AdminOrganizer { id: string; slug: string; name: string; logoUrl?: string | null; description?: string | null; website?: string | null; }
+export interface AdminOrganizerList { mediaStorageConfigured: boolean; organizers: AdminOrganizer[]; }
