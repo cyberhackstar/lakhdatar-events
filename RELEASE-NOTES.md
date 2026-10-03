@@ -1,3 +1,12 @@
+# Lakhdatar Events v1.9.20 — production smoke-test and SSR proxy correction
+
+- Fixes the false production deployment failure where the stack became fully healthy but the local smoke tests sent `Host: 127.0.0.1`; Angular SSR and backend request processing correctly rejected that synthetic host with HTTP 400.
+- Local deployment smoke tests now send `Host: events.neelastack.com` and `X-Forwarded-Proto: https`, matching the Cloudflare -> loopback edge -> private service production contract.
+- Smoke-test failures now identify the exact URL and HTTP status and print bounded response diagnostics.
+- Explicitly enables Angular SSR trusted proxy headers for the headers NGINX controls and sets the production host allowlist to `events.neelastack.com`; CI's direct localhost SSR smoke test has its own explicit test-only host allowlist.
+- Preserves the v1.9.19 NGINX PID/startup correction and fail-fast edge readiness diagnostics.
+- Adds `docs/VM-PREDEPLOY-V1.9.20.md` with safe first-production VM preflight and targeted Lakhdatar-only cleanup guidance.
+
 # Lakhdatar Events v1.9.19 — NGINX edge startup corrective release
 
 - Permanently fixes the production edge CrashLoop caused by passing `pid /tmp/nginx.pid` through `nginx -g` while the official NGINX base configuration already defines a `pid` directive.

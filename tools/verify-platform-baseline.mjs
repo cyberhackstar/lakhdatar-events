@@ -78,6 +78,10 @@ if (!backendDockerfile.includes('/actuator/health/readiness')) problems.push('ba
 if (!prodCompose.includes('/actuator/health/readiness')) problems.push('production Compose backend readiness contract missing');
 if (!deploy.includes('/actuator/health/readiness')) problems.push('deployment backend readiness contract missing');
 if (!deploy.includes('BACKEND_READINESS_TIMEOUT_SECONDS="${BACKEND_READINESS_TIMEOUT_SECONDS:-300}"')) problems.push('deployment readiness timeout baseline mismatch');
+if (!deploy.includes('PUBLIC_HOST="${PUBLIC_HOST:-events.neelastack.com}"')) problems.push('production smoke canonical host baseline missing');
+if (!deploy.includes('-H "Host: $PUBLIC_HOST"')) problems.push('production smoke Host header baseline missing');
+if (!deploy.includes("-H 'X-Forwarded-Proto: https'")) problems.push('production smoke HTTPS proxy header baseline missing');
+if (!deploy.includes('Smoke test failed: $url')) problems.push('production smoke diagnostics baseline missing');
 if (!deploy.includes('print_backend_diagnostics')) problems.push('deployment readiness diagnostics missing');
 if (!deploy.includes('[[ "$state" == "restarting"')) problems.push('edge restart-loop fail-fast guard missing');
 if (!deploy.includes('docker exec lakhdatar-edge wget -qO- --timeout=5 http://127.0.0.1:8080/edge-health')) problems.push('edge internal readiness probe missing');
@@ -96,5 +100,8 @@ if (prodCompose.includes('REDIS_URL:')) problems.push('production Redis URL must
 if (deploy.includes('/actuator/health >/dev/null')) problems.push('legacy aggregate backend health gate must not be used');
 if (!prodCompose.includes('start_period: 90s')) problems.push('production backend healthcheck startup period mismatch');
 if (read('.nvmrc').trim() !== '24') problems.push('Node runtime baseline mismatch');
+if (!prodCompose.includes('NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-events.neelastack.com}')) problems.push('Angular SSR allowed-host baseline missing');
+if (!prodCompose.includes('NG_TRUST_PROXY_HEADERS: ${NG_TRUST_PROXY_HEADERS:-X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO}')) problems.push('Angular SSR trusted-proxy baseline missing');
+if (!ci.includes('NG_ALLOWED_HOSTS=127.0.0.1,localhost,events.neelastack.com')) problems.push('CI SSR test host allowlist baseline missing');
 if (problems.length) { console.error('Neelastack baseline verification FAILED:'); for (const p of problems) console.error(`- ${p}`); process.exit(1); }
 console.log('Neelastack stability baseline: PASS');

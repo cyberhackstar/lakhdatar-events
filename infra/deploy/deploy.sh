@@ -19,6 +19,9 @@ CURRENT="$ROOT/.deploy-current"
 PREVIOUS="$ROOT/.deploy-previous"
 TAG="${1:-}"
 LOCAL_URL="http://127.0.0.1:4002"
+PUBLIC_HOST="${PUBLIC_HOST:-events.neelastack.com}"
+[[ "$PUBLIC_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "PUBLIC_HOST must be a hostname without scheme/path" >&2; exit 2; }
+[[ "$PUBLIC_HOST" != .* && "$PUBLIC_HOST" != *..* && "$PUBLIC_HOST" != *.- && "$PUBLIC_HOST" != *-. ]] || { echo "PUBLIC_HOST has invalid hostname syntax" >&2; exit 2; }
 BACKEND_READINESS_TIMEOUT_SECONDS="${BACKEND_READINESS_TIMEOUT_SECONDS:-300}"
 BACKEND_READINESS_INTERVAL_SECONDS="${BACKEND_READINESS_INTERVAL_SECONDS:-3}"
 WEB_READINESS_TIMEOUT_SECONDS="${WEB_READINESS_TIMEOUT_SECONDS:-180}"
@@ -179,10 +182,33 @@ echo "[5/7] Starting web (SSR) and edge"
 IMAGE_TAG="$TAG" "${COMPOSE[@]}" up -d web edge
 wait_for_edge_readiness
 
-echo "[6/7] Post-deployment smoke tests on $LOCAL_URL"
-smoke() { curl -fsS --max-time 15 "$1" >/dev/null; }
+echo "[6/7] Post-deployment smoke tests on $LOCAL_URL as $PUBLIC_HOST"
+smoke() {
+  local url="$1"
+  local body headers status
+  body="$(mktemp)"
+  headers="$(mktemp)"
+  status="$(curl -sS --max-time 15 -D "$headers" -o "$body" -w '%{http_code}' \
+    -H "Host: $PUBLIC_HOST" \
+    -H 'X-Forwarded-Proto: https' \
+    "$url" || true)"
+  case "$status" in
+    2??)
+      rm -f "$body" "$headers"
+      ;;
+    *)
+      echo "Smoke test failed: $url (Host: $PUBLIC_HOST, HTTP ${status:-unknown})" >&2
+      echo "--- response headers ---" >&2
+      cat "$headers" >&2 || true
+      echo "--- response body (first 2000 bytes) ---" >&2
+      head -c 2000 "$body" >&2 || true
+      rm -f "$body" "$headers"
+      return 1
+      ;;
+  esac
+}
 smoke "$LOCAL_URL/edge-health"
-smoke "$LOCAL_URL/"                                   # SSR home
+smoke "$LOCAL_URL/"                                   # SSR home under the canonical public host
 smoke "$LOCAL_URL/api/v1/public/events/upcoming"      # catalogue API through the edge
 smoke "$LOCAL_URL/robots.txt"
 smoke "$LOCAL_URL/sitemap.xml"

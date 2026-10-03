@@ -53,3 +53,7 @@ curl -fsS http://127.0.0.1:4002/edge-health
 curl -fsS http://127.0.0.1:4002/api/v1/public/events/upcoming
 curl -fsS https://events.neelastack.com/sitemap.xml
 ```
+
+## Production deployment smoke contract
+
+The local edge smoke tests use the canonical public Host and HTTPS forwarded-protocol headers. Do not replace them with `Host: 127.0.0.1`; Angular SSR host validation can correctly reject that synthetic production-inaccurate request with HTTP 400.

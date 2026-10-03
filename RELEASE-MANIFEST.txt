@@ -1,22 +1,12 @@
-LAKHDATAR EVENTS v1.9.19 FINAL ENTERPRISE RELEASE MANIFEST
+LAKHDATAR EVENTS v1.9.20 FINAL ENTERPRISE RELEASE MANIFEST
 =========================================================
-Release: 1.9.19
-Base: v1.9.18 Redis-authentication and readiness release.
-Primary correction: permanently fixes the production NGINX edge CrashLoop caused by a duplicate PID directive in the official nginx base configuration plus an `nginx -g` PID override.
-Edge hardening: rewrites the base NGINX PID path to /tmp/nginx.pid, removes the redundant non-root user directive, validates nginx configuration at container startup, and keeps the edge compatible with read-only runtime storage.
-Deployment hardening: edge readiness now fails fast on restarting/exited/dead containers, checks both internal :8080 and host 127.0.0.1:4002 readiness, records port bindings and listener state, and captures direct container logs without Compose argument ambiguity.
-Topology: production edge continues to proxy to Docker Compose DNS names `backend:8080` and `web:3000`; host exposure remains loopback-only on 127.0.0.1:4002 for Cloudflare Tunnel.
-Security: NGINX edge remains non-root, cap_drop ALL, no-new-privileges, read-only root filesystem, bounded resources, and Alpine security upgrades.
-Backend/data: v1.9.18 Redis authentication fix and Flyway safety behavior are retained unchanged.
-Frontend: Angular 20.x baseline retained; no framework-major upgrade introduced.
-CI/CD: multi-architecture images, Trivy gates, GitHub artifact attestations, provenance verification, immutable SHA deployment, and production dependency audit retained.
-Validation performed in packaging sandbox:
-  - Project baseline validator: PASS
-  - JSON/package-lock parsing: PASS
-  - YAML parsing: PASS
-  - Shell syntax: PASS
-  - Edge Dockerfile regression checks: PASS
-  - Edge NGINX static configuration checks: PASS
-  - Release metadata consistency: PASS
-  - Archive integrity: PASS after archive creation
-  - Networked Maven/Docker/npm-registry execution: unavailable in this sandbox; GitHub Actions/Oracle VM remain authoritative for those checks.
+Release: 1.9.20
+Base: v1.9.19 edge-startup corrective release.
+Primary correction: fixes the production deployment smoke-test contract so local origin checks emulate the canonical public Host and HTTPS proxy scheme instead of sending Host: 127.0.0.1, which Angular SSR correctly rejects with HTTP 400 under its host/SSRF protection.
+Frontend SSR hardening: explicitly configures NG_ALLOWED_HOSTS and NG_TRUST_PROXY_HEADERS for the trusted NGINX edge; production accepts only events.neelastack.com while CI localhost SSR tests use an explicit test-only allowlist.
+Smoke-test diagnostics: failed endpoints now report the exact URL, Host, HTTP status, response headers and a bounded response body instead of exposing only curl exit code 22.
+Edge hardening: v1.9.19 duplicate-PID correction, startup nginx -t validation, non-root runtime, fail-fast edge readiness and direct Docker diagnostics are retained.
+Backend/data: v1.9.18 Redis authentication/readiness fix and Flyway safety behavior are retained unchanged.
+Topology: edge remains loopback-only at 127.0.0.1:4002 and continues to proxy to backend:8080 and web:3000 on the isolated lakhdatar_net.
+CI/CD: immutable SHA images, multi-architecture builds, security gates, attestations, provenance verification, public Cloudflare smoke test and manual rollback remain enabled.
+Validation performed in packaging sandbox: project baseline validator, JSON/package-lock parsing, YAML parsing, shell syntax, metadata consistency, targeted regression checks and archive integrity. Networked Maven/Docker/npm-registry execution remains environment-dependent and is authoritative in GitHub Actions/Oracle VM.

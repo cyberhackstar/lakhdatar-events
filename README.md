@@ -1,4 +1,4 @@
-# Release 1.9.16 — Redis hardening + Cashfree webhook correction
+# Release 1.9.20 — production smoke-test + SSR proxy correction
 
 This release retains the v1.9.13 Alpine/OpenSSL security hardening and corrects the final container supply-chain verification step by using GitHub Artifact Attestations for the exact pushed image digests, followed by GitHub CLI verification and Cosign signing.
 

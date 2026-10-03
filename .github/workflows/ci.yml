@@ -118,6 +118,8 @@ jobs:
         run: |
           set -euo pipefail
           PORT=3000 SSR_API_BASE_URL=http://127.0.0.1:8080/api/v1 \
+            NG_ALLOWED_HOSTS=127.0.0.1,localhost,events.neelastack.com \
+            NG_TRUST_PROXY_HEADERS=X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO \
             node dist/frontend/server/server.mjs > /tmp/lakhdatar-ssr.log 2>&1 &
           pid=$!
           trap 'kill $pid 2>/dev/null || true' EXIT
