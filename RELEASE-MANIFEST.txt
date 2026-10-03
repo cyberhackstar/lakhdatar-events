@@ -1,36 +1,16 @@
-Lakhdatar Events Release 1.9.16
-Release type: enterprise CI/CD + dependency security + multi-architecture images + non-root edge hardening + Redis runtime hardening
-Git image tags: immutable 40-character SHA
-Flyway: V1..V17
-Frontend dependency major: Angular 20.x (runtime/CI baseline Node 24)
-Backend runtime: Java 21 / Spring Boot 4.0.8 with security-patched Jackson, HttpComponents Core5 and Tomcat patch versions
-CI workflows: CI + Production (Gitleaks full-history scan; dependency review omitted because repository support is not enabled)
-Edge runtime: NGINX non-root on container port 8080; VM loopback port 4002 unchanged
-Image platforms: linux/amd64,linux/arm64
-Generated: 2026-10-03
-Validation boundary: packaging-environment validation plus user-side registry-backed CI verification.
-
-v1.9.16 Cashfree webhook correction:
-- Removes the incorrect separate CASHFREE_WEBHOOK_SECRET configuration.
-- Verifies Cashfree webhook HMAC with the provider CASHFREE_SECRET_KEY, matching the documented signing flow.
-- Updated backend configuration, deployment environment, docs, and regression contracts.
-
-v1.9.16 CI/development stability protection:
-- Blocks unplanned Angular-major Dependabot pull requests while Angular 20.x remains the supported baseline.
-- Isolates local development containers and persistent volumes from the production stack.
-
-v1.9.16 Redis production hardening corrective pass:
-- Starts Redis directly as UID 999 / GID 1000 to avoid the root-to-redis `setpriv` transition under a fully dropped capability set.
-- Retains `no-new-privileges` and `cap_drop: ALL`.
-- Uses `REDISCLI_AUTH` for the authenticated container healthcheck.
-- Preserves the existing named Redis data volume.
-
-v1.9.14 supply-chain verification corrective pass:
-- Replaces the incompatible Cosign verification of BuildKit in-index provenance with GitHub Artifact Attestations generated from the exact pushed image digest.
-- Verifies each immutable image with `gh attestation verify` before Cosign signing.
-- Adds the required `artifact-metadata: write` permission and pins the attestation action to `actions/attest@v4`.
-
-v1.9.13 corrective security pass:
-- Upgrades Alpine OS packages in the frontend build/runtime and NGINX edge images during image build.
-- Prevents stale OpenSSL packages from failing registry-backed Trivy HIGH/CRITICAL gates.
-- Baseline validator now requires Alpine package upgrade hardening in both public-facing image families.
+LAKHDATAR EVENTS v1.9.16 FINAL RELEASE MANIFEST
+==============================================
+Release: 1.9.16
+Base: v1.9.15 Redis-hardening release
+Primary correction: CI frontend security audit scoped to runtime dependencies.
+Angular baseline: 20.x (major upgrades blocked by Dependabot until planned migration).
+Cashfree: CASHFREE_SECRET_KEY used for webhook HMAC verification; no separate webhook secret.
+Production Redis: direct UID/GID 999:1000, no-new-privileges, cap_drop ALL.
+Dev Compose: isolated container names and persistent volumes.
+Validation:
+  - Project baseline: PASS
+  - JSON/XML/YAML parsing: PASS
+  - Shell syntax: PASS
+  - Angular 22 drift: PASS/none
+  - Production Cashfree secret scan: PASS
+  - Final archive integrity: pending after archive creation

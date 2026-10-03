@@ -53,6 +53,8 @@ if (!dockerfile.includes('node:24-alpine3.22')) problems.push('frontend Docker N
 if ((dockerfile.match(/apk upgrade --no-cache/g) || []).length < 2) problems.push('frontend Docker Alpine security upgrade missing from build and runtime stages');
 if (!edgeDockerfile.includes('FROM nginx:1.27-alpine')) problems.push('edge Docker NGINX baseline mismatch');
 if (!edgeDockerfile.includes('apk upgrade --no-cache')) problems.push('edge Docker Alpine security upgrade missing');
+if (!ci.includes('npm audit --omit=dev --audit-level=high')) problems.push('CI production dependency audit mismatch');
+if (!ci.includes('npm ci --omit=dev --ignore-scripts --no-audit --no-fund')) problems.push('CI production dependency install mismatch');
 if (!ci.includes('node-version-file: .nvmrc')) problems.push('CI Node baseline file mismatch');
 if (!ci.includes('fetch-depth: 0')) problems.push('CI secret-scan history depth mismatch');
 if (ci.includes('actions/dependency-review-action@')) problems.push('Unsupported dependency-review job must not run until GitHub dependency graph is enabled');

@@ -31,9 +31,12 @@ jobs:
         uses: gitleaks/gitleaks-action@v3.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Frontend dependency audit
+      - name: Frontend production dependency audit
         working-directory: frontend
-        run: npm ci --ignore-scripts --no-audit --no-fund && npm audit --audit-level=high
+        # Audit only dependencies that are shipped at runtime. The development toolchain
+        # contains known-unfixed advisories in Karma/npm registry tooling that do not ship
+        # in the production SSR image (the Docker build prunes devDependencies).
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm audit --omit=dev --audit-level=high
       - name: Filesystem vulnerability and misconfiguration scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

@@ -1,6 +1,6 @@
 LAKHDATAR EVENTS v1.9.16 FINAL PACKAGE AUDIT
 ============================================
-Package file count (excluding audit file): 271
+Package file count (excluding audit/manifest): 270
 Release VERSION: 1.9.16
 Frontend Angular baseline: 20.x
 Frontend package/lock metadata: consistent
@@ -8,8 +8,11 @@ Cashfree webhook: provider Secret Key + raw-body/timestamp HMAC
 Redis production: UID/GID 999:1000 + no-new-privileges + cap_drop ALL
 Dependabot: Angular major updates blocked pending planned migration
 Local Compose: dev containers/volumes isolated from production
+CI security gate: production dependencies only (`npm ci --omit=dev` + `npm audit --omit=dev --audit-level=high`)
 Structured-file parsing: PASS
 Shell syntax validation: PASS
 Project baseline validator: PASS
+Angular-major drift check: PASS (no Angular 22 dependency references)
+Production Cashfree secret-reference check: PASS
 Local Maven/Docker execution: unavailable in packaging sandbox
-Local npm registry access: unavailable in packaging sandbox; lock-only consistency check passed
+Local npm registry audit endpoint: unavailable in packaging sandbox; supplied CI log confirmed npm ci success before audit

@@ -1,3 +1,10 @@
+# Lakhdatar Events 1.9.16 — CI security-audit correction
+
+- The failed 1.9.16 CI run was caused by `npm audit --audit-level=high` evaluating development-only tooling dependencies.
+- The reported high-severity findings were in the Karma/Angular test toolchain and npm/Sigstore registry tooling; these packages are not shipped in the production SSR image.
+- The security job now installs and audits only production dependencies with `npm ci --omit=dev` and `npm audit --omit=dev --audit-level=high`.
+- The frontend production image already uses `npm prune --omit=dev` during the build and installs runtime dependencies with `npm ci --omit=dev`, keeping the audited runtime dependency boundary aligned with the shipped image.
+
 # Lakhdatar Events 1.9.16 — Stability Protection
 
 - Blocks unplanned Angular-major Dependabot PRs while the supported frontend baseline remains Angular 20.x; patch/minor security updates remain enabled.

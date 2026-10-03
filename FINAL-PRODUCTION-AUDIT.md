@@ -1,3 +1,7 @@
+### v1.9.16 CI security-audit correction
+
+The 2026-10-03 CI security job completed `npm ci` successfully but failed on the full dependency audit because 15 high-severity advisories were reported in development-only tooling, including the Karma/Angular build chain and npm/Sigstore registry tooling. The production SSR image excludes devDependencies, so the security gate is now scoped to the runtime dependency set with `npm ci --omit=dev` followed by `npm audit --omit=dev --audit-level=high`. This keeps a hard HIGH-severity gate for dependencies actually shipped by the application without forcing an unsupported Angular major migration.
+
 ### v1.9.16 Cashfree webhook configuration correction
 
 - Cashfree does not require a separate application-defined webhook secret for this integration.
