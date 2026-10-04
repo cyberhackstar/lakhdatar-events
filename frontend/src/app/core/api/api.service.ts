@@ -36,9 +36,9 @@ export class ApiService {
   private readonly base = inject(API_BASE_URL);
 
   /** Build HTTP query params without ever serializing undefined/null/blank optional filters. */
-  private queryParams(values: Record<string, unknown>): HttpParams {
+  private queryParams<T extends object>(values: T): HttpParams {
     let params = new HttpParams();
-    for (const [key, value] of Object.entries(values)) {
+    for (const [key, value] of Object.entries(values as Record<string, unknown>)) {
       if (value === undefined || value === null || value === '') continue;
       params = params.set(key, String(value));
     }

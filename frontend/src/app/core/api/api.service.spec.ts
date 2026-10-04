@@ -32,6 +32,16 @@ describe('ApiService optional query parameters', () => {
     req.flush({ items: [], nextCursor: null, hasNext: false, size: 50, total: 0 });
   });
 
+  it('accepts the typed EventQuery model and preserves false/zero values', () => {
+    api.events({ q: undefined, featured: false, page: 0, size: 20 }).subscribe();
+    const req = http.expectOne('/api/v1/public/events?featured=false&page=0&size=20');
+    expect(req.request.params.has('q')).toBeFalse();
+    expect(req.request.params.get('featured')).toBe('false');
+    expect(req.request.params.get('page')).toBe('0');
+    expect(req.request.params.get('size')).toBe('20');
+    req.flush({ items: [], page: 0, size: 20, totalPages: 0, totalElements: 0 });
+  });
+
   it('keeps real optional filter values', () => {
     api.allIssuedTicketsCursor({ q: 'bhawesh', status: 'ACTIVE', source: 'PUBLIC', eventId: undefined, size: 25 }).subscribe();
     const req = http.expectOne(r => r.url === '/api/v1/admin/tickets/cursor' && r.params.get('q') === 'bhawesh');

@@ -115,7 +115,7 @@ if (!checkoutSource.includes("redirectTarget: '_modal'")) problems.push('Cashfre
 if (!checkoutSource.includes('result?.paymentDetails') || !checkoutSource.includes('result?.error') || !checkoutSource.includes('.catch(() =>')) problems.push('Cashfree checkout result/promise handling regression detected');
 if (!checkoutSource.includes('loadExternalScript') || !checkoutSource.includes('Payment SDK timed out or failed to load')) problems.push('External payment SDK loader timeout/recovery guard missing');
 if (!scannerSource.includes('verifying = true') || !scannerSource.includes('Keep the live camera session')) problems.push('scanner verification-state/camera-reuse regression detected');
-if (!apiServiceSource.includes('private queryParams(values: Record<string, unknown>): HttpParams')) problems.push('central optional HTTP query-param sanitizer missing');
+if (!apiServiceSource.includes('private queryParams<T extends object>(values: T): HttpParams')) problems.push('central optional HTTP query-param sanitizer missing');
 if (!edgeNginx.includes('https://static.cloudflareinsights.com')) problems.push('Cloudflare Web Analytics CSP script source missing');
 if (problems.length) { console.error('Neelastack baseline verification FAILED:'); for (const p of problems) console.error(`- ${p}`); process.exit(1); }
 console.log('Neelastack stability baseline: PASS');

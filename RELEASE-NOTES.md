@@ -1,3 +1,13 @@
+# v1.9.35
+
+- Corrected the Angular query-parameter sanitizer typing that blocked the production frontend compilation.
+- Added an `EventQuery` regression contract for optional filters and `false`/`0` values.
+- Retained all v1.9.34 payment, scanner, CSP and admin-query runtime fixes unchanged.
+
+See `CHANGES-1.9.35.md` and `VALIDATION-1.9.35.md`.
+
+---
+
 # v1.9.34
 
 - Cashfree checkout reliability and Promise/result handling fixed.

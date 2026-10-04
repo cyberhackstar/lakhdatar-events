@@ -1,3 +1,13 @@
+# IMPLEMENTATION STATUS 1.9.35
+
+Release details: `CHANGES-1.9.35.md` and `VALIDATION-1.9.35.md`.
+
+## Current correction
+- Fixed the frontend TypeScript compilation defect reported by CI in `ApiService.queryParams()`.
+- Preserved the v1.9.34 payment, scanner, CSP and query-sanitization runtime hardening.
+
+---
+
 # v1.9.34 — Deployment qualification correction
 
 - Dedicated worker tier with `WORKER_ENABLED` and distributed-job locks.
