@@ -1,10 +1,10 @@
-## v1.9.45 — Production deployment correction
+## v1.9.46 — CI and Neelastack branding correction
 
 Enterprise multi-event ticketing platform with server-authoritative payments, admission verification, multi-day booking windows, finance/reconciliation, event lifecycle controls, and mobile gate scanning.
 
-CI/runtime corrections: strict event-end typing, cwd-independent backend contract fixtures, global Angular Zone.js test bootstrap, and preservation of the v1.9.39 payment/scanner/CSV/finance/booking protections.
+CI/runtime correction: whitespace-stable production contract assertions, supplied Neelastack branding asset, 48px shared mark rendering, and preservation of the payment/scanner/CSV/finance/booking protections.
 
-See `CHANGES-1.9.45.md`, `VALIDATION-1.9.45.md`, `PRODUCTION-DEPLOY-1.9.45.md`, and `RELEASE-MANIFEST.txt`.
+See `CHANGES-1.9.46.md`, `VALIDATION-1.9.46.md`, `PRODUCTION-DEPLOY-1.9.46.md`, and `RELEASE-MANIFEST.txt`.
 
 Enterprise application/worker separation is supported through `WORKER_ENABLED`; HA reference deployment, PITR runbook, operations health and k6 load scenarios are under `infra/ha`, `infra/backup`, `infra/monitoring` and `infra/loadtest`. See `docs/ENTERPRISE-RELEASE-QUALIFICATION.md` for the production qualification gates.
 
@@ -120,7 +120,7 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 
 
 ## Current release
-See `CHANGES-1.9.25.md` and `VALIDATION-1.9.25.md`.
+See `CHANGES-1.9.46.md` and `VALIDATION-1.9.46.md`.
 
 
 ### Deployment dotenv safety

@@ -1,3 +1,13 @@
+# v1.9.46
+
+- Fixed the CI false negative in `EnterpriseScaleContractTest` by normalizing whitespace in formatting-sensitive behavioral assertions.
+- Replaced the platform Neelastack logo asset with the supplied transparent horse + wordmark artwork.
+- Preserved the 48px shared Neelastack header mark and previous production checkout/recovery/CSV safeguards.
+
+See `CHANGES-1.9.46.md`, `VALIDATION-1.9.46.md`, and `PRODUCTION-DEPLOY-1.9.46.md`.
+
+---
+
 # v1.9.45
 
 - Corrected strict TypeScript event-end narrowing in the admin event editor.
@@ -267,7 +277,7 @@ See `CHANGES-1.9.23.md` for the complete change set.
 
 
 ## Current release
-See `CHANGES-1.9.29.md` and `VALIDATION-1.9.29.md`.
+See `CHANGES-1.9.46.md` and `VALIDATION-1.9.46.md`.
 
 ## v1.9.27
 Checkout recovery, organizer/event operations views, issued ticket visibility, and customer Share/Save PDF actions.

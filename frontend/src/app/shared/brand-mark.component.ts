@@ -17,7 +17,7 @@ import { AfterViewInit, Component, ElementRef, Input, ViewChild } from '@angular
   `,
   styles: [`
     :host{display:inline-flex;align-items:center;gap:.55em;line-height:1;color:inherit}
-    .logo{display:block;width:auto;max-width:190px;object-fit:contain}
+    .logo{display:block;width:auto;max-width:280px;max-height:48px;object-fit:contain}
     .fallback{font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:.78em;color:var(--gold-2,#f0cf8c)}
     .label{font-weight:500;letter-spacing:.01em}
   `]

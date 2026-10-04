@@ -8,14 +8,10 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 class EnterpriseScaleContractTest {
-    /**
-     * Resolve contract-test fixtures from either the backend module directory or
-     * the repository root.
-     */
+    /** Resolve contract-test fixtures from either the backend module directory or the repository root. */
     private static String read(String path) throws Exception {
         Path requested = Path.of(path);
-        if (requested.isAbsolute() && Files.isRegularFile(requested))
-            return Files.readString(requested);
+        if (requested.isAbsolute() && Files.isRegularFile(requested)) return Files.readString(requested);
 
         Path cursor = Path.of("").toAbsolutePath().normalize();
         while (cursor != null) {
@@ -23,25 +19,25 @@ class EnterpriseScaleContractTest {
                     && Files.isDirectory(cursor.resolve("frontend/src"))) {
                 Path root = cursor;
                 String normalized = path.replace('\\', '/');
-                if (normalized.startsWith("../"))
-                    normalized = normalized.substring(3);
-                if (normalized.startsWith("./"))
-                    normalized = normalized.substring(2);
+                if (normalized.startsWith("../")) normalized = normalized.substring(3);
+                if (normalized.startsWith("./")) normalized = normalized.substring(2);
                 Path candidate = root.resolve(normalized).normalize();
-                if (Files.isRegularFile(candidate))
-                    return Files.readString(candidate);
+                if (Files.isRegularFile(candidate)) return Files.readString(candidate);
                 if (path.startsWith("src/")) {
                     Path backendCandidate = root.resolve("backend").resolve(path).normalize();
-                    if (Files.isRegularFile(backendCandidate))
-                        return Files.readString(backendCandidate);
+                    if (Files.isRegularFile(backendCandidate)) return Files.readString(backendCandidate);
                 }
             }
             Path candidate = cursor.resolve(path).normalize();
-            if (Files.isRegularFile(candidate))
-                return Files.readString(candidate);
+            if (Files.isRegularFile(candidate)) return Files.readString(candidate);
             cursor = cursor.getParent();
         }
         throw new java.nio.file.NoSuchFileException(path);
+    }
+
+    /** Compare contract snippets without making the test depend on line wrapping/indentation. */
+    private static boolean containsNormalized(String content, String expected) {
+        return content.replaceAll("\\s+", " ").contains(expected.replaceAll("\\s+", " ").trim());
     }
 
     @Test
@@ -67,12 +63,9 @@ class EnterpriseScaleContractTest {
     void orderAndPublicSalesUseFullEventEndForMultiDayBookings() throws Exception {
         String publicService = read("src/main/java/com/neelastack/lakhdatar/service/PublicEventService.java");
         String orderService = read("src/main/java/com/neelastack/lakhdatar/service/OrderService.java");
-        assertTrue(
-                publicService.contains("Instant eventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();"));
-        assertTrue(publicService
-                .contains("Instant bookingEnd = e.getBookingEndsAt() != null ? e.getBookingEndsAt() : eventEnd;"));
-        assertTrue(orderService
-                .contains("Instant eventEnd = event.getEndsAt() != null ? event.getEndsAt() : event.getStartsAt();"));
+        assertTrue(publicService.contains("Instant eventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();"));
+        assertTrue(publicService.contains("Instant bookingEnd = e.getBookingEndsAt() != null ? e.getBookingEndsAt() : eventEnd;"));
+        assertTrue(orderService.contains("Instant eventEnd = event.getEndsAt() != null ? event.getEndsAt() : event.getStartsAt();"));
         assertFalse(publicService.contains("return end.isAfter(now) ? \"BOOKING_CLOSED\" : \"COMPLETED\";"));
     }
 
@@ -151,7 +144,6 @@ class EnterpriseScaleContractTest {
         assertTrue(controller.contains("/tickets/{ticketId}/pdf"));
         assertTrue(pdf.contains("No customer bearer token is ever embedded in the PDF"));
     }
-
     @Test
     void productionBrowserNeverTargetsPublicBackendPortAndCashfreeReturnIsRecoverable() throws Exception {
         String apiToken = read("../frontend/src/app/core/api/api.tokens.ts");
@@ -161,16 +153,15 @@ class EnterpriseScaleContractTest {
         String recover = read("../frontend/src/app/features/recover/recover.component.ts");
         String orderService = read("src/main/java/com/neelastack/lakhdatar/service/OrderService.java");
         assertTrue(env.contains("apiBaseUrl: '/api/v1'"));
-        assertTrue(apiToken.contains("if (typeof window !== 'undefined' && environment.production) return '/api/v1';"));
+        assertTrue(containsNormalized(apiToken, "if (typeof window !== 'undefined' && environment.production) return '/api/v1';"));
         assertTrue(auth.contains("inject(API_BASE_URL)"));
         assertFalse(apiToken.contains("events.neelastack.com:8080"));
-        assertTrue(paymentResult.contains("Never turn a transient verification error into a forced recovery redirect"));
+        assertTrue(containsNormalized(paymentResult, "Never turn a transient verification error into a forced recovery redirect"));
         assertTrue(paymentResult.contains("maxReturnAttempts = 8"));
         assertTrue(recover.contains("Cashfree transaction ID"));
-        assertTrue(recover.contains("finalize(() => { this.loading = false; })"));
+        assertTrue(containsNormalized(recover, "finalize(() => { this.loading = false; })"));
         assertTrue(orderService.contains("findByProviderPaymentId(normalized)"));
-        assertTrue(orderService.contains(
-                "if(verifiedOrder.getStatus()==Enums.OrderStatus.CONFIRMED) return response(verifiedOrder);"));
+        assertTrue(containsNormalized(orderService, "if(verifiedOrder.getStatus()==Enums.OrderStatus.CONFIRMED) return response(verifiedOrder);"));
     }
 
     @Test
@@ -187,6 +178,7 @@ class EnterpriseScaleContractTest {
         assertTrue(editor.contains("const effectiveEventEnd = endsAt ?? startsAt;"));
         String checkout = read("../frontend/src/app/features/checkout/checkout.component.ts");
         String header = read("../frontend/src/app/shared/site-header.component.ts");
+        String brandMark = read("../frontend/src/app/shared/brand-mark.component.ts");
         String csvList = read("../frontend/src/app/features/admin/events-list.component.ts");
         String login = read("../frontend/src/app/features/auth/login.component.ts");
         String paymentResult = read("../frontend/src/app/features/payment-result/payment-result.component.ts");
@@ -194,6 +186,8 @@ class EnterpriseScaleContractTest {
         assertTrue(checkout.contains("-webkit-text-fill-color:#171219"));
         assertTrue(checkout.contains("maxlength=\"10\""));
         assertTrue(header.contains("[height]=\"48\""));
+        assertTrue(brandMark.contains("/assets/neelastack-logo.png"));
+        assertTrue(Files.isRegularFile(Path.of("../frontend/src/assets/neelastack-logo.png")));
         assertTrue(csvList.contains("attendeesCsv"));
         assertTrue(login.contains("this.form.markAllAsTouched()") && login.contains("Validators.minLength(8)"));
         assertTrue(paymentResult.contains("const recoveryOrder = this.booking.getRecoveryHint();"));
