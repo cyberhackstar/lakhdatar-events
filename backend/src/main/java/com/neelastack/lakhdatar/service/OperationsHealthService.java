@@ -16,7 +16,7 @@ public class OperationsHealthService {
     private final StringRedisTemplate redis;
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
     @Value("${spring.application.name:lakhdatar-events-backend}") private String applicationName;
-    @Value("${spring.application.version:1.9.31}") private String applicationVersion;
+    @Value("${spring.application.version:1.9.32}") private String applicationVersion;
 
     public record Health(String application, String version, Instant checkedAt, Component database, Component redis,
                          Queues queues, long publishedEvents, long organizers, boolean workerEnabled) {}
@@ -50,7 +50,7 @@ public class OperationsHealthService {
     private Component redis() {
         long start = System.nanoTime();
         try {
-            String pong = redis.execute(connection -> connection.ping());
+            String pong = redis.execute((org.springframework.data.redis.core.RedisCallback<String>) connection -> connection.ping());
             long ms = (System.nanoTime() - start) / 1_000_000;
             return new Component("PONG".equalsIgnoreCase(pong) ? "UP" : "DOWN", ms, "Redis ping succeeded");
         } catch (Exception ex) {

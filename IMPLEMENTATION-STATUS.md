@@ -1,4 +1,4 @@
-# v1.9.31 — Enterprise production qualification
+# v1.9.32 — Enterprise compile-fix release
 
 - Dedicated worker tier with `WORKER_ENABLED` and distributed-job locks.
 - Platform Operations Health API/UI.
@@ -8,9 +8,9 @@
 - k6 load scenarios corrected to count business-conflict statuses as expected outcomes.
 - Enterprise release qualification, PITR and payment chaos runbooks updated.
 
-# IMPLEMENTATION STATUS 1.9.31
+# IMPLEMENTATION STATUS 1.9.32
 
-Release details: `CHANGES-1.9.31.md` and `VALIDATION-1.9.31.md`.
+Release details: `CHANGES-1.9.32.md` and `VALIDATION-1.9.32.md`.
 
 ## 1.9.31
 

@@ -1,3 +1,17 @@
+# Release Notes — v1.9.32
+
+## v1.9.32 — Compilation and release-gate correction
+
+- Fixed `FinanceService` compilation by importing the shared `Enums` type used by cursor refund validation.
+- Fixed `OperationsHealthService` compilation by explicitly selecting the `RedisCallback` overload for `RedisTemplate.execute(...)`.
+- Fixed Angular `OperationsHealthComponent` template control-flow syntax from invalid `@if(data() as d)` to valid alias syntax `@if (data(); as d)`.
+- Removed the unused `DecimalPipe` import from `OperationsHealthComponent`, eliminating the associated Angular warning.
+- Bumped runtime/package metadata to v1.9.32; no Flyway migration added.
+
+See `CHANGES-1.9.32.md` and `VALIDATION-1.9.32.md`.
+
+---
+
 # Release Notes — v1.9.31
 
 ## v1.9.31 — Enterprise production qualification hardening

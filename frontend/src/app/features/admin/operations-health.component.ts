@@ -1,15 +1,15 @@
-import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { ApiService } from '../../core/api/api.service';
 import { OperationsHealth } from '../../core/api/api.models';
 import { ADMIN_UI_STYLES } from './admin.styles';
 
 @Component({
-  selector: 'lk-operations-health', standalone: true, imports: [CommonModule, DatePipe, DecimalPipe],
+  selector: 'lk-operations-health', standalone: true, imports: [CommonModule, DatePipe],
   template: `
   <div class="page-head"><div><div class="eyebrow">Platform operations</div><h1 class="title">Operations health</h1><p class="sub">Live infrastructure, payment recovery, webhook, reservation and email backlogs.</p></div><button class="a-btn sm" (click)="reload()" [disabled]="loading()">{{loading()?'Refreshing…':'Refresh'}}</button></div>
   @if(error()){<div class="alert" role="alert">{{error()}}</div>}
-  @if(data() as d){
+  @if(data(); as d){
     <div class="grid"><div class="metric"><small>PostgreSQL</small><strong [class.bad]="d.database.status!=='UP'">{{d.database.status}}</strong><span>{{d.database.latencyMs}}ms</span></div><div class="metric"><small>Redis</small><strong [class.bad]="d.redis.status!=='UP'">{{d.redis.status}}</strong><span>{{d.redis.latencyMs}}ms</span></div><div class="metric"><small>Worker tier</small><strong>{{d.workerEnabled?'Enabled':'API-only'}}</strong><span>Dedicated workers supported</span></div><div class="metric"><small>Published events</small><strong>{{d.publishedEvents}}</strong><span>{{d.organizers}} organizers</span></div></div>
     <section class="card"><h2>Recovery queues</h2><div class="qgrid"><div><small>Pending payments</small><b>{{d.queues.pendingPayments}}</b></div><div><small>Stale payments &gt;2m</small><b>{{d.queues.stalePayments}}</b></div><div><small>Provider-order recovery</small><b>{{d.queues.providerOrderRecoveryPending}}</b></div><div><small>Pending refunds</small><b>{{d.queues.pendingRefunds}}</b></div><div><small>Webhook backlog</small><b>{{d.queues.webhookBacklog}}</b></div><div><small>Webhook stuck</small><b>{{d.queues.webhookStuck}}</b></div><div><small>Held reservations</small><b>{{d.queues.heldReservations}}</b></div><div><small>Expired reservations</small><b>{{d.queues.expiredReservations}}</b></div><div><small>Mail pending</small><b>{{d.queues.mailPending}}</b></div><div><small>Mail failed</small><b>{{d.queues.mailFailed}}</b></div></div></section>
     <p class="stamp">Checked {{d.checkedAt|date:'d MMM yyyy, h:mm:ss a'}}</p>
