@@ -108,7 +108,11 @@ public class RazorpayService {
                 n.path("amount_refunded").asLong(0), n.path("refund_status").asText(null), n.path("captured").asBoolean("captured".equalsIgnoreCase(n.path("status").asText())));
     }
 
-    private JsonNode get(String path) { try { return send("GET", path, null, Map.of()); } catch (Exception e) { throw providerException(e); } }
+    private JsonNode get(String path) {
+        try { return send("GET", path, null, Map.of()); }
+        catch (ApiException e) { throw e; }
+        catch (Exception e) { throw providerException(e); }
+    }
 
     private JsonNode post(String path, Object body) { return post(path, body, Map.of()); }
 
@@ -124,6 +128,7 @@ public class RazorpayService {
         headers.forEach(builder::header);
         HttpRequest request = "GET".equals(method) ? builder.GET().build() : builder.method(method, HttpRequest.BodyPublishers.ofString(body == null ? "" : body)).build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 404) throw new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_PROVIDER_NOT_FOUND", "Razorpay resource was not found");
         if (response.statusCode() < 200 || response.statusCode() >= 300) throw new IllegalStateException("Razorpay HTTP " + response.statusCode());
         return objectMapper.readTree(response.body());
     }

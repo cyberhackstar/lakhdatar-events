@@ -20,6 +20,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/**","/api/v1/public/**","/api/v1/webhooks/**","/api/v1/setup/**","/robots.txt","/sitemap.xml","/sitemap-*.xml").permitAll()
                 .requestMatchers("/api/v1/checkin/**","/api/v1/staff/**").hasAnyRole("STAFF","EVENT_MANAGER","ORGANIZER","ADMIN")
                 .requestMatchers("/api/v1/admin/payments/**").hasAnyRole("ADMIN","FINANCE","ORGANIZER")
+                .requestMatchers("/api/v1/finance/**").hasAnyRole("ADMIN","FINANCE","ORGANIZER")
+                .requestMatchers("/api/v1/admin/ops/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN","ORGANIZER","EVENT_MANAGER","FINANCE")
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

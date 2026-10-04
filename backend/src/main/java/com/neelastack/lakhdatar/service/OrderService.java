@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -154,11 +155,12 @@ public class OrderService {
                 throw new ApiException(HttpStatus.CONFLICT,context.blockCode(),"The checkout can no longer accept payment. Please start a new checkout.");
             }
             if(context.providerOrderId()!=null){
-                // Never present a provider-paid order as payable. This also recovers a payment if the
-                // browser/webhook was interrupted after capture but before local fulfillment.
-                var providerOrder=gateways.forProvider(context.provider()).fetchOrder(context.providerOrderId());
-                if(providerOrder.amount()!=context.amountMinor() || !context.currency().equalsIgnoreCase(providerOrder.currency()) || !context.orderNumber().equals(providerOrder.receipt()))
-                    throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_PROVIDER_MISMATCH","The provider order does not match this checkout");
+                // A stale local provider id is recoverable: clear only when the provider explicitly
+                // confirms that resource does not exist. Transient provider failures remain fail-closed.
+                try {
+                    var providerOrder=gateways.forProvider(context.provider()).fetchOrder(context.providerOrderId());
+                    if(providerOrder.amount()!=context.amountMinor() || !context.currency().equalsIgnoreCase(providerOrder.currency()) || !context.orderNumber().equals(providerOrder.receipt()))
+                        throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_PROVIDER_MISMATCH","The provider order does not match this checkout");
                 if("paid".equalsIgnoreCase(providerOrder.status())){
                     var providerPayment=gateways.forProvider(context.provider()).fetchPaymentsForOrder(providerOrder.id()).stream()
                             .filter(x -> x.amount()==context.amountMinor() && context.currency().equalsIgnoreCase(x.currency()))
@@ -175,7 +177,20 @@ public class OrderService {
                     }
                     throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_RECOVERY_PENDING","This payment session is already marked paid at the provider. Retrieve the ticket from order recovery.");
                 }
-                return responseForCheckout(context, checkoutSessionToken);
+                    return responseForCheckout(context, checkoutSessionToken);
+                } catch (ApiException ex) {
+                    if (ex.status() != HttpStatus.NOT_FOUND || !"PAYMENT_PROVIDER_NOT_FOUND".equals(ex.code())) throw ex;
+                    tx.executeWithoutResult(s -> payments.findByOrderId(context.orderId()).ifPresent(p -> {
+                        p.setProviderOrderId(null);
+                        p.setRazorpayOrderId(null);
+                        p.setProviderPublicKey(null);
+                        p.setProviderSessionId(null);
+                        p.setRazorpayOrderState("NOT_CREATED");
+                        p.setProviderLastError(null);
+                        payments.save(p);
+                    }));
+                    // Continue into receipt-based recovery/creation below.
+                }
             }
             Optional<PaymentGatewayProvider.ProviderOrder> recovered;
             try { recovered = gateways.forProvider(context.provider()).findOrderByReceipt(context.orderNumber()); }
@@ -207,11 +222,15 @@ public class OrderService {
                 return new CheckoutResponse(context.publicId().toString(),context.orderNumber(),context.provider().name(),providerOrder.id(),providerOrder.publicKey(),providerOrder.sessionId(),context.amountMinor(),context.currency(),context.reservationExpiresAt(),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());
             }
             if(!"NOT_CREATED".equalsIgnoreCase(context.providerOrderState())) {
+                // The lookup above is authoritative: an empty result means the provider does not
+                // have an order for this merchant receipt, so it is safe to re-enter creation.
+                // We must not permanently brick checkout merely because a previous network call
+                // timed out after local state was moved to RECOVERY_PENDING/CREATING.
                 tx.executeWithoutResult(s->{ payments.findByOrderId(context.orderId()).ifPresent(p->{
-                    p.setProviderLastError("Provider order creation outcome is uncertain; no duplicate provider order will be created automatically");
+                    p.setRazorpayOrderState("NOT_CREATED");
+                    p.setProviderLastError(null);
                     payments.save(p);
                 }); });
-                throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_PROVIDER_UNCERTAIN","Payment gateway order creation is awaiting safe reconciliation. Please retry later or start a new checkout.");
             }
             PaymentGatewayProvider.ProviderOrder rp;
             try { rp=gateways.forProvider(context.provider()).createOrder(context.amountMinor(),context.currency(),context.orderNumber(), context.customerName(), context.customerEmail(), context.customerPhone()); }
@@ -221,7 +240,9 @@ public class OrderService {
                     var retryLookup=gateways.forProvider(context.provider()).findOrderByReceipt(context.orderNumber());
                     if(retryLookup.isPresent()) {
                         var providerOrder=retryLookup.get();
-                        if(providerOrder.amount()==context.amountMinor() && context.currency().equalsIgnoreCase(providerOrder.currency())) {
+                        if(providerOrder.amount()==context.amountMinor()
+                                && context.currency().equalsIgnoreCase(providerOrder.currency())
+                                && context.orderNumber().equals(providerOrder.receipt())) {
                             tx.executeWithoutResult(s->{ payments.findByOrderId(context.orderId()).ifPresent(p->{p.setProviderOrderId(providerOrder.id()); if(p.getProvider()==Enums.PaymentProvider.RAZORPAY)p.setRazorpayOrderId(providerOrder.id()); p.setProviderPublicKey(providerOrder.publicKey());p.setProviderSessionId(providerOrder.sessionId());p.setRazorpayOrderState("READY");paymentStateMachine.transition(p,Enums.PaymentStatus.PENDING);p.setProviderLastError(null);payments.save(p);}); });
                             return new CheckoutResponse(context.publicId().toString(),context.orderNumber(),context.provider().name(),providerOrder.id(),providerOrder.publicKey(),providerOrder.sessionId(),context.amountMinor(),context.currency(),context.reservationExpiresAt(),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());
                         }
@@ -409,7 +430,11 @@ public class OrderService {
      * boundary that caused stale-class failures on Windows/OneDrive workspaces.
      */
     @Scheduled(fixedDelayString = "${app.razorpay.order-recovery-sweep:30000}")
+    @ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true)
     public void recoverMissingProviderOrders(){
+        locks.withLock("job:provider-order-recovery", java.time.Duration.ofSeconds(55), this::recoverMissingProviderOrdersLocked);
+    }
+    private void recoverMissingProviderOrdersLocked(){
         // Bounded look-back window plus per-payment rotation: abandoned checkouts must not starve newer ones.
         Instant now = Instant.now();
         var candidates = payments.findMissingProviderOrderCandidates(

@@ -25,6 +25,7 @@ import { EventTeamPanelComponent } from './event-team-panel.component';
         </div>
         <div class="editor-actions">
           <a class="a-btn" [href]="'/events/' + event.slug" target="_blank" rel="noopener">View public page ↗</a>
+          <a class="a-btn" [routerLink]="['/admin/events', event.id, 'operations']">Issued tickets & orders</a>
           <a class="a-btn" routerLink="/admin/events">Close</a>
         </div>
       </div>

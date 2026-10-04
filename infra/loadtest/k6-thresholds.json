@@ -1,0 +1,17 @@
+{
+  "catalog": {
+    "http_req_failed": "rate<0.01",
+    "http_req_duration_p95": "<500ms",
+    "http_req_duration_p99": "<1000ms"
+  },
+  "checkout": {
+    "http_req_failed": "rate<0.02",
+    "http_req_duration_p95": "<2000ms",
+    "http_req_duration_p99": "<4000ms"
+  },
+  "checkin": {
+    "http_req_failed": "rate<0.01",
+    "http_req_duration_p95": "<350ms",
+    "http_req_duration_p99": "<700ms"
+  }
+}

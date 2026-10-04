@@ -1,0 +1,55 @@
+name: Staging Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Staging base URL, e.g. https://staging-events.example.com'
+        required: true
+        type: string
+      test:
+        description: 'k6 scenario'
+        required: true
+        default: catalog.js
+        type: choice
+        options: [suite, catalog.js, burst.js, public-event.js, checkout.js, checkout-idempotency.js, checkin.js, ticket-pdf.js, operations.js, seo.js]
+
+permissions:
+  contents: read
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run pinned k6 test
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          K6_IMAGE: grafana/k6:2.2.0
+          EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
+          TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
+          TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
+          ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
+          ADMIN_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
+          STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
+          GATE: ${{ secrets.LOADTEST_GATE }}
+          ENABLE_CHECKOUT_LOAD: ${{ secrets.ENABLE_CHECKOUT_LOAD }}
+          ALLOW_PRODUCTION_CHECKOUT_LOAD: "false"
+          CHECKIN_RATE: ${{ secrets.LOADTEST_CHECKIN_RATE || '2' }}
+          CHECKIN_DURATION: ${{ secrets.LOADTEST_CHECKIN_DURATION || '2m' }}
+          TEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
+          BURST_START_RATE: ${{ secrets.LOADTEST_BURST_START_RATE || '50' }}
+          BURST_RATE_1: ${{ secrets.LOADTEST_BURST_RATE_1 || '100' }}
+          BURST_RATE_2: ${{ secrets.LOADTEST_BURST_RATE_2 || '200' }}
+          BURST_RATE_3: ${{ secrets.LOADTEST_BURST_RATE_3 || '250' }}
+        run: ./infra/loadtest/run.sh '${{ inputs.test }}'
+      - name: Upload k6 summaries
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: lakhdatar-k6-${{ github.run_id }}
+          path: loadtest-results/*.json
+          if-no-files-found: warn

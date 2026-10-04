@@ -9,6 +9,16 @@ const angularApp = new AngularNodeAppEngine();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
+const allowedHosts = new Set((process.env['NG_ALLOWED_HOSTS'] || '')
+  .split(',').map(v => v.trim().toLowerCase()).filter(Boolean));
+
+app.use((req, res, next) => {
+  if (req.path === '/healthz' || allowedHosts.size === 0) return next();
+  const host = req.hostname.toLowerCase();
+  if (allowedHosts.has(host)) return next();
+  res.status(400).type('text/plain').send('Invalid host');
+});
+
 // Liveness for container orchestration. Does not touch the backend on purpose.
 app.get('/healthz', (_req, res) => { res.status(200).type('text/plain').send('ok'); });
 
@@ -46,7 +56,24 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 
 if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const port = Number(process.env['PORT'] || 3000);
-  app.listen(port, '0.0.0.0', () => console.log(`SSR server listening on :${port}`));
+  const server = app.listen(port, '0.0.0.0', () => console.log(`SSR server listening on :${port}`));
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`SSR graceful shutdown requested by ${signal}`);
+    const force = setTimeout(() => {
+      console.error('SSR graceful shutdown timeout exceeded');
+      process.exit(1);
+    }, 10000);
+    force.unref();
+    server.close(() => {
+      clearTimeout(force);
+      process.exit(0);
+    });
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 export const reqHandler = createNodeRequestHandler(app);

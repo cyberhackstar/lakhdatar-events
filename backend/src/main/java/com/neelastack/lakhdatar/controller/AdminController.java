@@ -25,6 +25,7 @@ public class AdminController {
     private final RefundService refunds;
     private final OrganizerAdminService organizerAdmin;
     private final TeamService team;
+    private final AdminTicketQueryService ticketQueries;
 
     private UserPrincipal p(Authentication a) { return (UserPrincipal) a.getPrincipal(); }
 
@@ -47,6 +48,7 @@ public class AdminController {
 
     @GetMapping("/dashboard") AdminService.Dashboard dashboard(Authentication a) { return admin.dashboard(p(a)); }
     @GetMapping("/events") List<AdminService.EventSummary> events(Authentication a) { return admin.events(p(a)); }
+    @GetMapping("/events/cursor") AdminService.EventCursorPage eventsCursor(@RequestParam(defaultValue="") String q,@RequestParam(defaultValue="") String status,@RequestParam(required=false) @jakarta.validation.constraints.Size(max=500) String cursor,@RequestParam(defaultValue="50") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(100) int size,Authentication a){ return admin.eventCursor(p(a),q,status,cursor,size); }
     @GetMapping("/events/{id}") EventManagementService.AdminEventView event(@PathVariable UUID id, Authentication a) {
         UserPrincipal u = p(a);
         return eventService.getForAdmin(id, u.userId(), u.role());
@@ -137,6 +139,67 @@ public class AdminController {
     @PostMapping("/payments/{paymentId}/refund")
     RefundService.RefundResult refund(@PathVariable UUID paymentId, @RequestParam(required = false, defaultValue = "Event cancellation") @Size(max=500) String reason, Authentication a) {
         UserPrincipal u = p(a); return refunds.refund(paymentId, reason, u.userId(), u.role());
+    }
+
+    @GetMapping("/events/{eventId}/operations/summary")
+    AdminTicketQueryService.OperationsSummary operationsSummary(@PathVariable UUID eventId, Authentication a) {
+        return ticketQueries.operationsSummary(eventId, p(a));
+    }
+
+    @GetMapping("/events/{eventId}/tickets")
+    AdminTicketQueryService.OperationsPage<AdminTicketQueryService.TicketRow> issuedTickets(
+            @PathVariable UUID eventId,
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "") String status,
+            @RequestParam(defaultValue = "") String source,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            Authentication a) {
+        return ticketQueries.tickets(eventId, p(a), q, status, source, page, size);
+    }
+
+    @GetMapping("/tickets")
+    AdminTicketQueryService.PageView<AdminTicketQueryService.ScopedTicketRow> scopedTickets(
+            @RequestParam(required = false) UUID eventId,
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "") String status,
+            @RequestParam(defaultValue = "") String source,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size,
+            Authentication a) {
+        return ticketQueries.scopedTickets(p(a), eventId, q, status, source, page, size);
+    }
+
+    @GetMapping("/tickets/cursor")
+    AdminTicketQueryService.CursorPage<AdminTicketQueryService.ScopedTicketRow> scopedTicketsCursor(@RequestParam(required=false) UUID eventId,
+            @RequestParam(defaultValue="") String q,@RequestParam(defaultValue="") String status,@RequestParam(defaultValue="") String source,
+            @RequestParam(required=false) String cursor,@RequestParam(defaultValue="50") @Min(1) @Max(100) int size,Authentication a){
+        return ticketQueries.scopedTicketsCursor(p(a),eventId,q,status,source,cursor,size);
+    }
+
+    @GetMapping("/events/{eventId}/tickets/cursor")
+    AdminTicketQueryService.CursorPage<AdminTicketQueryService.TicketRow> issuedTicketsCursor(@PathVariable UUID eventId,
+            @RequestParam(defaultValue="") String q,@RequestParam(defaultValue="") String status,@RequestParam(defaultValue="") String source,
+            @RequestParam(required=false) String cursor,@RequestParam(defaultValue="50") @Min(1) @Max(100) int size,Authentication a){
+        return ticketQueries.ticketsCursor(eventId,p(a),q,status,source,cursor,size);
+    }
+
+    @GetMapping("/events/{eventId}/orders")
+    AdminTicketQueryService.OperationsPage<AdminTicketQueryService.OrderRow> eventOrders(
+            @PathVariable UUID eventId,
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "") String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            Authentication a) {
+        return ticketQueries.orders(eventId, p(a), q, status, page, size);
+    }
+
+    @GetMapping("/events/{eventId}/orders/cursor")
+    AdminTicketQueryService.CursorPage<AdminTicketQueryService.OrderRow> eventOrdersCursor(@PathVariable UUID eventId,
+            @RequestParam(defaultValue="") String q,@RequestParam(defaultValue="") String status,@RequestParam(required=false) String cursor,
+            @RequestParam(defaultValue="50") @Min(1) @Max(100) int size,Authentication a){
+        return ticketQueries.ordersCursor(eventId,p(a),q,status,cursor,size);
     }
 
     @GetMapping(value = "/events/{eventId}/attendees.csv", produces = "text/csv")

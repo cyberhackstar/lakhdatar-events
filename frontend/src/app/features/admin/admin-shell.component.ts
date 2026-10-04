@@ -17,12 +17,15 @@ import { AdminStore } from './admin-store.service';
         <div class="role">{{ roleLabel() }}</div>
         <nav aria-label="Console">
           <a routerLink="/admin" routerLinkActive="on" [routerLinkActiveOptions]="{exact:true}"><i>◧</i><span>Overview</span></a>
-          <a routerLink="/admin/events" routerLinkActive="on"><i>◈</i><span>Events</span></a>
+          @if (canViewEventOperations()) { <a routerLink="/admin/events" routerLinkActive="on"><i>◈</i><span>Events</span></a> }
+          @if (canViewTickets()) { <a routerLink="/admin/tickets" routerLinkActive="on"><i>▤</i><span>Issued tickets</span></a> }
+          @if (canViewFinance()) { <a routerLink="/admin/finance" routerLinkActive="on"><i>¤</i><span>Finance</span></a> }
+          @if (canViewOperationsHealth()) { <a routerLink="/admin/operations" routerLinkActive="on"><i>♥</i><span>Ops health</span></a> }
           @if (canAdminister()) { <a routerLink="/admin/events/new" routerLinkActive="on"><i>＋</i><span>Create event</span></a> }
           @if (isAdmin()) { <a routerLink="/admin/organizers" routerLinkActive="on"><i>▣</i><span>Organizers</span></a> }
           @if (canAdminister()) { <a routerLink="/admin/team" routerLinkActive="on"><i>◉</i><span>{{ isAdmin() ? 'Teams' : 'Team' }}</span></a> }
           @if (isManager()) { <a routerLink="/admin/complimentary" routerLinkActive="on"><i>✦</i><span>Complimentary tickets</span></a> }
-          <a routerLink="/staff"><i>⌖</i><span>Scanner console</span></a>
+          @if (canScan()) { <a routerLink="/staff"><i>⌖</i><span>Scanner console</span></a> }
         </nav>
         <div class="bottom">
           <div class="who">{{ auth.fullName() }}</div>
@@ -73,7 +76,12 @@ export class AdminShellComponent {
   isAdmin(): boolean { return this.auth.role() === 'ADMIN'; }
   isManager(): boolean { return this.auth.role() === 'EVENT_MANAGER'; }
   canAdminister(): boolean { const r = this.auth.role(); return r === 'ADMIN' || r === 'ORGANIZER'; }
-  roleLabel(): string { return this.canAdminister() ? 'CONTROL CENTER' : this.isManager() ? 'ASSIGNED EVENTS ONLY' : 'OPERATIONS CONSOLE'; }
+  canViewEventOperations(): boolean { const r = this.auth.role(); return r === 'ADMIN' || r === 'ORGANIZER' || r === 'EVENT_MANAGER'; }
+  canViewTickets(): boolean { return this.canViewEventOperations(); }
+  canScan(): boolean { const r = this.auth.role(); return r === 'ADMIN' || r === 'ORGANIZER' || r === 'EVENT_MANAGER' || r === 'STAFF'; }
+  canViewFinance(): boolean { const r = this.auth.role(); return r === 'ADMIN' || r === 'ORGANIZER' || r === 'FINANCE'; }
+  canViewOperationsHealth(): boolean { return this.auth.role() === 'ADMIN'; }
+  roleLabel(): string { const r = this.auth.role(); return this.isAdmin() ? 'PLATFORM CONTROL CENTER' : this.canViewFinance() && r === 'FINANCE' ? 'FINANCIAL OPERATIONS' : this.canAdminister() ? 'ORGANIZER CONTROL CENTER' : this.isManager() ? 'ASSIGNED EVENTS ONLY' : 'OPERATIONS CONSOLE'; }
 
   logout(): void {
     this.store.reset();

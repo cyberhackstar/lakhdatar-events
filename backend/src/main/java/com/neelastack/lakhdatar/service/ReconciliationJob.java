@@ -10,21 +10,27 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
-@Component @RequiredArgsConstructor
+@Component
+@ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true)
+@RequiredArgsConstructor
 public class ReconciliationJob {
     private static final Logger log=LoggerFactory.getLogger(ReconciliationJob.class);
-    private final PaymentRepository payments; private final PaymentGatewayRouter gateways; private final OrderService orders; private final AppProperties props;
+    private final PaymentRepository payments; private final PaymentGatewayRouter gateways; private final OrderService orders; private final AppProperties props; private final DistributedLockService locks;
     // Sweeps only look back this far and revisit a payment at most once per recheck interval, so
     // abandoned checkouts can never crowd newer payments out of the batch.
     @Value("${app.payment.reconciliation-window-hours:168}") private long windowHours = 168;
     @Value("${app.payment.reconciliation-recheck-ms:60000}") private long recheckMs = 60_000;
     @Scheduled(fixedDelayString="${app.payment.reconciliation-sweep-ms:30000}")
     public void reconcile(){
+        locks.withLock("job:payment-reconciliation", Duration.ofSeconds(55), this::reconcileLocked);
+    }
+    private void reconcileLocked(){
         Instant cutoff=Instant.now().minusMillis(props.payment().reconciliationAgeMs());
         List<Enums.PaymentStatus> states=List.of(Enums.PaymentStatus.CREATED,Enums.PaymentStatus.PENDING,Enums.PaymentStatus.PAYMENT_INITIATED,Enums.PaymentStatus.AUTHORIZED,Enums.PaymentStatus.CAPTURED);
         Instant now=Instant.now();

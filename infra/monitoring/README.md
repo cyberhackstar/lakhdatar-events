@@ -9,3 +9,8 @@ Required production operations:
 3. Configure an Alertmanager receiver before relying on critical alerts.
 4. Keep Grafana credentials outside Git.
 5. Test that a deliberately stopped backend triggers `LakhdatarBackendDown` before production launch.
+
+
+## Operations console
+
+`GET /api/v1/admin/ops/health` is an ADMIN-only diagnostic endpoint. Poll it from a secured operator tool every 30–60 seconds; do not expose it anonymously. It reports database/Redis latency and payment, refund, webhook, reservation and mail backlog counters.

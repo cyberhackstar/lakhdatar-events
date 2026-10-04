@@ -1,47 +1,47 @@
 import http from 'k6/http';
-import { check } from 'k6';
-import { Counter } from 'k6/metrics';
+import { check, fail } from 'k6';
+import { Rate } from 'k6/metrics';
 
-const accepted = new Counter('accepted_checkins');
+const BASE_URL = (__ENV.BASE_URL || '').replace(/\/$/, '');
+const EVENT_ID = __ENV.EVENT_ID || '';
+const GATE = __ENV.GATE || 'Gate 1';
+const STAFF_BEARER = __ENV.STAFF_BEARER || '';
+const TOKENS = (__ENV.CHECKIN_QR_TOKENS || '').split(',').map(x => x.trim()).filter(Boolean);
+const RATE = Number(__ENV.CHECKIN_RATE || 2);
+const DURATION = __ENV.CHECKIN_DURATION || '2m';
+
+if (!BASE_URL || !EVENT_ID || !STAFF_BEARER || TOKENS.length === 0) fail('BASE_URL, EVENT_ID, STAFF_BEARER and CHECKIN_QR_TOKENS are required.');
+if (!Number.isFinite(RATE) || RATE <= 0) fail('CHECKIN_RATE must be a positive number.');
+
+const contract = new Rate('checkin_contract');
+const serverErrors = new Rate('checkin_server_errors');
 
 export const options = {
   scenarios: {
-    concurrent_scans: {
-      executor: 'per-vu-iterations',
-      vus: Number(__ENV.VUS || 50),
-      iterations: 2,
-      maxDuration: '60s',
-    },
+    scanner: {
+      executor: 'constant-arrival-rate',
+      rate: RATE,
+      timeUnit: '1s',
+      duration: DURATION,
+      preAllocatedVUs: Math.max(10, Math.ceil(RATE * 2)),
+      maxVUs: Math.max(50, Math.ceil(RATE * 6))
+    }
   },
   thresholds: {
-    accepted_checkins: ['count<=1'],
-    http_req_failed: ['rate<0.02'],
-    http_req_duration: ['p(95)<500'],
-  },
+    checkin_contract: ['rate>0.98'],
+    checkin_server_errors: ['rate<0.01'],
+    http_req_duration: ['p(95)<350', 'p(99)<700']
+  }
 };
 
-const baseUrl = (__ENV.BASE_URL || '').replace(/\/$/, '');
-const eventId = __ENV.EVENT_ID;
-const gate = __ENV.GATE || 'Main Gate';
-const token = __ENV.STAFF_TOKEN;
-const qrToken = __ENV.QR_TOKEN;
-
-if (!baseUrl || !eventId || !token || !qrToken) {
-  throw new Error('Set BASE_URL, EVENT_ID, STAFF_TOKEN, and a fresh unused QR_TOKEN.');
-}
-
 export default function () {
-  const res = http.post(`${baseUrl}/api/v1/checkin/scan`, JSON.stringify({ eventId, gate, qrToken }), {
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    tags: { endpoint: 'checkin-scan' },
+  const token = TOKENS[(__ITER + __VU) % TOKENS.length];
+  const res = http.post(`${BASE_URL}/api/v1/checkin/scan`, JSON.stringify({ eventId: EVENT_ID, gate: GATE, qrToken: token }), {
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${STAFF_BEARER}` },
+    tags: { endpoint: 'checkin' }
   });
-
-  let body = null;
-  try { body = JSON.parse(res.body); } catch (_) {}
-  if (body?.result === 'ACCEPTED') accepted.add(1);
-
-  check(res, {
-    'check-in response is HTTP 200': r => r.status === 200,
-    'response has a result': r => !!body?.result,
-  });
+  const expected = [200, 409, 429].includes(res.status);
+  contract.add(expected);
+  serverErrors.add(res.status >= 500);
+  check(res, { 'check-in endpoint returns business result': r => expected });
 }

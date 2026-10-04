@@ -183,6 +183,9 @@ export interface Dashboard {
   totalSold: number;
   totalCheckedIn: number;
   totalRevenueMinor: number;
+  totalEvents: number;
+  publishedEvents: number;
+  draftEvents: number;
 }
 
 export interface StaffEvent {
@@ -244,3 +247,26 @@ export interface CreatedTeamMember { member: TeamMember; delivery: 'INVITE_SENT'
 export interface EventTeamStaffRow { userId: string; name: string; email: string; gate: string | null; active: boolean; }
 export interface EventTeamManagerRow { userId: string; name: string; email: string; active: boolean; }
 export interface EventTeam { eventId: string; eventName: string; staff: EventTeamStaffRow[]; managers: EventTeamManagerRow[]; }
+
+export interface AdminIssuedTicket {
+  ticketId: string; ticketNumber: string; attendeeName?: string; email?: string; phone?: string;
+  ticketType: string; amountMinorUnits: number; currency: string; status: string; source: string;
+  orderNumber: string; issuedByName?: string; issuedAt: string; checkedInAt?: string | null;
+}
+export interface AdminScopedTicket extends AdminIssuedTicket { eventId: string; eventName: string; eventSlug: string; }
+export interface AdminOrder {
+  orderId: string; orderNumber: string; customerName: string; customerEmail: string; customerPhone?: string | null;
+  totalMinorUnits: number; currency: string; status: string; paymentStatus?: string; ticketCount: number; createdAt: string;
+}
+export interface AdminPage<T> { items: T[]; page: number; size: number; total: number; totalPages: number; }
+export interface AdminOperationsPage<T> extends AdminPage<T> { eventId: string; eventName: string; }
+export interface CursorPage<T> { items: T[]; nextCursor?: string | null; hasNext: boolean; size: number; }
+
+export interface FinanceOverview { grossCapturedMinor: number; refundedMinor: number; netMinor: number; pendingPaymentCount: number; pendingRefundCount: number; recoveryPendingCount: number; failedMailCount: number; heldReservationCount: number; expiredReservationCount: number; webhookBacklogCount: number; webhookStuckCount: number; stalePaymentCount: number; oldestPendingPaymentAt?: string | null; }
+export interface FinanceRefund { refundId: string; paymentId: string; orderNumber: string; customerName?: string | null; eventName: string; amountMinor: number; currency: string; status: string; providerStatus?: string | null; createdAt: string; }
+export interface FinanceLedgerRow { entryId: string; entryType: 'SALE' | 'REFUND'; paymentId?: string | null; refundId?: string | null; orderNumber?: string | null; eventName?: string | null; organizerName?: string | null; amountMinor: number; currency: string; createdAt: string; }
+export interface FinancePage<T> { items: T[]; page: number; size: number; total: number; totalPages: number; }
+
+export interface OperationsHealth { application: string; version: string; checkedAt: string; database: { status: string; latencyMs: number; detail: string }; redis: { status: string; latencyMs: number; detail: string }; queues: { pendingPayments: number; stalePayments: number; providerOrderRecoveryPending: number; pendingRefunds: number; webhookBacklog: number; webhookStuck: number; heldReservations: number; expiredReservations: number; mailPending: number; mailFailed: number }; publishedEvents: number; organizers: number; workerEnabled: boolean; }
+
+export interface AdminEventCursorPage { items: Dashboard['events']; nextCursor?: string | null; hasNext: boolean; size: number; total: number; }

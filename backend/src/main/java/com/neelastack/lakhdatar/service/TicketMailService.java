@@ -22,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -196,6 +197,7 @@ public class TicketMailService {
     }
 
     @Scheduled(fixedDelayString = "${app.mail-delivery-repair-sweep:30000}")
+    @ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true)
     public void repairMissingMailJobs() {
         if (!isConfigured()) return;
         Instant since = Instant.now().minus(Duration.ofDays(30));
@@ -210,6 +212,7 @@ public class TicketMailService {
     }
 
     @Scheduled(fixedDelayString = "${app.mail-delivery-cleanup-sweep:21600000}")
+    @ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true)
     public void cleanupMailHistory() {
         if (!isConfigured()) return;
         Instant cutoff = Instant.now().minus(Duration.ofDays(30));
@@ -219,6 +222,7 @@ public class TicketMailService {
     }
 
     @Scheduled(fixedDelayString = "${app.mail-delivery-sweep:30000}")
+    @ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true)
     public void sweepDurableMailQueue() {
         if (!isConfigured()) return;
         Instant now = Instant.now();

@@ -1,6 +1,10 @@
-# Release 1.9.25 — production release hardening
+## v1.9.31 — Enterprise scale & release qualification
 
-See `CHANGES-1.9.25.md`, `VALIDATION-1.9.25.md`, `IMPLEMENTATION-STATUS.md`, `RELEASE-NOTES.md`, `ADMIN-SETUP-GUIDE.md` and `ENV-LINKAGE-AUDIT.md`.
+Enterprise application/worker separation is supported through `WORKER_ENABLED`; HA reference deployment, PITR runbook, operations health and k6 load scenarios are under `infra/ha`, `infra/backup`, `infra/monitoring` and `infra/loadtest`. See `docs/ENTERPRISE-RELEASE-QUALIFICATION.md` for the production qualification gates.
+
+# Release 1.9.31 — enterprise-scale qualification, HA/DR and load testing
+
+See `CHANGES-1.9.31.md`, `VALIDATION-1.9.31.md`, `IMPLEMENTATION-STATUS.md`, `RELEASE-NOTES.md`, `ADMIN-SETUP-GUIDE.md` and `ENV-LINKAGE-AUDIT.md`.
 
 # Release 1.9.21 — production smoke-test + SSR proxy correction
 
@@ -24,6 +28,16 @@ The first organizer on the platform is **Lakhdatar Events**; more organizers can
 > Neelastack is the technology company. Lakhdatar Events is a customer whose events are sold here. Organizer data lives in the
 > `organizers` table and is rendered dynamically; nothing in the core architecture hard-codes an organizer.
 
+## Enterprise production scale
+
+- Financial operations console with append-only ledger entries for sales/refunds and organizer-scoped reconciliation.
+- Cursor pagination for large issued-ticket and order datasets, plus indexed query paths.
+- Server-generated ticket PDFs protected by the same short-lived ticket access credential.
+- Distributed locks keep state-changing scheduled recovery jobs safe when multiple backend replicas run.
+- Reference multi-VM HA topology with external PostgreSQL/Redis dependencies. A single VM remains a single failure domain and is not called HA.
+- PostgreSQL PITR/WAL requirements, restore-drill runbook and Prometheus alert examples.
+- Pinned k6 load scenarios for public catalog, checkout provisioning and concurrent check-in; checkout load tests are explicitly blocked against production by default.
+
 ## What it does
 
 - Multi-event discovery: home page with featured and upcoming events, `/events` browse with server-side search, category, city, date and price filters and pagination
@@ -32,6 +46,8 @@ The first organizer on the platform is **Lakhdatar Events**; more organizers can
 - Razorpay or Cashfree checkout selected per event, with server-side provider-state verification, signed webhooks, reconciliation and refunds
 - PostgreSQL row-locked reservations, idempotent checkout, unique signed QR per ticket, atomic single-use check-in
 - Admin: create/update/publish/unpublish/cancel/complete/archive events, ticket type and inventory management, organizer-scoped authorization, one-time production admin setup and secure Cloudinary branding/media uploads
+- Organizer operations: top-level issued-ticket console, event orders, attendee export, check-in metrics, server-enforced organizer/event scope, and explicit platform-admin → organizer owner → event manager / gate staff hierarchy.
+- Customer ticket actions: native Share where supported, secure-link clipboard fallback, and Save as PDF browser flow with ticket-only print styling.
 - Staff phone scanner, attendee CSV, audit log, structured logs, correlation IDs, Prometheus metrics and alert rules
 
 ## Architecture
@@ -99,3 +115,12 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 
 ## Current release
 See `CHANGES-1.9.25.md` and `VALIDATION-1.9.25.md`.
+
+
+### Deployment dotenv safety
+`infra/deploy/deploy.sh` intentionally does not source `.env`; Docker Compose parses the dotenv file so values such as `MAIL_FROM="Neelastack Events <events@neelastack.com>"` cannot break Bash deployment.
+
+
+## Enterprise qualification
+
+Use `docs/ENTERPRISE-RELEASE-QUALIFICATION.md`, `docs/ENTERPRISE-HA-DR-BLUEPRINT.md`, `docs/ENTERPRISE-PAYMENT-CHAOS.md`, and `infra/loadtest/run-suite.sh` as the release gates. A literal BookMyShow-equivalent SLA requires independent HA infrastructure, provider contracts, observability and executed load/DR evidence outside this source package.

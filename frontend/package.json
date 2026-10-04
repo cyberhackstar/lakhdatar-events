@@ -1,6 +1,6 @@
 {
   "name": "lakhdatar-events-frontend",
-  "version": "1.9.25",
+  "version": "1.9.31",
   "private": true,
   "scripts": {
     "ng": "ng",

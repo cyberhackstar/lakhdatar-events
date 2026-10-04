@@ -86,13 +86,14 @@ services:
     environment:
       APP_ENV: production
       SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:postgresql://postgres:5432/lakhdatar
-      DB_USERNAME: lakhdatar
+      DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/lakhdatar}
+      DB_USERNAME: ${DB_USERNAME:-lakhdatar}
       DB_PASSWORD: ${DB_PASSWORD}
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_DATABASE: "0"
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DATABASE: ${REDIS_DATABASE:-0}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_SSL: ${REDIS_SSL:-false}
       JWT_ACCESS_TOKEN: ${JWT_ACCESS_TOKEN:-15m}
       JWT_REFRESH_TOKEN: ${JWT_REFRESH_TOKEN:-14d}
       TICKET_VIEW_TTL: ${TICKET_VIEW_TTL:-24h}

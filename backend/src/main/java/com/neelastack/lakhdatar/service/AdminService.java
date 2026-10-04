@@ -46,37 +46,110 @@ public class AdminService {
                                long revenueMinor) {}
 
     public record Dashboard(List<EventSummary> events, long totalSold, long totalCheckedIn,
-                            long totalRevenueMinor) {}
+                            long totalRevenueMinor, long totalEvents, long publishedEvents, long draftEvents) {}
+    private record EventScope(String clause, List<Object> args) {}
+    public record EventCursorPage(List<EventSummary> items, String nextCursor, boolean hasNext, int size, long total) {}
+    private record EventCursor(long epochMillis, long id) {}
 
     public record ManagerView(UUID userId, String email, String fullName, String role, String eventName) {}
     public record ManagerTicketType(UUID id, String name, long priceMinorUnits, int availableQuantity, String status) {}
 
     public Dashboard dashboard(UserPrincipal p) {
-        List<Event> es;
-        if ("ADMIN".equals(p.role())) {
-            es=events.findAllByOrderByStartsAtDesc();
-        } else if ("EVENT_MANAGER".equals(p.role())) {
-            es=events.findAllByManagerUserIdOrderByStartsAtDesc(p.userId());
-        } else if ("ORGANIZER".equals(p.role())) {
-            es=events.findByOrganizerMembershipUserId(p.userId());
-        } else {
-            es=List.of();
-        }
-        Map<Long,Long> soldByEvent=new HashMap<>(), revenueByEvent=new HashMap<>(), checkedByEvent=new HashMap<>();
-        List<Long> ids=es.stream().map(Event::getId).toList();
-        if(!ids.isEmpty()) {
-            ticketTypes.soldByEventIds(ids).forEach(r->soldByEvent.put(((Number)r[0]).longValue(),((Number)r[1]).longValue()));
-            payments.successfulRevenueByEventIds(ids, List.of(Enums.PaymentStatus.CAPTURED,Enums.PaymentStatus.COMPLETED)).forEach(r->revenueByEvent.put(((Number)r[0]).longValue(),((Number)r[1]).longValue()));
-            tickets.countByEventIdsAndStatus(ids, Enums.TicketStatus.CHECKED_IN).forEach(r->checkedByEvent.put(((Number)r[0]).longValue(),((Number)r[1]).longValue()));
-        }
-        List<EventSummary> out=new ArrayList<>(); long sold=0,checked=0,revenue=0;
-        for(Event e:es){long s=soldByEvent.getOrDefault(e.getId(),0L),r=revenueByEvent.getOrDefault(e.getId(),0L),c=checkedByEvent.getOrDefault(e.getId(),0L); sold+=s;checked+=c;revenue+=r;out.add(new EventSummary(e.getPublicId(),e.getSlug(),e.getName(),e.getStatus().name(),e.getStartsAt(),s,c,r));}
-        return new Dashboard(out,sold,checked,revenue);
+        // Keep the dashboard bounded: the portfolio list is recent-only, while totals are computed
+        // as database aggregates over the actor's authorized event scope. This avoids loading every
+        // event/ticket/order row into JVM heap when the platform grows to thousands of events.
+        EventCursorPage recent = eventCursor(p, "", "", null, 6);
+        EventScope scope = eventScope(p);
+        String scoped = " where 1=1" + scope.clause();
+        String sql = "with scoped_events as (select e.id,e.status from events e" + scoped + ") "
+                + "select "
+                + "(select coalesce(sum(tt.sold_quantity),0)::bigint from ticket_types tt join scoped_events se on se.id=tt.event_id),"
+                + "(select count(*)::bigint from tickets t join scoped_events se on se.id=t.event_id where t.status='CHECKED_IN'),"
+                + "(select coalesce(sum(p.amount_minor),0)::bigint from payments p join orders o on o.id=p.order_id join scoped_events se on se.id=o.event_id where p.status in ('CAPTURED','COMPLETED')),"
+                + "(select count(*)::bigint from scoped_events),"
+                + "(select count(*)::bigint from scoped_events where status='PUBLISHED'),"
+                + "(select count(*)::bigint from scoped_events where status='DRAFT')";
+        List<Object> args = new ArrayList<>(scope.args());
+        long[] totals = jdbc.queryForObject(sql, args.toArray(), (rs, n) -> new long[]{
+                rs.getLong(1), rs.getLong(2), rs.getLong(3), rs.getLong(4), rs.getLong(5), rs.getLong(6)
+        });
+        return new Dashboard(recent.items(), totals[0], totals[1], totals[2], totals[3], totals[4], totals[5]);
     }
 
+    private EventScope eventScope(UserPrincipal p) {
+        if (p == null || p.userId() == null) throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized");
+        if ("ADMIN".equalsIgnoreCase(p.role())) return new EventScope("", List.of());
+        if ("ORGANIZER".equalsIgnoreCase(p.role())) {
+            return new EventScope(" and exists (select 1 from organizer_members om where om.organizer_id=e.organizer_id and om.user_id=? and om.role in ('OWNER','ORGANIZER'))", List.of(p.userId()));
+        }
+        if ("EVENT_MANAGER".equalsIgnoreCase(p.role())) {
+            return new EventScope(" and exists (select 1 from event_manager_assignments ema where ema.event_id=e.id and ema.user_id=?)", List.of(p.userId()));
+        }
+        throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized to view event dashboard");
+    }
+
+    private static List<Object> concat(List<Object>... lists){List<Object> out=new ArrayList<>(); for(List<Object> l:lists) out.addAll(l); return out;}
+
+    /** @deprecated Use the cursor event API. This compatibility endpoint intentionally returns only the recent six events. */
+    @Deprecated
     public List<EventSummary> events(UserPrincipal p) {
         return dashboard(p).events();
     }
+
+    public EventCursorPage eventCursor(UserPrincipal p, String q, String status, String cursor, int size) {
+        int safeSize = Math.min(100, Math.max(1, size));
+        if (p == null || p.userId() == null) throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized");
+        List<Object> args = new ArrayList<>();
+        String where = " where 1=1";
+        if ("ADMIN".equals(p.role())) {
+            // platform-wide
+        } else if ("ORGANIZER".equals(p.role())) {
+            where += " and exists (select 1 from organizer_members om where om.organizer_id=e.organizer_id and om.user_id=? and om.role in ('OWNER','ORGANIZER'))";
+            args.add(p.userId());
+        } else if ("EVENT_MANAGER".equals(p.role())) {
+            where += " and exists (select 1 from event_manager_assignments ema where ema.event_id=e.id and ema.user_id=?)";
+            args.add(p.userId());
+        } else {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized to view events");
+        }
+        String cleanQ = q == null ? "" : q.trim();
+        if (cleanQ.length() > 120) cleanQ = cleanQ.substring(0,120);
+        if (!cleanQ.isBlank()) {
+            where += " and (e.name ilike ? or e.slug ilike ? or e.category ilike ?)";
+            String pattern = "%" + cleanQ + "%";
+            args.add(pattern); args.add(pattern); args.add(pattern);
+        }
+        String cleanStatus = status == null ? "" : status.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!cleanStatus.isBlank()) {
+            try { Enums.EventStatus.valueOf(cleanStatus); }
+            catch (IllegalArgumentException ex) { throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_STATUS", "Unknown event status"); }
+            where += " and e.status=?"; args.add(cleanStatus);
+        }
+        EventCursor c = decodeEventCursor(cursor);
+        if (c != null) {
+            where += " and (e.starts_at < to_timestamp(? / 1000.0) or (e.starts_at = to_timestamp(? / 1000.0) and e.id < ?))";
+            args.add(c.epochMillis()); args.add(c.epochMillis()); args.add(c.id());
+        }
+        Long totalValue = jdbc.queryForObject("select count(*) from events e" + where, args.toArray(), Long.class);
+        List<Object> queryArgs = new ArrayList<>(args); queryArgs.add(safeSize + 1);
+        List<EventTimed> rows = jdbc.query(
+                "select e.public_id,e.slug,e.name,e.status,e.starts_at," +
+                "coalesce((select sum(tt.sold_quantity)::bigint from ticket_types tt where tt.event_id=e.id),0)," +
+                "coalesce((select count(*)::bigint from tickets t where t.event_id=e.id and t.status='CHECKED_IN'),0)," +
+                "coalesce((select sum(p.amount_minor)::bigint from payments p join orders o on o.id=p.order_id where o.event_id=e.id and p.status in ('CAPTURED','COMPLETED')),0),e.id " +
+                "from events e" + where + " order by e.starts_at desc,e.id desc limit ?",
+                queryArgs.toArray(), (rs,n) -> new EventTimed(
+                        new EventSummary(rs.getObject(1,UUID.class),rs.getString(2),rs.getString(3),rs.getString(4),rs.getTimestamp(5).toInstant(),rs.getLong(6),rs.getLong(7),rs.getLong(8)),
+                        rs.getTimestamp(5).toInstant(),rs.getLong(9)));
+        boolean more = rows.size() > safeSize;
+        if (more) rows = new ArrayList<>(rows.subList(0, safeSize));
+        String next = more ? encodeEventCursor(rows.get(rows.size()-1).time(), rows.get(rows.size()-1).id()) : null;
+        return new EventCursorPage(rows.stream().map(EventTimed::value).toList(), next, more, safeSize, totalValue == null ? 0L : totalValue);
+    }
+
+    private record EventTimed(EventSummary value, java.time.Instant time, long id) {}
+    private static String encodeEventCursor(java.time.Instant time,long id){return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString((time.toEpochMilli()+":"+id).getBytes(java.nio.charset.StandardCharsets.UTF_8));}
+    private static EventCursor decodeEventCursor(String raw){if(raw==null||raw.isBlank())return null;try{String s=new String(java.util.Base64.getUrlDecoder().decode(raw),java.nio.charset.StandardCharsets.UTF_8);String[] p=s.split(":",2);if(p.length!=2)throw new IllegalArgumentException();long t=Long.parseLong(p[0]),id=Long.parseLong(p[1]);if(t<=0||id<=0)throw new IllegalArgumentException();return new EventCursor(t,id);}catch(Exception ex){throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_CURSOR","Cursor is invalid");}}
 
     @Transactional
     public void assignStaff(UUID eventPublicId, String email, String gate, Long actorId, String role) {

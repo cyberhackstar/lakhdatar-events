@@ -22,3 +22,12 @@ Required production secrets/environment values include `DB_PASSWORD`, `REDIS_PAS
 
 ## Scale
 The current stack remains a single-node baseline. For multi-instance HA, move PostgreSQL/Redis to managed or clustered services, keep checkout/session/rate-limit state distributed, and place multiple backend/web replicas behind an HA ingress.
+
+
+## Dedicated worker tier
+
+Set `WORKER_ENABLED=false` on horizontally scaled HTTP API nodes and run one or more replicas of the same backend image with `SPRING_MAIN_WEB_APPLICATION_TYPE=none` and `WORKER_ENABLED=true`. Worker jobs use the Redis distributed lock and are safe to run with multiple replicas. Keep provider, SMTP and application secrets available to the worker tier because reconciliation/refund/mail jobs require them.
+
+## Operations console
+
+Platform administrators can open `/admin/operations` to inspect PostgreSQL/Redis health and recovery queue sizes. Treat this as an operator signal, not a replacement for Prometheus/Alertmanager.

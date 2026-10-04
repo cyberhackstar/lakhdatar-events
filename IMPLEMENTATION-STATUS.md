@@ -1,4 +1,51 @@
-# IMPLEMENTATION STATUS 1.9.25
+# v1.9.31 — Enterprise production qualification
+
+- Dedicated worker tier with `WORKER_ENABLED` and distributed-job locks.
+- Platform Operations Health API/UI.
+- Cursor pagination for events and finance surfaces; existing offset APIs remain compatible.
+- SSR host allow-list and Redis TLS configuration support.
+- HA edge example mirrors production security/rate-limit headers.
+- k6 load scenarios corrected to count business-conflict statuses as expected outcomes.
+- Enterprise release qualification, PITR and payment chaos runbooks updated.
+
+# IMPLEMENTATION STATUS 1.9.31
+
+Release details: `CHANGES-1.9.31.md` and `VALIDATION-1.9.31.md`.
+
+## 1.9.31
+
+- Final provider-recovery adoption path now revalidates provider receipt, amount and currency before accepting a recovered provider order.
+- Checkout/idempotency/check-in load tests now treat server 5xx responses as hard failures instead of hiding them inside accepted 503/429 status lists.
+- Added dedicated k6 scenarios for secure ticket PDF, event operations, finance, robots/sitemap and burst read traffic.
+- Load suite exports machine-readable k6 summary JSON for release evidence.
+- Added enterprise validation matrix covering customer, payment, ticketing, organizer, finance, operations and event-day flows.
+- Added additive contract coverage for HA worker separation, DR/runbook presence and release-level load gates.
+- Production HA/DR qualification remains explicitly dependent on external infrastructure and executed failover/PITR drills.
+
+## 1.9.30
+
+- Enterprise finance console with append-only financial ledger (V25) and ledger query index (V27).
+- Cursor-based issued-ticket and order APIs for large datasets (V26).
+- Server-generated PDF tickets with token-protected access.
+- Payment-provider recovery validates provider receipt before adoption.
+- Durable distributed job locks remain active across multiple backend replicas.
+- HA reference topology supports external PostgreSQL/Redis and multiple stateless application replicas.
+- PITR/DR runbook and readiness verifier added.
+- k6 catalog, checkout-provisioning and concurrent check-in load scenarios added.
+- Payment-provider chaos/resilience test plan added.
+- SSR now performs graceful SIGTERM/SIGINT shutdown.
+- Finance users are routed only to finance operations; event/ticket/scanner console links are hidden.
+
+
+- Checkout provider recovery distinguishes confirmed provider NOT_FOUND from transient gateway failures and safely clears stale local provider-order references.
+- Top-level Issued Tickets console provides organizer/event-manager scoped search, status/source/event filters and pagination.
+- Event operations uses authenticated CSV download and displays report summary metrics.
+- Customer ticket UI provides native Share and Save as PDF actions.
+- Deployment dotenv parser no longer sources arbitrary `.env` values; Docker Compose remains the authoritative dotenv parser.
+
+- Fixed ticket-link parsing so generated Share / Save as PDF links actually read the URL fragment credential on the ticket page.
+- Added bounded admin ticket-search query length validation.
+- Expanded organizer team UX copy to document the platform-admin → organizer-owner → manager/staff hierarchy.
 
 ## Completed in 1.9.25 (see CHANGES-1.9.25.md)
 - Review item 1: reconciliation + provider-order recovery sweeps use a look-back window and `last_reconciled_at` rotation (V24).

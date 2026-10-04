@@ -1,15 +1,22 @@
-LAKHDATAR EVENTS v1.9.25 RELEASE MANIFEST
+LAKHDATAR EVENTS v1.9.29 FINAL PRODUCTION RELEASE MANIFEST
 ============================================================
-Release: 1.9.25
-Base: v1.9.24 release with production blockers closed.
-Changes: see CHANGES-1.9.25.md.
-Validation: see VALIDATION-1.9.25.md.
-Status: packaging-sandbox validation passed; Maven/Docker/frontend live-provider gates remain mandatory in CI/VM because those runtimes are not available in this workspace.
+Release: 1.9.29
+Base: v1.9.25 production-hardened release, including v1.9.27 checkout recovery and organizer operations.
+Changes: see CHANGES-1.9.29.md.
+Validation: see VALIDATION-1.9.29.md.
 
-Primary fixes:
-- Public sitemap shards `/sitemap-{page}.xml` are explicitly permitted by Spring Security.
-- Sitemap shard page numbers are bounded to the actual published-event shard count.
-- Event publish acquires the pessimistic event row lock before transition validation.
-- Event update acquires the same pessimistic event row lock used by inventory mutations.
-- Authorization is re-checked after the locked event is loaded.
-- Existing test files are preserved; only additive regression contract coverage is included.
+Primary fixes and features:
+- Payment-order recovery safely retries only after provider NOT_FOUND; transient provider failures remain fail-closed.
+- Top-level Issued Tickets console with server-enforced platform/organizer/event-manager scope, event filter, search, status/source filters and pagination.
+- Event Operations includes Issued Tickets, Orders, attendee CSV and operational metrics.
+- Platform Admin -> Organizer -> Organizer Owner -> Event Manager / Gate Staff hierarchy is preserved and documented.
+- Generated tickets, payment-result and recovery pages expose Share and Save as PDF actions.
+- Ticket access fragments are read correctly on the generated ticket route, so shared/PDF links authenticate correctly.
+- Printable tickets retain organizer and Neelastack branding while hiding navigation/actions.
+- Deployment no longer sources the full .env, so custom values such as quoted MAIL_FROM cannot break Bash deployment.
+- Existing v1.9.25 test sources preserved byte-for-byte; additive contract coverage only.
+- No new database migration; Flyway remains at V24.
+
+Packaging-sandbox status:
+- Repository/static validation passed.
+- Maven/Docker/browser/live-provider gates remain mandatory in CI/VM because those runtimes are not available in this workspace.

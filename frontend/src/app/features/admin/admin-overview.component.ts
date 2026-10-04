@@ -1,6 +1,6 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnInit, computed, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { ADMIN_UI_STYLES } from './admin.styles';
 import { AdminStore } from './admin-store.service';
@@ -33,7 +33,7 @@ import { AdminStore } from './admin-store.service';
         <article class="card"><span>Gross revenue</span><strong>₹{{ d.totalRevenueMinor / 100 | number:'1.0-0' }}</strong><small>Successful payments</small></article>
         <article class="card"><span>Tickets sold</span><strong>{{ d.totalSold | number }}</strong><small>Across managed events</small></article>
         <article class="card"><span>Checked in</span><strong>{{ d.totalCheckedIn | number }}</strong><small>Verified entries</small></article>
-        <article class="card"><span>Events</span><strong>{{ d.events.length }}</strong><small>{{ published() }} published · {{ drafts() }} draft</small></article>
+        <article class="card"><span>Events</span><strong>{{ d.totalEvents | number }}</strong><small>{{ d.publishedEvents | number }} published · {{ d.draftEvents | number }} draft</small></article>
       </section>
 
       <section class="card list">
@@ -96,10 +96,9 @@ import { AdminStore } from './admin-store.service';
 export class AdminOverviewComponent implements OnInit {
   readonly store = inject(AdminStore);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   readonly recent = computed(() => (this.store.dash()?.events ?? []).slice(0, 6));
-  readonly published = computed(() => (this.store.dash()?.events ?? []).filter(e => e.status === 'PUBLISHED').length);
-  readonly drafts = computed(() => (this.store.dash()?.events ?? []).filter(e => e.status === 'DRAFT').length);
 
   get canAdminister(): boolean { return this.store.canAdministerEvents; }
   get firstName(): string { return this.auth.fullName().split(/\s+/)[0] || 'Operator'; }
@@ -108,5 +107,5 @@ export class AdminOverviewComponent implements OnInit {
     return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   }
 
-  ngOnInit(): void { this.store.load(); }
+  ngOnInit(): void { if (this.auth.role() === 'FINANCE') { this.router.navigateByUrl('/admin/finance', { replaceUrl: true }); return; } this.store.load(); }
 }

@@ -16,6 +16,7 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   application:
     name: lakhdatar-events-backend
+    version: ${APP_VERSION:1.9.31}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}
@@ -37,10 +38,14 @@ spring:
         format_sql: false
   data:
     redis:
+      repositories:
+        enabled: false
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       database: ${REDIS_DATABASE:0}
       password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
   flyway:
     enabled: true
     baseline-on-migrate: false
@@ -92,6 +97,8 @@ management:
         http.server.requests: 100ms,300ms,1s,3s
 
 app:
+  worker:
+    enabled: ${WORKER_ENABLED:true}
   mail:
     # Ticket emails and team invites are enabled only when MAIL_HOST and MAIL_FROM are both set.
     from: ${MAIL_FROM:}

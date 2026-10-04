@@ -2,33 +2,49 @@
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-if [[ -f "$ROOT/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "$ROOT/.env"
-  set +a
-fi
 EXPECTED_ROOT="/home/ubuntu/apps/lakhdatar-events"
 if [[ "$ROOT" != "$EXPECTED_ROOT" && "${DEPLOY_ALLOW_ANY_ROOT:-}" != "1" ]]; then
   echo "Refusing to deploy from $ROOT. Production lives in $EXPECTED_ROOT." >&2
   exit 2
 fi
 
+# Docker Compose owns parsing of the complete .env file.  The deploy script only needs a
+# small set of deployment controls and must never `source` arbitrary dotenv values: values such as
+# MAIL_FROM="Name <sender@domain>" are valid dotenv syntax but are not valid bare shell syntax.
+dotenv_get() {
+  local key="$1" line value
+  line="$(grep -E "^${key}=" "$ROOT/.env" | tail -n 1 || true)"
+  [[ -n "$line" ]] || return 0
+  value="${line#*=}"
+  if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+    value="${value:1:${#value}-2}"
+  elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+    value="${value:1:${#value}-2}"
+  fi
+  printf '%s' "$value"
+}
+
 COMPOSE=(docker compose --env-file "$ROOT/.env" -f "$ROOT/infra/docker-compose.prod.yml")
 CURRENT="$ROOT/.deploy-current"
 PREVIOUS="$ROOT/.deploy-previous"
 TAG="${1:-}"
 LOCAL_URL="http://127.0.0.1:4002"
+PUBLIC_HOST="${PUBLIC_HOST:-$(dotenv_get PUBLIC_HOST)}"
 PUBLIC_HOST="${PUBLIC_HOST:-events.neelastack.com}"
 [[ "$PUBLIC_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "PUBLIC_HOST must be a hostname without scheme/path" >&2; exit 2; }
 [[ "$PUBLIC_HOST" != .* && "$PUBLIC_HOST" != *..* && "$PUBLIC_HOST" != *.- && "$PUBLIC_HOST" != *-. ]] || { echo "PUBLIC_HOST has invalid hostname syntax" >&2; exit 2; }
+BACKEND_READINESS_TIMEOUT_SECONDS="${BACKEND_READINESS_TIMEOUT_SECONDS:-$(dotenv_get BACKEND_READINESS_TIMEOUT_SECONDS)}"
 BACKEND_READINESS_TIMEOUT_SECONDS="${BACKEND_READINESS_TIMEOUT_SECONDS:-300}"
+BACKEND_READINESS_INTERVAL_SECONDS="${BACKEND_READINESS_INTERVAL_SECONDS:-$(dotenv_get BACKEND_READINESS_INTERVAL_SECONDS)}"
 BACKEND_READINESS_INTERVAL_SECONDS="${BACKEND_READINESS_INTERVAL_SECONDS:-3}"
+WEB_READINESS_TIMEOUT_SECONDS="${WEB_READINESS_TIMEOUT_SECONDS:-$(dotenv_get WEB_READINESS_TIMEOUT_SECONDS)}"
 WEB_READINESS_TIMEOUT_SECONDS="${WEB_READINESS_TIMEOUT_SECONDS:-180}"
+WEB_READINESS_INTERVAL_SECONDS="${WEB_READINESS_INTERVAL_SECONDS:-$(dotenv_get WEB_READINESS_INTERVAL_SECONDS)}"
 WEB_READINESS_INTERVAL_SECONDS="${WEB_READINESS_INTERVAL_SECONDS:-3}"
 
 [[ -n "$TAG" ]] || { echo "Usage: $0 <immutable-image-tag>" >&2; exit 2; }
 [[ -f "$ROOT/.env" ]] || { echo "Missing $ROOT/.env" >&2; exit 2; }
+IMAGE_NAMESPACE="${IMAGE_NAMESPACE:-$(dotenv_get IMAGE_NAMESPACE)}"
 [[ -n "${IMAGE_NAMESPACE:-}" ]] || { echo "IMAGE_NAMESPACE is required (e.g. ghcr.io/owner)" >&2; exit 2; }
 [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "Release image tag must be a 40-character Git SHA" >&2; exit 2; }
 

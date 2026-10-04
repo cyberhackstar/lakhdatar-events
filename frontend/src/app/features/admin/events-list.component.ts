@@ -20,7 +20,7 @@ type EventRow = Dashboard['events'][number];
         <p class="sub">Every event you can manage. Open one to edit details, tickets and branding, publish it, or export attendees.</p>
       </div>
       <div class="actions">
-        <button type="button" class="a-btn" (click)="store.load(true)" [disabled]="store.loading()">↻ Refresh</button>
+        <button type="button" class="a-btn" (click)="store.load(true); resetAndLoad()" [disabled]="store.loading()">↻ Refresh</button>
         @if (store.canAdministerEvents) { <a class="a-btn primary" routerLink="/admin/events/new">＋ Create event</a> }
       </div>
     </div>
@@ -31,15 +31,15 @@ type EventRow = Dashboard['events'][number];
     }
 
     <div class="toolbar">
-      <input class="search" type="search" placeholder="Search events…" aria-label="Search events" [value]="query()" (input)="query.set($any($event.target).value)" autocomplete="off" />
+      <input class="search" type="search" placeholder="Search events…" aria-label="Search events" [value]="query()" (input)="query.set($any($event.target).value)" (keyup.enter)="resetAndLoad()" autocomplete="off" />
       <div class="filters" role="group" aria-label="Filter by status">
         @for (f of filters; track f.key) {
-          <button type="button" [class.on]="status() === f.key" (click)="status.set(f.key)">{{ f.label }}<b>{{ count(f.key) }}</b></button>
+          <button type="button" [class.on]="status() === f.key" (click)="status.set(f.key); resetAndLoad()">{{ f.label }}</button>
         }
       </div>
     </div>
 
-    @if (store.loading() && !store.dash()) {
+    @if (store.loading() && !data()) {
       <div class="card"><div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line"></div></div>
     } @else {
       <section class="card table">
@@ -55,6 +55,7 @@ type EventRow = Dashboard['events'][number];
             <span class="num" data-label="Checked in">{{ e.ticketsCheckedIn }}</span>
             <span class="num" data-label="Revenue">₹{{ e.revenueMinor / 100 | number:'1.0-0' }}</span>
             <span class="acts">
+              <a class="a-btn sm" [routerLink]="['/admin/events', e.id, 'operations']">Operations</a>
               @if (store.canAdministerEvents) { <a class="a-btn sm" [routerLink]="['/admin/events', e.id]">Edit</a> }
               <a class="a-btn sm" [routerLink]="['/events', e.slug]" target="_blank" rel="noopener">Public page ↗</a>
               <button type="button" class="a-btn sm" (click)="downloadCsv(e)" [disabled]="csvId() === e.id">{{ csvId() === e.id ? 'Exporting…' : 'CSV' }}</button>
@@ -65,15 +66,16 @@ type EventRow = Dashboard['events'][number];
           </div>
         } @empty {
           <div class="empty">
-            @if (!(store.dash()?.events?.length)) { No events yet. @if (store.canAdministerEvents) { <br><a class="a-btn primary" style="margin-top:14px" routerLink="/admin/events/new">Create your first event</a> } }
-            @else { No events match your search or filter. }
+            @if (!(data()?.items?.length)) { No events match your search or filter. @if (store.canAdministerEvents) { <br><a class="a-btn primary" style="margin-top:14px" routerLink="/admin/events/new">Create your first event</a> } }
+            
           </div>
         }
       </section>
+      @if (data()) { <div class="cursor-pager"><button type="button" class="a-btn sm" (click)="previous()" [disabled]="!history.length">← Previous</button><span>Showing {{data()!.items.length}} of {{data()!.total}} events</span><button type="button" class="a-btn sm" (click)="next()" [disabled]="!data()!.hasNext">Next →</button></div> }
     }
   `,
   styles: [ADMIN_UI_STYLES, `
-    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}.cursor-pager{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 0;color:#7a717d;font-size:12px}
     .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
     .search{flex:1 1 260px;min-height:44px;border:1px solid #d9d2c8;border-radius:12px;padding:0 14px;background:#fff;color:var(--ink);font:inherit;font-size:16px;color-scheme:light}
     .search:focus{outline:0;border-color:#9e8150;box-shadow:0 0 0 3px rgba(158,129,80,.14)}
@@ -114,7 +116,10 @@ export class EventsListComponent implements OnInit {
     { key: 'ALL', label: 'All' }, { key: 'DRAFT', label: 'Draft' }, { key: 'PUBLISHED', label: 'Published' }, { key: 'CLOSED', label: 'Completed / archived' }
   ];
 
-  private readonly events = computed(() => this.store.dash()?.events ?? []);
+  readonly data = signal<import('../../core/api/api.models').AdminEventCursorPage | undefined>(undefined);
+  private cursor: string | undefined;
+  private history: (string | undefined)[] = [];
+  private readonly events = computed(() => this.data()?.items ?? []);
   private matches(e: EventRow, key: string): boolean {
     if (key === 'ALL') return true;
     if (key === 'CLOSED') return ['COMPLETED', 'ARCHIVED', 'CANCELLED'].includes(e.status);
@@ -128,12 +133,23 @@ export class EventsListComponent implements OnInit {
     return this.events().filter(e => this.matches(e, key) && (!q || e.name.toLowerCase().includes(q) || e.slug.toLowerCase().includes(q)));
   });
 
-  ngOnInit(): void { this.store.load(true); }
+  ngOnInit(): void { this.store.load(true); this.resetAndLoad(); }
+
+  resetAndLoad(): void { this.cursor = undefined; this.history = []; this.loadCursor(); }
+  loadCursor(): void {
+    this.actionError.set('');
+    this.api.adminEventsCursor({q: this.query().trim() || undefined, status: this.status() === 'ALL' ? undefined : this.status(), cursor: this.cursor, size: 50}).subscribe({
+      next: r => this.data.set(r),
+      error: err => this.actionError.set(err?.error?.message || 'Events could not be loaded.')
+    });
+  }
+  next(): void { const next = this.data()?.nextCursor; if (!next) return; this.history.push(this.cursor); this.cursor = next; this.loadCursor(); }
+  previous(): void { if (!this.history.length) return; this.cursor = this.history.pop(); this.loadCursor(); }
 
   publish(e: EventRow): void {
     this.publishingId.set(e.id); this.actionError.set(''); this.message.set('');
     this.api.publishEvent(e.id).subscribe({
-      next: () => { this.publishingId.set(''); this.message.set(`“${e.name}” is now published.`); this.store.load(true); },
+      next: () => { this.publishingId.set(''); this.message.set(`“${e.name}” is now published.`); this.store.load(true); this.resetAndLoad(); },
       error: err => { this.publishingId.set(''); this.actionError.set(err?.error?.message || 'Could not publish this event. Make sure it has at least one ticket type.'); }
     });
   }

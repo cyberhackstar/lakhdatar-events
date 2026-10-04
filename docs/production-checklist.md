@@ -2,8 +2,12 @@
 
 ## Application
 
+- [ ] v1.9.31 enterprise release qualification checklist completed
+- [ ] Operations Health console shows DB/Redis/recovery queues as expected
+- [ ] Prometheus endpoint is reachable only through the private monitoring network
+
 - [ ] CI passes backend `mvn verify`
-- [ ] Frontend lockfile is regenerated for the Neelastack Angular 20 baseline
+- [ ] Frontend lockfile is regenerated and production build runs on the pinned Node/Angular baseline
 - [ ] CI passes frontend `npm run build`
 - [ ] ARM64 Docker images built successfully
 - [ ] no secrets committed
@@ -40,6 +44,21 @@
 - [ ] restore test completed
 - [ ] application audit logs retained
 - [ ] disk-space monitoring enabled
+
+## High availability / disaster recovery
+
+- [ ] Two application VMs deployed in separate failure domains
+- [ ] External/managed PostgreSQL HA + continuous WAL/PITR enabled
+- [ ] External Redis HA/TLS enabled
+- [ ] At least two ingress/tunnel connectors configured
+- [ ] Monthly restore drill completed and measured RPO/RTO recorded
+
+## Load / resilience
+
+- [ ] Catalog load test passed
+- [ ] Dedicated staging checkout load test passed
+- [ ] Check-in concurrency load test passed
+- [ ] Payment-provider chaos scenarios passed without duplicate orders/tickets/refunds
 
 ## Deployment
 

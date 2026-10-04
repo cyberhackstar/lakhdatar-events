@@ -25,7 +25,7 @@ type Tab = 'staff' | 'managers';
       <div>
         <div class="eyebrow">{{ isAdmin ? 'Support & oversight' : 'Your organization' }}</div>
         <h1 class="title">Team</h1>
-        <p class="sub">Add the gate staff and event managers who run your events, then assign them to the events and gates they should operate. People only ever see what you assign them.</p>
+        <p class="sub">Neelastack platform admins create organizers and their owners. Organizer owners then add event managers and gate staff, and assign them only to the events and gates they should operate. People only ever see what you assign them.</p>
       </div>
       @if (showSwitcher()) {
         <label class="field switcher">Organizer

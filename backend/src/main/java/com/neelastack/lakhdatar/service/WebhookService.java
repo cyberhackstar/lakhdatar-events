@@ -9,6 +9,7 @@ import com.neelastack.lakhdatar.repository.PaymentWebhookEventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -20,7 +21,7 @@ import java.util.HexFormat;
 
 @Service @RequiredArgsConstructor
 public class WebhookService {
- private final RazorpayService razorpay; private final PaymentGatewayRouter gateways; private final PaymentWebhookEventRepository events; private final PaymentRepository payments; private final OrderService orders; private final TransactionTemplate tx; private final ObjectMapper mapper=new ObjectMapper();
+ private final RazorpayService razorpay; private final DistributedLockService locks; private final PaymentGatewayRouter gateways; private final PaymentWebhookEventRepository events; private final PaymentRepository payments; private final OrderService orders; private final TransactionTemplate tx; private final ObjectMapper mapper=new ObjectMapper();
  public void handle(String raw,String signature,String headerEventId){
   if(signature==null||!razorpay.verifyWebhookSignature(raw,signature)) throw new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_WEBHOOK","Webhook signature invalid");
   JsonNode n; try{n=mapper.readTree(raw);}catch(Exception ex){throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_WEBHOOK_BODY","Webhook payload is invalid");}
@@ -71,7 +72,7 @@ public class WebhookService {
    orders.failPayment(orderId,pe.path("error_description").asText("Payment failed"));
   }
  }
- @Scheduled(fixedDelayString="${app.razorpay.webhook-recovery-sweep:60000}") void recoverStaleProcessing(){int reset=events.resetStaleProcessing(Instant.now().minus(Duration.ofMinutes(10)));if(reset>0)org.slf4j.LoggerFactory.getLogger(WebhookService.class).warn("Reset {} stale webhook-processing claims",reset);}
+@ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true) @Scheduled(fixedDelayString="${app.razorpay.webhook-recovery-sweep:60000}") void recoverStaleProcessing(){locks.withLock("job:webhook-recovery",Duration.ofMinutes(2),()->{int reset=events.resetStaleProcessing(Instant.now().minus(Duration.ofMinutes(10)));if(reset>0)org.slf4j.LoggerFactory.getLogger(WebhookService.class).warn("Reset {} stale webhook-processing claims",reset);});}
  private String normalizeEventId(String v){if(v==null)return null;String s=v.trim();return s.matches("[A-Za-z0-9._:-]{8,150}")?s:null;}
  private String safeError(Throwable ex){String s=ex.getMessage();if(s==null||s.isBlank())s=ex.getClass().getSimpleName();s=s.replaceAll("[\r\n\t]"," ");return s.length()>500?s.substring(0,500):s;}
  private String sha256(String s){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}

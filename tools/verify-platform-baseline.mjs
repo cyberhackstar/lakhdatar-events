@@ -93,9 +93,9 @@ if (!backendAppConfig.includes('host: ${REDIS_HOST:localhost}')) problems.push('
 if (!backendAppConfig.includes('port: ${REDIS_PORT:6379}')) problems.push('Redis port baseline missing');
 if (!backendAppConfig.includes('password: ${REDIS_PASSWORD:}')) problems.push('Redis password baseline missing');
 if (backendAppConfig.includes('UserDetailsServiceAutoConfiguration') === false) problems.push('Spring Boot generated security-user auto-configuration must be disabled');
-if (!prodCompose.includes('REDIS_HOST: redis')) problems.push('production Redis host contract missing');
-if (!prodCompose.includes('REDIS_PORT: "6379"')) problems.push('production Redis port contract missing');
-if (!prodCompose.includes('REDIS_DATABASE: "0"')) problems.push('production Redis database contract missing');
+if (!prodCompose.includes('REDIS_HOST: ${REDIS_HOST:-redis}')) problems.push('production Redis host contract missing');
+if (!prodCompose.includes('REDIS_PORT: ${REDIS_PORT:-6379}')) problems.push('production Redis port contract missing');
+if (!prodCompose.includes('REDIS_DATABASE: ${REDIS_DATABASE:-0}')) problems.push('production Redis database contract missing');
 if (prodCompose.includes('REDIS_URL:')) problems.push('production Redis URL must not override explicit authentication properties');
 if (deploy.includes('/actuator/health >/dev/null')) problems.push('legacy aggregate backend health gate must not be used');
 if (!prodCompose.includes('start_period: 90s')) problems.push('production backend healthcheck startup period mismatch');

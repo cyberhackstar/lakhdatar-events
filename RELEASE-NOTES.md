@@ -1,3 +1,39 @@
+# Release Notes — v1.9.31
+
+## v1.9.31 — Enterprise production qualification hardening
+
+This release completes the remaining application-level enterprise hardening from v1.9.28–v1.9.30: provider-recovery defense-in-depth, production-grade k6 scenario coverage with hard 5xx gates, authenticated PDF/operations/finance load scenarios, distributed worker separation, cursor-scaled operational queries, HA/DR reference deployment, observability and chaos/restore qualification runbooks.
+
+The source package is HA-ready, but live BookMyShow-class availability remains an infrastructure claim that requires at least two independent application VMs, external PostgreSQL HA/PITR, Redis HA, health-checked ingress and executed failure/load/restore evidence.
+
+See `CHANGES-1.9.31.md` and `VALIDATION-1.9.31.md`.
+
+---
+
+# Release Notes — v1.9.30
+
+## v1.9.30 — Enterprise scale completion
+
+This release extends the v1.9.28/1.9.29 hardening with a dedicated worker tier, operator health console, keyset/cursor pagination for high-volume management and finance views, Redis TLS/SSR host hardening, and a HA edge reference that retains the production security controls.
+
+Production availability still depends on the target infrastructure: two VMs, external HA data services, off-host PITR, health-checked ingress, and executed load/chaos/restore drills.
+
+# v1.9.29 — Enterprise scale + finance + PDF + HA/DR + load testing
+
+This release completes the organizer operations and customer-ticket workflow hardening. It preserves the platform-admin → organizer → team → event-scoped access model, keeps payment recovery fail-closed except for explicit provider NOT_FOUND states, provides server-enforced issued-ticket visibility, and adds reliable Share / Save as PDF actions from the generated ticket, payment result, and recovery screens. The ticket page now correctly reads the access credential from the route fragment, preventing shared/PDF links from appearing invalid after opening.
+
+See `CHANGES-1.9.29.md` and `VALIDATION-1.9.29.md`.
+
+---
+
+# v1.9.27 — Organizer operations + checkout recovery
+
+This release hardens payment-order recovery so a stale provider-order reference can be safely recreated only after the provider explicitly returns NOT_FOUND; transient provider failures remain fail-closed. It adds an organizer/platform issued-ticket console with server-enforced scope, event filtering, search and pagination, and keeps event-scoped Orders/Issued Tickets operations. Ticket customers receive explicit **Share ticket** and **Save as PDF** actions; mobile uses the native share sheet and desktop falls back to clipboard. The deployment script no longer sources the complete `.env`, preventing valid dotenv values such as `MAIL_FROM="Neelastack Events <events@neelastack.com>"` from breaking Bash deployment. Existing role hierarchy and tests are preserved.
+
+See `CHANGES-1.9.26.md` and `VALIDATION-1.9.27.md`.
+
+---
+
 # v1.9.25 — Production release hardening
 
 This release closes the v1.9.24 production blockers: public sitemap shard authorization and bounds, plus event publish/update parent-row locking. No public API payload contracts were intentionally changed and no existing test files were modified.
@@ -173,4 +209,7 @@ See `CHANGES-1.9.23.md` for the complete change set.
 
 
 ## Current release
-See `CHANGES-1.9.25.md` and `VALIDATION-1.9.25.md`.
+See `CHANGES-1.9.29.md` and `VALIDATION-1.9.29.md`.
+
+## v1.9.27
+Checkout recovery, organizer/event operations views, issued ticket visibility, and customer Share/Save PDF actions.

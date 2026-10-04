@@ -6,6 +6,7 @@ public class PublicEventController {
  private final PublicEventService events; private final TicketQueryService tickets; private final OrderService orders; private final AppProperties props; private final RateLimitService limits; private final ClientAddressService clientAddress;
 
  private static final java.time.ZoneId CATALOG_ZONE=java.time.ZoneId.of("Asia/Kolkata");
+ private final TicketPdfService ticketPdfs;
  private static final CacheControl PUBLIC_SHORT=CacheControl.maxAge(java.time.Duration.ofSeconds(20)).cachePublic().sMaxAge(java.time.Duration.ofSeconds(30)).staleWhileRevalidate(java.time.Duration.ofSeconds(60));
  /** Paginated, filtered catalogue. Availability is informational only; checkout is authoritative. */
  @GetMapping("/events") public ResponseEntity<PublicEventService.PageView<PublicEventService.EventCard>> list(
@@ -34,4 +35,5 @@ public class PublicEventController {
  public record RecoveryTicket(UUID ticketId,String ticketNumber,String accessToken){} public record RecoveryResponse(String orderNumber,String status,String eventName,List<RecoveryTicket> tickets){}
  private String sha256RateKey(String value){try{return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(value.trim().toUpperCase().getBytes(java.nio.charset.StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}
  @GetMapping("/tickets/{ticketId}") public ResponseEntity<TicketQueryService.TicketView> ticket(@PathVariable UUID ticketId,@RequestHeader(name="X-Ticket-Token",required=false) @Size(min=20,max=512) String token){if(token==null||token.isBlank())throw new com.neelastack.lakhdatar.exception.ApiException(HttpStatus.UNAUTHORIZED,"INVALID_TICKET_LINK","Ticket link is invalid or expired");return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(tickets.get(ticketId,token));}
+ @GetMapping(value="/tickets/{ticketId}/pdf", produces=MediaType.APPLICATION_PDF_VALUE) public ResponseEntity<byte[]> ticketPdf(@PathVariable UUID ticketId,@RequestHeader(name="X-Ticket-Token",required=false) @Size(min=20,max=512) String token){if(token==null||token.isBlank())throw new com.neelastack.lakhdatar.exception.ApiException(HttpStatus.UNAUTHORIZED,"INVALID_TICKET_LINK","Ticket link is invalid or expired");byte[] pdf=ticketPdfs.generate(ticketId,token);return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header(HttpHeaders.CONTENT_DISPOSITION,"attachment; filename=\"ticket-"+ticketId+".pdf\"").contentType(MediaType.APPLICATION_PDF).body(pdf);}
 }
