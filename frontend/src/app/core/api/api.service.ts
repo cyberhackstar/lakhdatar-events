@@ -35,9 +35,18 @@ export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly base = inject(API_BASE_URL);
 
-  events(query: EventQuery = {}) {
+  /** Build HTTP query params without ever serializing undefined/null/blank optional filters. */
+  private queryParams(values: Record<string, unknown>): HttpParams {
     let params = new HttpParams();
-    for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== null && v !== '') params = params.set(k, String(v));
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined || value === null || value === '') continue;
+      params = params.set(key, String(value));
+    }
+    return params;
+  }
+
+  events(query: EventQuery = {}) {
+    const params = this.queryParams(query);
     return this.http.get<PageView<EventCard>>(`${this.base}/public/events`, { params });
   }
   featuredEvents(limit = 6) { return this.http.get<PageView<EventCard>>(`${this.base}/public/events/featured`, { params: { limit } }); }
@@ -100,7 +109,7 @@ export class ApiService {
 
   dashboard() { return this.http.get<Dashboard>(`${this.base}/admin/dashboard`); }
   adminEvents() { return this.http.get<Dashboard['events']>(`${this.base}/admin/events`); }
-  adminEventsCursor(params: { q?: string; status?: string; cursor?: string; size?: number } = {}) { return this.http.get<import('./api.models').AdminEventCursorPage>(`${this.base}/admin/events/cursor`, { params }); }
+  adminEventsCursor(params: { q?: string; status?: string; cursor?: string; size?: number } = {}) { return this.http.get<import('./api.models').AdminEventCursorPage>(`${this.base}/admin/events/cursor`, { params: this.queryParams(params) }); }
   adminEvent(eventId: string) { return this.http.get<AdminEventView>(`${this.base}/admin/events/${eventId}`); }
   eventOperationsSummary(eventId: string) { return this.http.get<{eventId:string;eventName:string;ticketsSold:number;ticketsCheckedIn:number;revenueMinor:number;orderCount:number}>(`${this.base}/admin/events/${eventId}/operations/summary`); }
   publishEvent(eventId: string) { return this.http.post<void>(`${this.base}/admin/events/${eventId}/publish`, {}); }
@@ -132,28 +141,28 @@ export class ApiService {
     return this.http.post<ManagerTicketIssueResponse>(`${this.base}/admin/manager-tickets/complimentary`, body);
   }
   resendTicketEmail(orderPublicId: string) { return this.http.post<{ emailStatus: string }>(`${this.base}/admin/manager-tickets/orders/${orderPublicId}/email`, {}); }
-  issuedTicketsCursor(eventId: string, params: { q?: string; status?: string; source?: string; cursor?: string; size?: number } = {}) { return this.http.get<import('./api.models').CursorPage<import('./api.models').AdminIssuedTicket>>(`${this.base}/admin/events/${eventId}/tickets/cursor`, { params }); }
+  issuedTicketsCursor(eventId: string, params: { q?: string; status?: string; source?: string; cursor?: string; size?: number } = {}) { return this.http.get<import('./api.models').CursorPage<import('./api.models').AdminIssuedTicket>>(`${this.base}/admin/events/${eventId}/tickets/cursor`, { params: this.queryParams(params) }); }
   issuedTickets(eventId: string, params: { q?: string; status?: string; source?: string; page?: number; size?: number } = {}) {
-    return this.http.get<AdminOperationsPage<AdminIssuedTicket>>(`${this.base}/admin/events/${eventId}/tickets`, { params });
+    return this.http.get<AdminOperationsPage<AdminIssuedTicket>>(`${this.base}/admin/events/${eventId}/tickets`, { params: this.queryParams(params) });
   }
   allIssuedTickets(params: { eventId?: string; q?: string; status?: string; source?: string; page?: number; size?: number } = {}) {
-    return this.http.get<AdminPage<AdminScopedTicket>>(`${this.base}/admin/tickets`, { params });
+    return this.http.get<AdminPage<AdminScopedTicket>>(`${this.base}/admin/tickets`, { params: this.queryParams(params) });
   }
   allIssuedTicketsCursor(params: { eventId?: string; q?: string; status?: string; source?: string; cursor?: string; size?: number } = {}) {
-    return this.http.get<CursorPage<AdminScopedTicket>>(`${this.base}/admin/tickets/cursor`, { params });
+    return this.http.get<CursorPage<AdminScopedTicket>>(`${this.base}/admin/tickets/cursor`, { params: this.queryParams(params) });
   }
-  eventOrdersCursor(eventId: string, params: { q?: string; status?: string; cursor?: string; size?: number } = {}) { return this.http.get<import('./api.models').CursorPage<import('./api.models').AdminOrder>>(`${this.base}/admin/events/${eventId}/orders/cursor`, { params }); }
+  eventOrdersCursor(eventId: string, params: { q?: string; status?: string; cursor?: string; size?: number } = {}) { return this.http.get<import('./api.models').CursorPage<import('./api.models').AdminOrder>>(`${this.base}/admin/events/${eventId}/orders/cursor`, { params: this.queryParams(params) }); }
   eventOrders(eventId: string, params: { q?: string; status?: string; page?: number; size?: number } = {}) {
-    return this.http.get<AdminOperationsPage<AdminOrder>>(`${this.base}/admin/events/${eventId}/orders`, { params });
+    return this.http.get<AdminOperationsPage<AdminOrder>>(`${this.base}/admin/events/${eventId}/orders`, { params: this.queryParams(params) });
   }
   staffEvents() { return this.http.get<StaffEvent[]>(`${this.base}/staff/events`); }
 
   operationsHealth() { return this.http.get<import('./api.models').OperationsHealth>(`${this.base}/admin/ops/health`); }
-  financeRefundsCursor(params: { q?: string; status?: string; cursor?: string; size?: number } = {}) { return this.http.get<CursorPage<import('./api.models').FinanceRefund>>(`${this.base}/finance/refunds/cursor`, { params }); }
-  financeLedgerCursor(params: { q?: string; entryType?: string; cursor?: string; size?: number } = {}) { return this.http.get<CursorPage<import('./api.models').FinanceLedgerRow>>(`${this.base}/finance/ledger/cursor`, { params }); }
+  financeRefundsCursor(params: { q?: string; status?: string; cursor?: string; size?: number } = {}) { return this.http.get<CursorPage<import('./api.models').FinanceRefund>>(`${this.base}/finance/refunds/cursor`, { params: this.queryParams(params) }); }
+  financeLedgerCursor(params: { q?: string; entryType?: string; cursor?: string; size?: number } = {}) { return this.http.get<CursorPage<import('./api.models').FinanceLedgerRow>>(`${this.base}/finance/ledger/cursor`, { params: this.queryParams(params) }); }
   financeOverview() { return this.http.get<import('./api.models').FinanceOverview>(`${this.base}/finance/overview`); }
-  financeRefunds(params: { q?: string; status?: string; page?: number; size?: number } = {}) { return this.http.get<import('./api.models').FinancePage<import('./api.models').FinanceRefund>>(`${this.base}/finance/refunds`, { params }); }
-  financeLedger(params: { q?: string; entryType?: string; page?: number; size?: number } = {}) { return this.http.get<import('./api.models').FinancePage<import('./api.models').FinanceLedgerRow>>(`${this.base}/finance/ledger`, { params }); }
+  financeRefunds(params: { q?: string; status?: string; page?: number; size?: number } = {}) { return this.http.get<import('./api.models').FinancePage<import('./api.models').FinanceRefund>>(`${this.base}/finance/refunds`, { params: this.queryParams(params) }); }
+  financeLedger(params: { q?: string; entryType?: string; page?: number; size?: number } = {}) { return this.http.get<import('./api.models').FinancePage<import('./api.models').FinanceLedgerRow>>(`${this.base}/finance/ledger`, { params: this.queryParams(params) }); }
 
   scan(eventId: string, gate: string, qrToken: string) {
     return this.http.post<ScanResponse>(`${this.base}/checkin/scan`, { eventId, gate, qrToken });

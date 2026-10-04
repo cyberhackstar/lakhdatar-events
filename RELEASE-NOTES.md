@@ -1,4 +1,13 @@
-# Release Notes — v1.9.33
+# v1.9.34
+
+- Cashfree checkout reliability and Promise/result handling fixed.
+- Deterministic third-party SDK loader with timeout/recovery added.
+- Gate scanner keeps its camera session alive between scans and shows immediate server verification state.
+- Optional admin/operations/finance query parameters are sanitized centrally.
+- Cloudflare Web Analytics beacon CSP source allowed.
+- Added regression tests and baseline guards.
+
+## Previous release: v1.9.33
 
 ## v1.9.33 — Deployment qualification correction
 

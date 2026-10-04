@@ -13,6 +13,9 @@ declare global {
       open(): void;
       on(event: string, handler: (response: any) => void): void;
     };
+    Cashfree?: (options: { mode: 'sandbox' | 'production' }) => {
+      checkout(options: { paymentSessionId: string; redirectTarget: string }): Promise<any> | any;
+    };
   }
 }
 
@@ -64,8 +67,8 @@ declare global {
 
             <div class="checkout-error" *ngIf="error" role="alert">{{ error }}<a *ngIf="recoveryOrderNumber" routerLink="/recover" [queryParams]="{order: recoveryOrderNumber}">Recover this order →</a></div>
 
-            <button class="pay" type="submit" [disabled]="form.invalid || loadingPayment || paymentModalOpen || reservationExpired">
-              <span>{{ loadingPayment ? 'Opening secure checkout…' : paymentModalOpen ? 'Payment window open…' : reservationExpired ? 'Reservation expired' : 'Pay securely' }}</span>
+            <button class="pay" type="submit" [disabled]="form.invalid || paymentState !== 'idle' || paymentModalOpen || reservationExpired">
+              <span>{{ paymentButtonLabel }}</span>
               <span>→</span>
             </button>
             <div class="gateway-note">Payments are processed securely by {{ event?.paymentProvider === 'CASHFREE' ? 'Cashfree' : 'Razorpay' }}. Your card / UPI credentials are never handled by {{ event?.organizer?.name || "the organizer" }} or Neelastack.</div>
@@ -109,10 +112,12 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   error = '';
   loadingPayment = false;
   paymentModalOpen = false;
+  paymentState: 'idle' | 'creating' | 'opening' | 'verifying' = 'idle';
   reservationExpiresAt = '';
   remainingSeconds = 0;
   recoveryOrderNumber = '';
   private countdown?: ReturnType<typeof setInterval>;
+  private readonly externalScriptPromises = new Map<string, Promise<void>>();
 
   readonly form = this.fb.nonNullable.group({
     customerName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
@@ -157,14 +162,25 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     return c.touched && c.invalid;
   }
 
+  get paymentButtonLabel(): string {
+    switch (this.paymentState) {
+      case 'creating': return 'Preparing secure checkout…';
+      case 'opening': return 'Opening secure checkout…';
+      case 'verifying': return 'Verifying payment…';
+      default: return this.paymentModalOpen ? 'Payment window open…' : this.reservationExpired ? 'Reservation expired' : 'Pay securely';
+    }
+  }
+
   beginPayment(): void {
     this.form.markAllAsTouched();
-    if (this.form.invalid || !this.event || !this.cart.length || this.reservationExpired) return;
+    if (this.form.invalid || !this.event || !this.cart.length || this.reservationExpired || this.paymentState !== 'idle') return;
     const validationError = this.validateCart();
     if (validationError) { this.error = validationError; return; }
 
     this.error = '';
     this.recoveryOrderNumber = '';
+    this.paymentModalOpen = false;
+    this.paymentState = 'creating';
     this.loadingPayment = true;
     const fingerprint = this.checkoutFingerprint();
     const idempotencyKey = this.booking.getOrCreateCheckoutKey(fingerprint);
@@ -178,10 +194,15 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       idempotencyKey,
       items: this.cart
     }).subscribe({
-      next: response => { this.recoveryOrderNumber = response.orderNumber; this.booking.setRecoveryHint(response.orderNumber); this.preparePayment(response); },
+      next: response => {
+        this.recoveryOrderNumber = response.orderNumber;
+        this.booking.setRecoveryHint(response.orderNumber);
+        this.preparePayment(response);
+      },
       error: e => {
         this.paymentModalOpen = false;
         this.loadingPayment = false;
+        this.paymentState = 'idle';
         const code = e?.error?.code;
         if (code === 'RESERVATION_EXPIRED' || code === 'ORDER_CLOSED') this.booking.clearCheckoutSession();
         this.error = e?.error?.message || 'We could not start secure checkout. Please retry.';
@@ -192,49 +213,207 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   private preparePayment(response: CheckoutResponse): void {
     this.reservationExpiresAt = response.reservationExpiresAt;
     this.startCountdown(response.reservationExpiresAt);
-    this.loadingPayment = false;
+    this.loadingPayment = true;
+    this.paymentState = 'opening';
+
     const open = (): void => {
-      if (this.reservationExpired) { this.error = 'Your reservation expired before payment could start. Please return to the event and choose tickets again.'; return; }
-      if (response.provider === 'CASHFREE') {
-        const cf = (window as any).Cashfree;
-        if (!cf || !response.providerSessionId) { this.error = 'Cashfree secure checkout could not load. Check your connection and retry.'; return; }
-        this.paymentModalOpen = true;
-        try {
-          const checkout = cf({ mode: environment.production ? 'production' : 'sandbox' });
-          checkout.checkout({ paymentSessionId: response.providerSessionId, redirectTarget: '_self' });
-        } catch { this.paymentModalOpen = false; this.error = 'Secure payment checkout could not open. Please retry.'; }
+      if (this.reservationExpired) {
+        this.finishProviderFailure('Your reservation expired before payment could start. Please return to the event and choose tickets again.');
         return;
       }
-      if (!window.Razorpay || !response.providerOrderId || !response.providerPublicKey) { this.error = 'Razorpay secure checkout could not load. Check your connection and retry.'; return; }
+
+      if (response.provider === 'CASHFREE') {
+        this.openCashfreeCheckout(response);
+        return;
+      }
+
+      if (!window.Razorpay || !response.providerOrderId || !response.providerPublicKey) {
+        this.finishProviderFailure('Razorpay secure checkout could not load. Check your connection and retry.');
+        return;
+      }
+
       this.paymentModalOpen = true;
-      const razorpay = new window.Razorpay({
-        key: response.providerPublicKey, amount: response.amountMinorUnits, currency: response.currency,
-        name: this.event?.organizer?.name || this.event?.brand?.organizerName || 'Neelastack Events',
-        description: this.event?.name || 'Event ticket', order_id: response.providerOrderId,
-        handler: (result: any) => this.verifyPayment(result), modal: { ondismiss: () => { this.paymentModalOpen = false; } },
-        prefill: { name: this.form.controls.customerName.value.trim(), email: this.form.controls.customerEmail.value.trim(), contact: this.form.controls.customerPhone.value.trim() },
-        theme: { color: '#17121a' }
-      });
-      razorpay.open();
+      this.loadingPayment = false;
+      this.paymentState = 'idle';
+      try {
+        const razorpay = new window.Razorpay({
+          key: response.providerPublicKey, amount: response.amountMinorUnits, currency: response.currency,
+          name: this.event?.organizer?.name || this.event?.brand?.organizerName || 'Neelastack Events',
+          description: this.event?.name || 'Event ticket', order_id: response.providerOrderId,
+          handler: (result: any) => this.verifyPayment(result),
+          modal: { ondismiss: () => { this.paymentModalOpen = false; this.paymentState = 'idle'; } },
+          prefill: { name: this.form.controls.customerName.value.trim(), email: this.form.controls.customerEmail.value.trim(), contact: this.form.controls.customerPhone.value.trim() },
+          theme: { color: '#17121a' }
+        });
+        razorpay.open();
+      } catch {
+        this.finishProviderFailure('Secure payment checkout could not open. Please retry.');
+      }
     };
+
     if (response.provider === 'CASHFREE') {
-      const scriptId='cashfree-checkout-js'; const existing=document.getElementById(scriptId) as HTMLScriptElement|null;
-      if (existing) { existing.addEventListener('load',open,{once:true}); existing.addEventListener('error',()=>this.error='Cashfree secure checkout could not load.',{once:true}); return; }
-      const script=document.createElement('script'); script.id=scriptId; script.src=environment.cashfreeCheckoutUrl; script.async=true; script.onload=open; script.onerror=()=>this.error='Cashfree secure checkout could not load.'; document.body.appendChild(script); return;
+      void this.loadExternalScript('cashfree-checkout-js', environment.cashfreeCheckoutUrl, () => !!window.Cashfree).then(open).catch(() => {
+        this.finishProviderFailure('Cashfree secure checkout could not load. Check your connection and retry.');
+      });
+      return;
     }
+
     if (window.Razorpay) { open(); return; }
-    const scriptId='razorpay-checkout-js'; const existing=document.getElementById(scriptId) as HTMLScriptElement|null;
-    if (existing) { existing.addEventListener('load',open,{once:true}); existing.addEventListener('error',()=>this.error='Secure payment checkout could not load.',{once:true}); return; }
-    const script=document.createElement('script'); script.id=scriptId; script.src=environment.razorpayCheckoutUrl; script.async=true; script.onload=open; script.onerror=()=>this.error='Secure payment checkout could not load.'; document.body.appendChild(script);
+    void this.loadExternalScript('razorpay-checkout-js', environment.razorpayCheckoutUrl, () => !!window.Razorpay).then(open).catch(() => {
+      this.finishProviderFailure('Secure payment checkout could not load. Check your connection and retry.');
+    });
+  }
+
+  private openCashfreeCheckout(response: CheckoutResponse): void {
+    const cashfreeFactory = window.Cashfree;
+    if (!cashfreeFactory || !response.providerSessionId || !response.providerOrderId) {
+      this.finishProviderFailure('Cashfree secure checkout could not load. Check your connection and retry.');
+      return;
+    }
+
+    try {
+      const cashfree = cashfreeFactory({ mode: environment.production ? 'production' : 'sandbox' });
+      this.paymentModalOpen = true;
+      this.loadingPayment = false;
+      this.paymentState = 'idle';
+
+      const checkoutResult = cashfree.checkout({
+        paymentSessionId: response.providerSessionId,
+        redirectTarget: '_modal'
+      });
+
+      Promise.resolve(checkoutResult).then((result: any) => {
+        if (result?.paymentDetails) {
+          this.paymentModalOpen = false;
+          this.verifyCashfreePayment(response.providerOrderId);
+          return;
+        }
+        if (result?.error) {
+          this.paymentModalOpen = false;
+          this.finishProviderFailure(result.error.message || 'Cashfree could not complete checkout. You can safely retry or recover this order.');
+          return;
+        }
+        if (result?.redirect) {
+          this.paymentModalOpen = false;
+          this.finishProviderFailure('Cashfree redirected the payment flow. Do not start another payment; recover this order to check its server-side status.');
+          return;
+        }
+        this.paymentModalOpen = false;
+        this.finishProviderFailure('Cashfree checkout was closed before payment was completed. You can safely retry or recover this order.');
+      }).catch(() => {
+        this.paymentModalOpen = false;
+        this.finishProviderFailure('Secure payment checkout could not stay open. Do not make another payment yet; recover this order if needed.');
+      });
+    } catch {
+      this.finishProviderFailure('Secure payment checkout could not open. Please retry or recover this order.');
+    }
+  }
+
+  private verifyCashfreePayment(providerOrderId: string): void {
+    this.loadingPayment = true;
+    this.paymentModalOpen = false;
+    this.paymentState = 'verifying';
+    this.api.verifyPayment({ providerOrderId }).subscribe({
+      next: result => this.finishVerifiedPayment(result),
+      error: e => {
+        this.loadingPayment = false;
+        this.paymentState = 'idle';
+        this.error = e?.error?.message || 'Payment is awaiting server verification. Do not make another payment; use the recovery link to check the order.';
+      }
+    });
   }
 
   private verifyPayment(response: any): void {
-    if (!response?.razorpay_order_id || !response?.razorpay_payment_id || !response?.razorpay_signature) { this.error='Payment response was incomplete. Do not make another payment yet. Recover the existing order if needed.'; return; }
-    this.loadingPayment=true;
-    this.api.verifyPayment({ providerOrderId:response.razorpay_order_id, providerPaymentId:response.razorpay_payment_id, providerSignature:response.razorpay_signature }).subscribe({
-      next:(result:VerifyResponse)=>{this.booking.setPaymentResult(result);this.booking.clearCheckoutSession();this.booking.clear();this.stopCountdown();this.loadingPayment=false;this.router.navigateByUrl('/payment/success',{replaceUrl:true});},
-      error:e=>{this.loadingPayment=false;this.error=e?.error?.message||'Payment is awaiting server verification. Do not make another payment.';}
+    if (!response?.razorpay_order_id || !response?.razorpay_payment_id || !response?.razorpay_signature) {
+      this.paymentModalOpen = false;
+      this.loadingPayment = false;
+      this.paymentState = 'idle';
+      this.error='Payment response was incomplete. Do not make another payment yet. Recover the existing order if needed.';
+      return;
+    }
+    this.loadingPayment = true;
+    this.paymentModalOpen = false;
+    this.paymentState = 'verifying';
+    this.api.verifyPayment({ providerOrderId: response.razorpay_order_id, providerPaymentId: response.razorpay_payment_id, providerSignature: response.razorpay_signature }).subscribe({
+      next: result => this.finishVerifiedPayment(result),
+      error: e => {
+        this.loadingPayment = false;
+        this.paymentState = 'idle';
+        this.error=e?.error?.message||'Payment is awaiting server verification. Do not make another payment.';
+      }
     });
+  }
+
+  private finishVerifiedPayment(result: VerifyResponse): void {
+    this.booking.setPaymentResult(result);
+    this.booking.clearCheckoutSession();
+    this.booking.clear();
+    this.stopCountdown();
+    this.loadingPayment = false;
+    this.paymentState = 'idle';
+    this.router.navigateByUrl('/payment/success',{replaceUrl:true});
+  }
+
+  private finishProviderFailure(message: string): void {
+    this.paymentModalOpen = false;
+    this.loadingPayment = false;
+    this.paymentState = 'idle';
+    this.error = message;
+  }
+
+  private loadExternalScript(id: string, src: string, isReady: () => boolean, timeoutMs = 15000): Promise<void> {
+    if (isReady()) return Promise.resolve();
+    const pending = this.externalScriptPromises.get(id);
+    if (pending) return pending;
+
+    const promise = new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const script = document.getElementById(id) as HTMLScriptElement | null ?? document.createElement('script');
+      const created = !script.parentElement;
+      let pollTimer: ReturnType<typeof setInterval> | undefined;
+      let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+
+      const cleanup = () => {
+        script.removeEventListener('load', onLoad);
+        script.removeEventListener('error', onError);
+        if (pollTimer) clearInterval(pollTimer);
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+      };
+      const succeed = () => {
+        if (settled) return;
+        if (!isReady()) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+      const fail = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (script.id === id && script.parentElement) script.remove();
+        reject(new Error(`Payment SDK timed out or failed to load: ${id}`));
+      };
+      const onLoad = () => succeed();
+      const onError = () => fail();
+
+      if (!script.src) {
+        script.id = id;
+        script.src = src;
+        script.async = true;
+      }
+      script.addEventListener('load', onLoad, { once: true });
+      script.addEventListener('error', onError, { once: true });
+      if (created) document.body.appendChild(script);
+
+      // Existing script tags may have fired load before this checkout component mounted.
+      // Polling the provider global makes the loader deterministic instead of waiting forever.
+      pollTimer = setInterval(() => { if (isReady()) succeed(); }, 100);
+      timeoutTimer = setTimeout(fail, timeoutMs);
+      succeed();
+    });
+
+    this.externalScriptPromises.set(id, promise);
+    return promise.finally(() => this.externalScriptPromises.delete(id));
   }
 
   private validateCart(): string | null {

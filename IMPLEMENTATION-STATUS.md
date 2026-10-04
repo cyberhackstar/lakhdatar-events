@@ -1,4 +1,4 @@
-# v1.9.33 — Deployment qualification correction
+# v1.9.34 — Deployment qualification correction
 
 - Dedicated worker tier with `WORKER_ENABLED` and distributed-job locks.
 - Platform Operations Health API/UI.
@@ -8,9 +8,9 @@
 - k6 load scenarios corrected to count business-conflict statuses as expected outcomes.
 - Enterprise release qualification, PITR and payment chaos runbooks updated.
 
-# IMPLEMENTATION STATUS 1.9.33
+# IMPLEMENTATION STATUS 1.9.34
 
-Release details: `CHANGES-1.9.33.md` and `VALIDATION-1.9.33.md`.
+Release details: `CHANGES-1.9.34.md` and `VALIDATION-1.9.34.md`.
 
 ## 1.9.31
 
