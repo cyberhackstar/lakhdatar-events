@@ -45,4 +45,11 @@ class MigrationContractTest {
         org.junit.jupiter.api.Assertions.assertTrue(sql.contains("DROP CONSTRAINT IF EXISTS chk_event_booking_window"));
     }
 
+    @Test
+    void multiDayBookingMigrationAllowsBookingEndThroughEventEnd() throws Exception {
+        String sql = Files.readString(Path.of("src/main/resources/db/migration/V29__multi_day_booking_window.sql"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("booking_ends_at <= COALESCE(ends_at, starts_at)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("DROP CONSTRAINT IF EXISTS chk_event_booking_window"));
+    }
+
 }

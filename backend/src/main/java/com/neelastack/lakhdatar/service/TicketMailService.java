@@ -257,7 +257,8 @@ public class TicketMailService {
             StringBuilder html = new StringBuilder("<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1a151b\">")
                     .append("<h2 style=\"margin:0 0 8px\">").append(esc(e.getName())).append("</h2>")
                     .append("<p>Hi ").append(esc(o.getCustomerName())).append(", here ").append(live.size() > 1 ? "are your tickets" : "is your ticket")
-                    .append(". Show the QR code at the gate. Each code works for one entry.</p>");
+                    .append(". There ").append(live.size() == 1 ? "is 1 seat" : "are ").append(live.size() == 1 ? "" : String.valueOf(live.size()) + " seats")
+                    .append(" booked in this order. Show the QR code at the gate. Each code works for one entry.</p>");
             List<byte[]> images = new ArrayList<>();
             for (int i = 0; i < live.size(); i++) {
                 Ticket t = live.get(i);

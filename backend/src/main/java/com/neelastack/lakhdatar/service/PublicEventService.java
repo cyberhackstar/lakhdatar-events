@@ -211,12 +211,11 @@ public class PublicEventService {
     public static String salesState(Event e, boolean hasActiveTypes, long available, long total, Instant now) {
         if (e.getStatus() == Enums.EventStatus.CANCELLED) return "CANCELLED";
         if (e.getStatus() == Enums.EventStatus.COMPLETED) return "COMPLETED";
-        if (!e.getStartsAt().isAfter(now)) {
-            Instant end = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();
-            return end.isAfter(now) ? "BOOKING_CLOSED" : "COMPLETED";
-        }
+        Instant eventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();
+        if (eventEnd == null || !eventEnd.isAfter(now)) return "COMPLETED";
         if (e.getBookingStartsAt() != null && e.getBookingStartsAt().isAfter(now)) return "BOOKING_NOT_STARTED";
-        if (e.getBookingEndsAt() != null && !e.getBookingEndsAt().isAfter(now)) return "BOOKING_CLOSED";
+        Instant bookingEnd = e.getBookingEndsAt() != null ? e.getBookingEndsAt() : eventEnd;
+        if (!bookingEnd.isAfter(now)) return "BOOKING_CLOSED";
         if (!hasActiveTypes || available <= 0) return "SOLD_OUT";
         if (total > 0 && available * 5 <= total) return "SELLING_FAST";
         return "AVAILABLE";
@@ -224,8 +223,12 @@ public class PublicEventService {
 
     /** True when new checkouts may start for this event at {@code now}. Used by OrderService. */
     public static boolean bookingWindowOpen(Event e, Instant now) {
+        if (e == null || e.getStatus() != Enums.EventStatus.PUBLISHED) return false;
+        Instant eventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();
+        if (eventEnd == null || !eventEnd.isAfter(now)) return false;
         if (e.getBookingStartsAt() != null && e.getBookingStartsAt().isAfter(now)) return false;
-        return e.getBookingEndsAt() == null || e.getBookingEndsAt().isAfter(now);
+        Instant bookingEnd = e.getBookingEndsAt() != null ? e.getBookingEndsAt() : eventEnd;
+        return bookingEnd.isAfter(now);
     }
 
     private static List<String> textLines(String raw, int max) {

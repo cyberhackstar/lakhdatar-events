@@ -71,8 +71,10 @@ public class OrderService {
             payments.findByOrderId(o.getId()).orElseThrow(()->new ApiException(HttpStatus.CONFLICT,"ORDER_INCOMPLETE","Order is still initializing; retry shortly"));
             if(o.getEventId()!=null){
                 Event existingEvent=events.findByIdForUpdate(o.getEventId()).orElseThrow();
-                if(existingEvent.getStatus()!=Enums.EventStatus.PUBLISHED || !existingEvent.getStartsAt().isAfter(Instant.now()))
-                    throw new ApiException(HttpStatus.CONFLICT,"EVENT_CLOSED","This event is no longer open for sale");
+                Instant now = Instant.now();
+                String bookingBlock = bookingBlockCode(existingEvent, now);
+                if (bookingBlock != null)
+                    throw new ApiException(HttpStatus.CONFLICT, bookingBlock, bookingBlockMessage(bookingBlock));
             }
             if(!reservations.findByOrderIdOrderByIdAsc(o.getId()).stream().allMatch(r->r.getStatus()==Enums.ReservationStatus.HELD && r.getExpiresAt().isAfter(Instant.now())))
                 throw new ApiException(HttpStatus.CONFLICT,"RESERVATION_EXPIRED","The ticket reservation for this order has expired. Start a new checkout.");
@@ -82,10 +84,10 @@ public class OrderService {
             return new LocalCheckout(o.getId(), checkoutSessionToken);
         }
         Event event=events.findByPublicIdForUpdate(request.eventId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"EVENT_NOT_FOUND","Event not found"));
-        if(event.getStatus()!=Enums.EventStatus.PUBLISHED || !event.getStartsAt().isAfter(Instant.now()))
-            throw new ApiException(HttpStatus.CONFLICT,"EVENT_CLOSED","This event is not open for sale");
-        if(!PublicEventService.bookingWindowOpen(event,Instant.now()))
-            throw new ApiException(HttpStatus.CONFLICT,event.getBookingStartsAt()!=null&&event.getBookingStartsAt().isAfter(Instant.now())?"BOOKING_NOT_STARTED":"BOOKING_CLOSED","Ticket sales for this event are not open right now");
+        Instant now = Instant.now();
+        String bookingBlock = bookingBlockCode(event, now);
+        if (bookingBlock != null)
+            throw new ApiException(HttpStatus.CONFLICT, bookingBlock, bookingBlockMessage(bookingBlock));
 
         Map<UUID,Integer> merged=new LinkedHashMap<>();
         for(CheckoutItem i:Optional.ofNullable(request.items()).orElse(List.of())){
@@ -137,14 +139,15 @@ public class OrderService {
                 List<TicketReservation> heldReservations = reservations.findByOrderIdOrderByIdAsc(o.getId());
                 boolean reservationLive = !heldReservations.isEmpty()
                         && heldReservations.stream().allMatch(r -> r.getStatus() == Enums.ReservationStatus.HELD && r.getExpiresAt().isAfter(now));
-                boolean eventOpen = event.getStatus() == Enums.EventStatus.PUBLISHED && event.getStartsAt().isAfter(now);
+                String bookingBlock = bookingBlockCode(event, now);
+                boolean eventOpen = bookingBlock == null;
                 if(!reservationLive || !eventOpen){
                     reservationService.releaseOrder(o.getId());
                     o.setStatus(eventOpen ? Enums.OrderStatus.EXPIRED : Enums.OrderStatus.CANCELLED);
-                    p.setProviderLastError(eventOpen ? "Reservation expired before payment order creation" : "Event is no longer open for sale");
+                    p.setProviderLastError(eventOpen ? "Reservation expired before payment order creation" : bookingBlockMessage(bookingBlock));
                     p.setRazorpayOrderState(p.getProviderOrderId()==null ? "NOT_CREATED" : p.getRazorpayOrderState());
                     payments.save(p);
-                    return new ProviderOrderContext(o.getId(),o.getPublicId(),o.getOrderNumber(),p.getProviderOrderId(),p.getAmountMinor(),p.getCurrency(),minReservationExpiry(o.getId()),false, eventOpen ? "RESERVATION_EXPIRED" : "EVENT_CLOSED", p.getRazorpayOrderState(),o.getCustomerName(),o.getCustomerEmail(),o.getCustomerPhone(),p.getProvider());
+                    return new ProviderOrderContext(o.getId(),o.getPublicId(),o.getOrderNumber(),p.getProviderOrderId(),p.getAmountMinor(),p.getCurrency(),minReservationExpiry(o.getId()),false, eventOpen ? "RESERVATION_EXPIRED" : bookingBlock, p.getRazorpayOrderState(),o.getCustomerName(),o.getCustomerEmail(),o.getCustomerPhone(),p.getProvider());
                 }
                 if(p.getProviderOrderId()!=null) return new ProviderOrderContext(o.getId(),o.getPublicId(),o.getOrderNumber(),p.getProviderOrderId(),p.getAmountMinor(),p.getCurrency(),minReservationExpiry(o.getId()),true,null, p.getRazorpayOrderState(),o.getCustomerName(),o.getCustomerEmail(),o.getCustomerPhone(),p.getProvider());
                 p.setRazorpayOrderState("CREATING"); p.setRazorpayOrderAttempts(p.getRazorpayOrderAttempts()+1); payments.save(p);
@@ -347,7 +350,7 @@ public class OrderService {
             List<TicketReservation> rs=reservations.findByOrderIdForUpdate(o.getId());
             Instant now=Instant.now();
             boolean reservationValid=!rs.isEmpty() && rs.stream().allMatch(r->r.getStatus()==Enums.ReservationStatus.HELD && r.getExpiresAt().isAfter(now));
-            boolean eventOpen=event.getStatus()==Enums.EventStatus.PUBLISHED && event.getStartsAt().isAfter(now);
+            boolean eventOpen=PublicEventService.bookingWindowOpen(event, now);
             boolean orderPayable=o.getStatus()==Enums.OrderStatus.CREATED || o.getStatus()==Enums.OrderStatus.AWAITING_PAYMENT;
             if(!reservationValid || !eventOpen || !orderPayable){
                 paymentStateMachine.transition(p,Enums.PaymentStatus.REFUND_PENDING); payments.save(p);
@@ -470,6 +473,22 @@ public class OrderService {
                 .map(t->new PublicEventControllerTicket(t.getPublicId(),t.getTicketNumber(),accessTokens.issue(t.getPublicId()))).toList();
         return new RecoveryOrder(o.getOrderNumber(),o.getStatus(),e.getName(),ts);
     }
+    private String bookingBlockCode(Event event, Instant now) {
+        if (event == null || event.getStatus() != Enums.EventStatus.PUBLISHED) return "EVENT_CLOSED";
+        Instant eventEnd = event.getEndsAt() != null ? event.getEndsAt() : event.getStartsAt();
+        if (eventEnd == null || !eventEnd.isAfter(now)) return "EVENT_CLOSED";
+        if (event.getBookingStartsAt() != null && event.getBookingStartsAt().isAfter(now)) return "BOOKING_NOT_STARTED";
+        Instant bookingEnd = event.getBookingEndsAt() != null ? event.getBookingEndsAt() : eventEnd;
+        if (!bookingEnd.isAfter(now)) return "BOOKING_CLOSED";
+        return null;
+    }
+
+    private String bookingBlockMessage(String code) {
+        if ("BOOKING_NOT_STARTED".equals(code)) return "Ticket sales for this event have not opened yet";
+        if ("BOOKING_CLOSED".equals(code)) return "Ticket sales for this event are closed";
+        return "This event is no longer open for sale";
+    }
+
     private boolean sameCheckoutRequest(Order o, CheckoutRequest request){
         if(!Objects.equals(o.getCustomerName(),request.customerName().trim())) return false;
         if(!Objects.equals(o.getCustomerEmail(),request.customerEmail().trim().toLowerCase())) return false;

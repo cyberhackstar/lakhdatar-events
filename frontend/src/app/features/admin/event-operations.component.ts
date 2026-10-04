@@ -76,14 +76,19 @@ export class EventOperationsComponent implements OnInit {
   nextOrders(): void { const c=this.orders()?.nextCursor; if(!c)return; this.orderHistory.push(this.orderCursor); this.orderCursor=c; this.orderPage.update(p=>p+1); this.fetchOrders(); }
   previousOrders(): void { if(!this.orderHistory.length)return; this.orderCursor=this.orderHistory.pop(); this.orderPage.update(p=>Math.max(0,p-1)); this.fetchOrders(); }
   downloadCsv(): void {
-    this.csvBusy=true; this.error='';
-    this.api.attendeesCsv(this.eventId).subscribe({
-      next:blob=>{
-        this.csvBusy=false; const url=URL.createObjectURL(blob); const a=document.createElement('a');
-        a.href=url; a.download=`${this.eventId}-attendees.csv`; a.style.display='none'; document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(()=>URL.revokeObjectURL(url),1000);
-      },
-      error:e=>{ this.csvBusy=false; this.error=e?.error?.message || 'Attendee export failed.'; }
-    });
+    if (!this.eventId || this.csvBusy) return;
+    // Use a normal same-origin browser download instead of an XHR blob. This avoids
+    // Chrome/HTTP3 QUIC failures observed on streamed CSV responses while preserving
+    // the existing httpOnly authentication cookie.
+    this.csvBusy = true; this.error = '';
+    const a = document.createElement('a');
+    a.href = `/api/v1/admin/events/${encodeURIComponent(this.eventId)}/attendees.csv`;
+    a.download = `${this.eventId}-attendees.csv`;
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => { this.csvBusy = false; }, 1200);
   }
 }

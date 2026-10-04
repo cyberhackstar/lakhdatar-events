@@ -1,10 +1,10 @@
-## v1.9.36 — Frontend test-runtime correction
+## v1.9.39 — Payment, booking-window and admin reliability correction
 
 Enterprise application/worker separation is supported through `WORKER_ENABLED`; HA reference deployment, PITR runbook, operations health and k6 load scenarios are under `infra/ha`, `infra/backup`, `infra/monitoring` and `infra/loadtest`. See `docs/ENTERPRISE-RELEASE-QUALIFICATION.md` for the production qualification gates.
 
-# Release 1.9.36 — frontend test-runtime correction
+# Release 1.9.39 — frontend test-runtime correction
 
-See `CHANGES-1.9.36.md`, `VALIDATION-1.9.36.md`, `IMPLEMENTATION-STATUS.md`, `RELEASE-NOTES.md`, `ADMIN-SETUP-GUIDE.md` and `ENV-LINKAGE-AUDIT.md`.
+See `CHANGES-1.9.39.md`, `VALIDATION-1.9.39.md`, `IMPLEMENTATION-STATUS.md`, `RELEASE-NOTES.md`, `ADMIN-SETUP-GUIDE.md` and `ENV-LINKAGE-AUDIT.md`.
 
 # Release 1.9.21 — production smoke-test + SSR proxy correction
 

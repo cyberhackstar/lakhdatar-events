@@ -111,7 +111,7 @@ if (/map\s+\$http_cf_connecting_ip\s+\$client_rate_key\s*\{[^}]*\$binary_remote_
 if (/proxy_set_header\s+\S+\s+\$binary_remote_addr/.test(edgeNginx)) problems.push('edge NGINX must never forward $binary_remote_addr in a request header');
 if (!edgeNginx.includes('"~^[0-9A-Fa-f:.]{3,45}$"')) problems.push('edge NGINX must validate CF-Connecting-IP as an IP literal before forwarding it');
 
-if (!checkoutSource.includes("redirectTarget: '_modal'")) problems.push('Cashfree checkout must use the modal target for deterministic browser checkout UX');
+if (!checkoutSource.includes("redirectTarget: '_self'")) problems.push('Cashfree checkout target policy mismatch');
 if (!checkoutSource.includes('result?.paymentDetails') || !checkoutSource.includes('result?.error') || !checkoutSource.includes('.catch(() =>')) problems.push('Cashfree checkout result/promise handling regression detected');
 if (!checkoutSource.includes('loadExternalScript') || !checkoutSource.includes('Payment SDK timed out or failed to load')) problems.push('External payment SDK loader timeout/recovery guard missing');
 if (!scannerSource.includes('verifying = true') || !scannerSource.includes('Keep the live camera session')) problems.push('scanner verification-state/camera-reuse regression detected');
@@ -132,5 +132,7 @@ while (stack.length) {
   }
 }
 if (!edgeNginx.includes('https://static.cloudflareinsights.com')) problems.push('Cloudflare Web Analytics CSP script source missing');
+if (!edgeNginx.includes('https://api.cashfree.com;') && !edgeNginx.includes('https://api.cashfree.com https://sdk.cashfree.com')) problems.push('Cashfree API frame/form action host missing from edge CSP');
+if (!edgeNginx.includes("form-action 'self' https://api.cashfree.com")) problems.push('Cashfree API form-action CSP host missing');
 if (problems.length) { console.error('Neelastack baseline verification FAILED:'); for (const p of problems) console.error(`- ${p}`); process.exit(1); }
 console.log('Neelastack stability baseline: PASS');

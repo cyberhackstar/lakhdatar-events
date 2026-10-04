@@ -26,7 +26,8 @@ public class TicketQueryService {
     public record TicketView(UUID ticketId, String ticketNumber, String status, String attendeeName, String eventName,
                              java.time.Instant startsAt, java.time.Instant endsAt, String venueName, String venueAddress,
                              String ticketType, long amountMinorUnits, String currency, java.time.Instant checkedInAt,
-                             String source, String issuedByName, String qrDataUri, BrandService.BrandView brand) {}
+                             String source, String issuedByName, int ticketPosition, long orderTicketCount,
+                             String qrDataUri, BrandService.BrandView brand) {}
 
     public TicketView get(UUID id, String token) {
         if (!accessTokens.verify(token, id))
@@ -51,10 +52,17 @@ public class TicketQueryService {
             displayStatus = Enums.TicketStatus.CANCELLED.name();
         }
         String issuerName = t.getIssuedByUserId() == null ? null : users.findById(t.getIssuedByUserId()).map(User::getFullName).orElse(null);
+        var orderTickets = tickets.findByOrderIdOrderByTicketNumberAsc(t.getOrderId());
+        int position = 0;
+        for (int i = 0; i < orderTickets.size(); i++) {
+            if (orderTickets.get(i).getId().equals(t.getId())) { position = i + 1; break; }
+        }
+        if (position == 0) position = 1;
+        long orderTicketCount = orderTickets.size();
         String cred = qr.credentialFor(t.getPublicId());
         return new TicketView(t.getPublicId(), t.getTicketNumber(), displayStatus, t.getAttendeeName(), e.getName(),
                 e.getStartsAt(), e.getEndsAt(), v == null ? null : v.getName(), address, tt.getName(), amount,
-                e.getCurrency(), t.getCheckedInAt(), t.getSource().name(), issuerName, qr.pngDataUri(cred),
-                brand.view(e.getBrandConfigId(), o == null ? "Event organizer" : o.getName()));
+                e.getCurrency(), t.getCheckedInAt(), t.getSource().name(), issuerName, position, orderTicketCount,
+                qr.pngDataUri(cred), brand.view(e.getBrandConfigId(), o == null ? "Event organizer" : o.getName()));
     }
 }

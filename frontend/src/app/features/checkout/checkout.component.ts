@@ -273,13 +273,16 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
     try {
       const cashfree = cashfreeFactory({ mode: environment.production ? 'production' : 'sandbox' });
-      this.paymentModalOpen = true;
+      // Use Cashfree's supported hosted redirect for all browsers. This avoids embedding
+      // Cashfree inside a third-party iframe whose own CSP can reject api.cashfree.com,
+      // and it also removes the mobile blur/overlay while navigation starts.
+      this.paymentModalOpen = false;
       this.loadingPayment = false;
       this.paymentState = 'idle';
 
       const checkoutResult = cashfree.checkout({
         paymentSessionId: response.providerSessionId,
-        redirectTarget: '_modal'
+        redirectTarget: '_self'
       });
 
       Promise.resolve(checkoutResult).then((result: any) => {

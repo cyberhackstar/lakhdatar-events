@@ -1,33 +1,11 @@
-NEELASTACK EVENTS v1.9.36 PRODUCTION RELEASE MANIFEST
-==============================================================
-Release: 1.9.36
-Base: v1.9.35 build-corrected release; v1.9.36 corrects the frontend Angular TestBed Zone.js runtime regression.
-Changes: see CHANGES-1.9.36.md.
-Validation: see VALIDATION-1.9.36.md.
+NEELASTACK EVENTS v1.9.39 PRODUCTION RELEASE MANIFEST
+Release: 1.9.39
+Base: v1.9.38 production source baseline
+Changes: see CHANGES-1.9.39.md
+Validation: see VALIDATION-1.9.39.md
+Flyway: V1–V30
+Key behavior: booking is open until the effective booking end; when not explicitly configured, the event end. Cashfree uses hosted `_self` redirect; admin CSV uses native download; finance ledger reads `public_id`.
 
-Deployment-critical corrections:
-- Flyway V26 no longer references the nonexistent tickets.issued_at column; ticket cursor indexes use tickets.created_at in V28.
-- Multi-event manager authorization contract verifies the actual event_manager_assignments SQL boundary.
-- Organizer issued-ticket console explicitly shows the default All events authorized scope.
-- Cashfree checkout, scanner camera reuse, optional admin/finance filters and Cloudflare CSP are hardened for production browser reliability.
-- Release qualification correctly recognizes the escaped events.neelastack.com production hostname guard in k6 idempotency testing.
-- Runtime/package metadata aligned to 1.9.36; Flyway remains V1–V28.
-
-Production topology:
-- Public host: events.neelastack.com
-- Edge bind: 127.0.0.1:4002
-- Production directory: /home/ubuntu/apps/lakhdatar-events
-- Backend: Spring Boot / Java 21 / PostgreSQL / Redis
-- Frontend: Angular SSR / Node 24
-- Images are deployed by immutable 40-character Git SHA.
-
-Mandatory gates before public release:
-- Backend: mvn -B -ntp clean verify
-- Frontend: npm ci --no-audit --no-fund && npm run build && npm test
-- CI security/CodeQL/Trivy/Gitleaks/provenance gates
-- Fresh and upgraded Flyway validation
-- VM readiness and public smoke tests
-- Payment- and ticket-concurrency/load/chaos evidence
-- PITR restore and HA failover evidence when claiming enterprise HA
-
-Packaging-sandbox validation is source/static validation only; no unsupported claim is made that a fresh Maven/Angular build was executed in the offline packaging workspace.
+CHANGES: CHANGES-1.9.39.md
+VALIDATION: VALIDATION-1.9.39.md
+DEPLOYMENT: PRODUCTION-DEPLOY-1.9.39.md

@@ -40,19 +40,21 @@ public class TicketPdfService {
                 float contentY = y - 125;
                 text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 24, margin, contentY, safe(t.eventName(), "Event"));
                 text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 11, margin, contentY - 24,
-                        "Ticket " + safe(t.ticketNumber(), ""));
-                text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 12, margin, contentY - 54,
+                        "Ticket " + safe(t.ticketNumber(), "") + " · " + t.ticketPosition() + " of " + t.orderTicketCount());
+                text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 10, margin, contentY - 42,
+                        t.orderTicketCount() + " " + (t.orderTicketCount() == 1 ? "seat" : "seats") + " booked in this order");
+                text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD), 12, margin, contentY - 66,
                         safe(t.ticketType(), "Ticket"));
-                text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12, margin, contentY - 80,
+                text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12, margin, contentY - 92,
                         "Attendee: " + safe(t.attendeeName(), "Guest"));
-                text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10, margin, contentY - 105,
+                text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10, margin, contentY - 117,
                         "Starts: " + t.startsAt());
                 if (t.venueName() != null) {
-                    text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10, margin, contentY - 130,
+                    text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 10, margin, contentY - 142,
                             "Venue: " + safe(t.venueName(), "Venue"));
                 }
                 if (t.venueAddress() != null) {
-                    text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 9, margin, contentY - 150,
+                    text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 9, margin, contentY - 162,
                             "Address: " + safe(t.venueAddress(), ""));
                 }
 
@@ -62,8 +64,8 @@ public class TicketPdfService {
                     if (qrImage != null) {
                         var image = LosslessFactory.createFromImage(doc, qrImage);
                         float size = 190f;
-                        cs.drawImage(image, w - margin - size, contentY - 165, size, size);
-                        text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 9, w - margin - size, contentY - 178, "Present this QR at the gate");
+                        cs.drawImage(image, w - margin - size, contentY - 170, size, size);
+                        text(cs, new PDType1Font(Standard14Fonts.FontName.HELVETICA), 9, w - margin - size, contentY - 183, "Present this QR at the gate");
                     }
                 }
 

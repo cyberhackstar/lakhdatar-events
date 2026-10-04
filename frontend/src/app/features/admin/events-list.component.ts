@@ -60,7 +60,7 @@ type EventRow = Dashboard['events'][number];
               <a class="a-btn sm" [routerLink]="['/events', e.slug]" target="_blank" rel="noopener">Public page ↗</a>
               <button type="button" class="a-btn sm" (click)="downloadCsv(e)" [disabled]="csvId() === e.id">{{ csvId() === e.id ? 'Exporting…' : 'CSV' }}</button>
               @if (store.canAdministerEvents && e.status === 'DRAFT') {
-                <button type="button" class="a-btn sm primary" (click)="publish(e)" [disabled]="publishingId() === e.id">{{ publishingId() === e.id ? 'Publishing…' : 'Publish' }}</button>
+                <button type="button" class="a-btn sm primary" (click)="publish(e)" [disabled]="publishingId() === e.id || !canPublish(e)" [title]="publishHint(e)">{{ publishingId() === e.id ? 'Publishing…' : 'Publish' }}</button>
               }
             </span>
           </div>
@@ -146,6 +146,15 @@ export class EventsListComponent implements OnInit {
   next(): void { const next = this.data()?.nextCursor; if (!next) return; this.history.push(this.cursor); this.cursor = next; this.loadCursor(); }
   previous(): void { if (!this.history.length) return; this.cursor = this.history.pop(); this.loadCursor(); }
 
+  canPublish(e: EventRow): boolean {
+    return e.status === 'DRAFT' && new Date(e.startsAt).getTime() > Date.now();
+  }
+
+  publishHint(e: EventRow): string {
+    if (!e.startsAt || new Date(e.startsAt).getTime() <= Date.now()) return 'An event in the past cannot be published.';
+    return 'Publish this event';
+  }
+
   publish(e: EventRow): void {
     this.publishingId.set(e.id); this.actionError.set(''); this.message.set('');
     this.api.publishEvent(e.id).subscribe({
@@ -155,17 +164,15 @@ export class EventsListComponent implements OnInit {
   }
 
   downloadCsv(e: EventRow): void {
+    if (this.csvId()) return;
     this.csvId.set(e.id); this.actionError.set('');
-    this.api.attendeesCsv(e.id).subscribe({
-      next: blob => {
-        this.csvId.set('');
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `${e.slug}-attendees.csv`; a.style.display = 'none';
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      },
-      error: err => { this.csvId.set(''); this.actionError.set(err?.error?.message || 'Attendee export failed.'); }
-    });
+    // Browser-native same-origin download. Authentication remains on the httpOnly cookie
+    // and the request is no longer routed through Angular's XHR/blob pipeline.
+    const a = document.createElement('a');
+    a.href = `/api/v1/admin/events/${encodeURIComponent(e.id)}/attendees.csv`;
+    a.download = `${e.slug}-attendees.csv`;
+    a.rel = 'noopener'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); a.remove();
+    window.setTimeout(() => this.csvId.set(''), 1200);
   }
 }

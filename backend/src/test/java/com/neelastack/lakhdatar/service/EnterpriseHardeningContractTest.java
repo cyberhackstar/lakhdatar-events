@@ -39,7 +39,10 @@ class EnterpriseHardeningContractTest {
     void largeExportsAndSitemapsAreBounded() throws Exception {
         String admin = read("src/main/java/com/neelastack/lakhdatar/service/AdminService.java");
         assertTrue(admin.contains("setFetchSize(1000)"));
-        assertTrue(read("src/main/java/com/neelastack/lakhdatar/controller/AdminController.java").contains("StreamingResponseBody"));
+        String controller = read("src/main/java/com/neelastack/lakhdatar/controller/AdminController.java");
+        assertTrue(controller.contains("ResponseEntity<byte[]>"));
+        assertTrue(controller.contains("Content-Disposition"));
+        assertTrue(controller.contains("contentLength(body.length)"));
         String seo = read("src/main/java/com/neelastack/lakhdatar/controller/SeoController.java");
         assertTrue(seo.contains("SITEMAP_PAGE_SIZE = 10_000"));
         assertTrue(seo.contains("/sitemap-{page:[0-9]+}.xml"));

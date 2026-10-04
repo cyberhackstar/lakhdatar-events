@@ -1,11 +1,14 @@
-# IMPLEMENTATION STATUS 1.9.36
+# IMPLEMENTATION STATUS 1.9.39
 
-Release details: `CHANGES-1.9.36.md` and `VALIDATION-1.9.36.md`.
+Release details: `CHANGES-1.9.39.md` and `VALIDATION-1.9.39.md`.
 
 ## Current correction
-- Fixed the frontend TestBed CI failure by loading `zone.js` and `zone.js/testing` before Angular test imports.
-- Retained the v1.9.35 typed `ApiService.queryParams()` correction.
-- Preserved the v1.9.34 payment, scanner, CSP and query-sanitization runtime hardening.
+- Fixed the live Cashfree hosted-checkout CSP/iframe failure by using the supported `_self` redirect and removed the mobile checkout blocking/blur state.
+- Fixed the finance ledger `500` caused by querying nonexistent `financial_ledger_entries.entry_id`; ledger reads now use `public_id`.
+- Fixed multi-day customer booking state to stay open through the full event end and aligned checkout authorization to the same window.
+- Fixed event create/edit booking-end defaults, event-end linkage, and safe edits to in-progress events.
+- Fixed admin CSV download path and buffered admin event responses at NGINX.
+- Retained the Angular Zone.js test-runtime correction, typed query sanitizer, scanner session reuse and CSP hardening from earlier releases.
 
 ---
 

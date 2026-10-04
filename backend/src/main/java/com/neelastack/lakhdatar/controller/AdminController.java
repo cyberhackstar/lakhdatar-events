@@ -9,8 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
-import java.nio.charset.StandardCharsets;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -203,13 +201,14 @@ public class AdminController {
     }
 
     @GetMapping(value = "/events/{eventId}/attendees.csv", produces = "text/csv")
-    ResponseEntity<StreamingResponseBody> csv(@PathVariable UUID eventId, Authentication a) {
-        UserPrincipal u = p(a);
-        StreamingResponseBody body = output -> {
-            try (var writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(output, StandardCharsets.UTF_8))) {
-                admin.writeAttendeesCsv(eventId, u, writer);
-            }
-        };
-        return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=attendees.csv").body(body);
+    ResponseEntity<byte[]> csv(@PathVariable UUID eventId, Authentication a) {
+        byte[] body = admin.attendeesCsvBytes(eventId, p(a));
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=attendees.csv")
+                .header("Cache-Control", "no-store, private")
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .contentLength(body.length)
+                .body(body);
     }
 }

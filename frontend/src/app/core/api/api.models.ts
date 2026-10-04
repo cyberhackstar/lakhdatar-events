@@ -134,6 +134,8 @@ export interface TicketView {
   checkedInAt?: string;
   source?: string;
   issuedByName?: string;
+  ticketPosition: number;
+  orderTicketCount: number;
   qrDataUri: string;
   brand: BrandConfig;
 }
@@ -221,6 +223,8 @@ export interface ScanResponse {
   checkedInAt: string | null;
   ticketSource: string | null;
   issuedByName: string | null;
+  ticketPosition: number;
+  orderTicketCount: number;
 }
 
 export interface InitialAdminSetupStatus { enabled: boolean; completed: boolean; }

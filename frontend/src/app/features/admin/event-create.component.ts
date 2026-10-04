@@ -48,6 +48,15 @@ import { AdminStore } from './admin-store.service';
         </label>
         <label class="field"><span>Ends <small>(optional)</small></span>
           <input type="datetime-local" formControlName="endsAt" />
+          <small>For multi-day events, booking can remain open through this end time.</small>
+        </label>
+        <label class="field"><span>Booking starts <small>(optional)</small></span>
+          <input type="datetime-local" formControlName="bookingStartsAt" />
+          <small>Leave blank to allow sales immediately after publication.</small>
+        </label>
+        <label class="field"><span>Booking ends <small>(optional)</small></span>
+          <input type="datetime-local" formControlName="bookingEndsAt" />
+          <small>Leave blank to close automatically at the event end.</small>
         </label>
         <label class="field">Category
           <input formControlName="category" list="categories" placeholder="Concert, Festival, Wedding…" autocomplete="off" />
@@ -153,6 +162,8 @@ export class EventCreateComponent implements OnInit {
     category: ['General', Validators.maxLength(120)],
     startsAt: ['', Validators.required],
     endsAt: [''],
+    bookingStartsAt: [''],
+    bookingEndsAt: [''],
     venueName: ['', [Validators.required, Validators.maxLength(255)]],
     city: ['Jaipur', Validators.maxLength(120)],
     venueAddress: ['', Validators.maxLength(500)],
@@ -208,9 +219,16 @@ export class EventCreateComponent implements OnInit {
     const v = this.form.getRawValue();
     const startsAt = toIsoInZone(v.startsAt, DEFAULT_TZ);
     const endsAt = v.endsAt ? toIsoInZone(v.endsAt, DEFAULT_TZ) : undefined;
-    if (!startsAt || (v.endsAt && !endsAt)) { this.error = 'Enter valid event start and end times.'; return; }
+    const bookingStartsAt = v.bookingStartsAt ? toIsoInZone(v.bookingStartsAt, DEFAULT_TZ) : undefined;
+    const bookingEndsAtInput = v.bookingEndsAt ? toIsoInZone(v.bookingEndsAt, DEFAULT_TZ) : undefined;
+    const effectiveEventEnd = endsAt || startsAt;
+    const bookingEndsAt = bookingEndsAtInput || (endsAt || undefined);
+    if (!startsAt || (v.endsAt && !endsAt) || (v.bookingStartsAt && !bookingStartsAt) || (v.bookingEndsAt && !bookingEndsAtInput)) { this.error = 'Enter valid event and booking times.'; return; }
     if (new Date(startsAt).getTime() < Date.now() - 5 * 60_000) { this.error = 'The event start time is in the past.'; return; }
     if (endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) { this.error = 'Event end time must be after the start time.'; return; }
+    if (bookingStartsAt && new Date(bookingStartsAt).getTime() >= new Date(startsAt).getTime()) { this.error = 'Booking must start before the event begins.'; return; }
+    if (bookingStartsAt && bookingEndsAt && new Date(bookingEndsAt).getTime() <= new Date(bookingStartsAt).getTime()) { this.error = 'Booking end must be after booking start.'; return; }
+    if (bookingEndsAt && effectiveEventEnd && new Date(bookingEndsAt).getTime() > new Date(effectiveEventEnd).getTime()) { this.error = 'Booking can remain open only until the event ends.'; return; }
     const tickets = v.ticketTypes.map((t: any) => ({
       name: String(t.name).trim(), description: '', priceMinorUnits: Math.round(Number(t.priceRupees) * 100),
       totalQuantity: Number(t.totalQuantity), minPerOrder: Number(t.minPerOrder), maxPerOrder: Number(t.maxPerOrder)
@@ -222,6 +240,7 @@ export class EventCreateComponent implements OnInit {
     const body = {
       organizerSlug: v.organizerSlug || undefined, slug: v.slug, name: v.name.trim(), description: v.description || '',
       category: v.category.trim() || 'General', startsAt, endsAt, timezone: DEFAULT_TZ, capacity: Number(v.capacity),
+      bookingStartsAt, bookingEndsAt,
       venueName: v.venueName.trim(), venueAddress: v.venueAddress || '', city: v.city || '',
       paymentProvider: v.paymentProvider, ticketTypes: tickets
     };

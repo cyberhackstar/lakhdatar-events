@@ -36,13 +36,26 @@ class SalesStateTest {
         assertEquals("CANCELLED", PublicEventService.salesState(event(Enums.EventStatus.CANCELLED, 5), true, 500, 1000, now));
         assertEquals("COMPLETED", PublicEventService.salesState(event(Enums.EventStatus.COMPLETED, -5), true, 500, 1000, now));
     }
-    @Test void startedEventIsClosedThenCompleted() {
+    @Test void multiDayEventKeepsBookingOpenUntilEventEnd() {
         Event running = event(Enums.EventStatus.PUBLISHED, 0);
         running.setStartsAt(now.minusSeconds(60)); running.setEndsAt(now.plusSeconds(3600));
-        assertEquals("BOOKING_CLOSED", PublicEventService.salesState(running, true, 500, 1000, now));
+        assertEquals("AVAILABLE", PublicEventService.salesState(running, true, 500, 1000, now));
+        assertTrue(PublicEventService.bookingWindowOpen(running, now));
         running.setEndsAt(now.minusSeconds(10));
         assertEquals("COMPLETED", PublicEventService.salesState(running, true, 500, 1000, now));
+        assertFalse(PublicEventService.bookingWindowOpen(running, now));
     }
+    @Test void multiDayBookingWindowUsesEndWhenExplicitBookingEndIsAbsent() {
+        Event e = event(Enums.EventStatus.PUBLISHED, 0);
+        e.setStartsAt(now.minusSeconds(3600));
+        e.setEndsAt(now.plusSeconds(3600));
+        e.setBookingStartsAt(now.minusSeconds(7200));
+        e.setBookingEndsAt(null);
+        assertTrue(PublicEventService.bookingWindowOpen(e, now));
+        e.setEndsAt(now.minusSeconds(1));
+        assertFalse(PublicEventService.bookingWindowOpen(e, now));
+    }
+
     @Test void bookingWindowStatesAreHonoured() {
         Event e = event(Enums.EventStatus.PUBLISHED, 5);
         e.setBookingStartsAt(now.plusSeconds(3600));

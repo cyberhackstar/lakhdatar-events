@@ -53,9 +53,9 @@ import { EventTeamPanelComponent } from './event-team-panel.component';
             </label>
             <label>Event capacity <input formControlName="capacity" type="number" readonly aria-readonly="true" /><small>Capacity is fixed after creation for inventory safety.</small></label>
             <label>Starts<input formControlName="startsAt" type="datetime-local" /></label>
-            <label>Ends<input formControlName="endsAt" type="datetime-local" /></label>
-            <label>Booking starts<input formControlName="bookingStartsAt" type="datetime-local" /></label>
-            <label>Booking ends<input formControlName="bookingEndsAt" type="datetime-local" /></label>
+            <label>Ends<input formControlName="endsAt" type="datetime-local" /><small>Multi-day events can accept bookings through this end time.</small></label>
+            <label>Booking starts<input formControlName="bookingStartsAt" type="datetime-local" /><small>Must be before the event begins.</small></label>
+            <label>Booking ends<input formControlName="bookingEndsAt" type="datetime-local" /><small>Sales stay open through this time. Leave it tied to the event end to accept bookings until the event finishes.</small></label>
           </div>
         </div>
 
@@ -91,17 +91,17 @@ import { EventTeamPanelComponent } from './event-team-panel.component';
         <div class="editor-section">
           <div class="section-title"><span>06</span><div><h3>Presentation & payments</h3><p>Configure the event brand and payment gateway without exposing provider secrets.</p></div></div>
           <div class="grid three">
-            <label>Payment provider<select formControlName="paymentProvider"><option value="RAZORPAY">Razorpay</option><option value="CASHFREE">Cashfree</option></select><small>Changing after payment activity is blocked.</small></label>
+            <label>Payment provider<select formControlName="paymentProvider"><option value="RAZORPAY">Razorpay</option><option value="CASHFREE">Cashfree</option></select><small>Only changes when you intentionally choose a different provider.</small></label>
             <label>Brand display<select formControlName="brandingMode"><option value="BOTH">Logo + text</option><option value="LOGO_ONLY">Logo only</option><option value="TEXT_ONLY">Text only</option></select></label>
             <label class="toggle"><input type="checkbox" formControlName="featured" /><span>Featured event</span></label>
             <label>Display order<input formControlName="displayOrder" type="number" min="0" /></label>
             <div class="read-only-brand"><span>Organizer</span><strong>{{ event.organizerName }}</strong><small>Platform owner: Neelastack</small></div>
           </div>
           <div class="asset-grid">
-            <div class="asset-card"><div><strong>Organizer logo</strong><small>Updates the organizer identity across its events.</small></div><button type="button" class="small-action" (click)="chooseFile('ORGANIZER_LOGO')">Upload</button></div>
-            <div class="asset-card"><div><strong>Event logo</strong><small>Displayed as the event-specific mark.</small></div><button type="button" class="small-action" (click)="chooseFile('EVENT_LOGO')">Upload</button></div>
-            <div class="asset-card"><div><strong>Event banner</strong><small>Premium hero/banner artwork.</small></div><button type="button" class="small-action" (click)="chooseFile('EVENT_BANNER')">Upload</button></div>
-            <div class="asset-card"><div><strong>Event cover</strong><small>Used by cards and catalogue surfaces.</small></div><button type="button" class="small-action" (click)="chooseFile('EVENT_COVER')">Upload</button></div>
+            <div class="asset-card"><div><strong>Organizer logo</strong><small>Updates the organizer identity across its events.</small></div><button type="button" class="small-action" (click)="chooseFile('ORGANIZER_LOGO')" [disabled]="eventEditsLocked">Upload</button></div>
+            <div class="asset-card"><div><strong>Event logo</strong><small>Displayed as the event-specific mark.</small></div><button type="button" class="small-action" (click)="chooseFile('EVENT_LOGO')" [disabled]="eventEditsLocked">Upload</button></div>
+            <div class="asset-card"><div><strong>Event banner</strong><small>Premium hero/banner artwork.</small></div><button type="button" class="small-action" (click)="chooseFile('EVENT_BANNER')" [disabled]="eventEditsLocked">Upload</button></div>
+            <div class="asset-card"><div><strong>Event cover</strong><small>Used by cards and catalogue surfaces.</small></div><button type="button" class="small-action" (click)="chooseFile('EVENT_COVER')" [disabled]="eventEditsLocked">Upload</button></div>
           </div>
           <input #assetInput type="file" accept="image/jpeg,image/png" hidden (change)="uploadSelected($event)" />
         </div>
@@ -130,23 +130,23 @@ import { EventTeamPanelComponent } from './event-team-panel.component';
                 <span>Sold <b>{{group.get('soldQuantity')?.value || 0}}</b></span>
                 <span>Reserved <b>{{group.get('reservedQuantity')?.value || 0}}</b></span>
                 <span>Available <b>{{group.get('availableQuantity')?.value || 0}}</b></span>
-                <button type="button" class="small-action" (click)="saveTicket(i)" [disabled]="savingTicketIndex===i || group.invalid">{{savingTicketIndex===i?'Saving…':(group.get('id')?.value?'Save ticket':'Add ticket')}}</button>
+                <button type="button" class="small-action" (click)="saveTicket(i)" [disabled]="eventEditsLocked || savingTicketIndex===i || group.invalid">{{savingTicketIndex===i?'Saving…':(group.get('id')?.value?'Save ticket':'Add ticket')}}</button>
               </div>
             </article>
           </div>
-          <button type="button" class="add-ticket" (click)="addTicket()">+ Add ticket type</button>
+          <button type="button" class="add-ticket" (click)="addTicket()" [disabled]="eventEditsLocked">+ Add ticket type</button>
         </div>
 
         <div class="editor-footer">
           <div class="lifecycle">
             <span class="state">{{event.status}}</span>
-            <button type="button" *ngIf="event.status==='DRAFT' || event.status==='UNPUBLISHED'" (click)="transition('publish')">Publish</button>
-            <button type="button" *ngIf="event.status==='PUBLISHED'" (click)="transition('unpublish')">Unpublish</button>
-            <button type="button" class="danger" *ngIf="event.status==='DRAFT' || event.status==='PUBLISHED' || event.status==='UNPUBLISHED'" (click)="transition('cancel')">Cancel event</button>
-            <button type="button" *ngIf="event.status==='PUBLISHED'" (click)="transition('complete')">Complete</button>
-            <button type="button" *ngIf="event.status!=='PUBLISHED' && event.status!=='ARCHIVED'" (click)="transition('archive')">Archive</button>
+            <button type="button" *ngIf="event.status==='DRAFT' || event.status==='UNPUBLISHED'" [disabled]="transitioningAction!==null || !canPublish" [title]="publishHint" (click)="transition('publish')">{{transitioningAction==='publish'?'Publishing…':'Publish'}}</button>
+            <button type="button" *ngIf="event.status==='PUBLISHED'" [disabled]="transitioningAction!==null" (click)="transition('unpublish')">{{transitioningAction==='unpublish'?'Unpublishing…':'Unpublish'}}</button>
+            <button type="button" class="danger" *ngIf="event.status==='DRAFT' || event.status==='PUBLISHED' || event.status==='UNPUBLISHED'" [disabled]="transitioningAction!==null" (click)="transition('cancel')">{{transitioningAction==='cancel'?'Cancelling…':'Cancel event'}}</button>
+            <button type="button" *ngIf="canComplete" [disabled]="transitioningAction!==null" (click)="transition('complete')">{{transitioningAction==='complete'?'Completing…':'Complete event'}}</button>
+            <button type="button" *ngIf="event.status!=='PUBLISHED' && event.status!=='ARCHIVED'" [disabled]="transitioningAction!==null" (click)="transition('archive')">{{transitioningAction==='archive'?'Archiving…':'Archive'}}</button>
           </div>
-          <button class="save-event" type="submit" [disabled]="saving || form.invalid">{{saving?'Saving…':'Save event changes'}} <span>→</span></button>
+          <button class="save-event" type="submit" [disabled]="eventEditsLocked || saving || form.invalid || transitioningAction!==null">{{saving?'Saving…':'Save event changes'}} <span>→</span></button>
         </div>
       </form>
     </section>
@@ -219,6 +219,8 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   loading = false;
   saving = false;
   savingTicketIndex = -1;
+  transitioningAction: 'publish' | 'unpublish' | 'cancel' | 'complete' | 'archive' | null = null;
+  originalPaymentProvider = 'RAZORPAY';
   private _error = '';
   private _success = '';
   get error(): string { return this._error; }
@@ -272,6 +274,29 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
 
   ngOnDestroy(): void { this.subscriptions.unsubscribe(); }
 
+  get eventEditsLocked(): boolean {
+    return !!this.event && ['COMPLETED', 'ARCHIVED', 'CANCELLED'].includes(this.event.status);
+  }
+
+  get canComplete(): boolean {
+    if (!this.event || this.event.status !== 'PUBLISHED') return false;
+    const end = this.event.endsAt || this.event.startsAt;
+    return !!end && new Date(end).getTime() <= Date.now();
+  }
+
+  get canPublish(): boolean {
+    if (!this.event || !['DRAFT', 'UNPUBLISHED'].includes(this.event.status)) return false;
+    if (!this.event.ticketTypes?.length) return false;
+    return new Date(this.event.startsAt).getTime() > Date.now();
+  }
+
+  get publishHint(): string {
+    if (!this.event) return '';
+    if (!this.event.ticketTypes?.length) return 'Add at least one ticket type before publishing.';
+    if (new Date(this.event.startsAt).getTime() <= Date.now()) return 'An event in the past cannot be published.';
+    return 'Publish this event';
+  }
+
   private load(keepMessages = false): void {
     this.loading = true;
     if (!keepMessages) { this.error = ''; this.success = ''; }
@@ -285,12 +310,13 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     this.form.patchValue({
       name:e.name, shortDescription:e.shortDescription || '', description:e.description || '', category:e.category || '',
       startsAt:this.toLocalInput(e.startsAt, e.timezone), endsAt:this.toLocalInput(e.endsAt, e.timezone),
-      bookingStartsAt:this.toLocalInput(e.bookingStartsAt, e.timezone), bookingEndsAt:this.toLocalInput(e.bookingEndsAt, e.timezone),
+      bookingStartsAt:this.toLocalInput(e.bookingStartsAt, e.timezone), bookingEndsAt:this.toLocalInput(e.bookingEndsAt || e.endsAt, e.timezone),
       timezone:e.timezone || DEFAULT_TZ, capacity:e.capacity || 0, venueName:e.venueName || '', venueAddress:e.venueAddress || '',
       city:e.city || '', state:e.state || '', mapUrl:e.mapUrl || '', coverImageUrl:e.coverImageUrl || '',
       gallery:(e.gallery || []).join('\n'), highlights:(e.highlights || []).join('\n'), terms:e.terms || '', refundPolicy:e.refundPolicy || '',
       ageRestriction:e.ageRestriction || '', featured:e.featured, displayOrder:e.displayOrder || 0, paymentProvider:e.paymentProvider || 'RAZORPAY', brandingMode:e.brandingMode || 'BOTH', organizerLogoUrl:e.organizerLogoUrl || '', eventLogoUrl:e.eventLogoUrl || '', eventBannerUrl:e.eventBannerUrl || ''
     });
+    this.originalPaymentProvider = e.paymentProvider || 'RAZORPAY';
     this.ticketForms.clear();
     for (const t of e.ticketTypes) this.ticketForms.push(this.ticketGroup(t));
   }
@@ -307,6 +333,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   }
 
   addTicket(): void {
+    if (this.eventEditsLocked) return;
     const fallback: AdminEventView['ticketTypes'][number] = { id:'', name:'New ticket', description:'', priceMinorUnits:99900, currency:this.event?.currency || 'INR', totalQuantity:100, soldQuantity:0, reservedQuantity:0, availableQuantity:100, minPerOrder:1, maxPerOrder:10, status:'ACTIVE' };
     this.ticketForms.push(this.ticketGroup(fallback));
   }
@@ -314,6 +341,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   private selectedPurpose: 'ORGANIZER_LOGO' | 'EVENT_LOGO' | 'EVENT_BANNER' | 'EVENT_COVER' = 'EVENT_COVER';
 
   chooseFile(purpose: 'ORGANIZER_LOGO' | 'EVENT_LOGO' | 'EVENT_BANNER' | 'EVENT_COVER'): void {
+    if (this.eventEditsLocked) return;
     this.selectedPurpose = purpose;
     this.assetInput?.nativeElement.click();
   }
@@ -322,7 +350,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
-    if (!file || !this.event) return;
+    if (!file || !this.event || this.eventEditsLocked) return;
     if (file.size > 5 * 1024 * 1024) { this.error = 'Image must be 5 MB or smaller.'; return; }
     this.error = ''; this.success = '';
     this.subscriptions.add(this.api.uploadAdminAsset(file, this.selectedPurpose, this.event.id, this.event.organizerSlug).subscribe({
@@ -332,27 +360,44 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   }
 
   saveEvent(): void {
+    if (this.eventEditsLocked) { this.error = 'This event is finalized and is now read-only.'; return; }
     if (!this.event || this.form.invalid) { this.form.markAllAsTouched(); return; }
     const v = this.form.getRawValue();
     const timezone = String(v.timezone || this.event.timezone || DEFAULT_TZ);
     const startsAt = this.toIsoInZone(v.startsAt || '', timezone);
     const endsAt = this.optionalIso(v.endsAt, timezone);
+    const existingStartsAt = this.event.startsAt;
     const bookingStartsAt = this.optionalIso(v.bookingStartsAt, timezone);
-    const bookingEndsAt = this.optionalIso(v.bookingEndsAt, timezone);
+    const bookingEndsAtInput = this.optionalIso(v.bookingEndsAt, timezone);
+    const previousEventEnd = this.event.endsAt || this.event.startsAt;
+    const effectiveEventEnd = endsAt || startsAt;
+    // When booking-end was implicitly tied to the previous event end, keep it tied
+    // to the new event end. Explicit custom booking windows remain untouched.
+    let bookingEndsAt: string | undefined;
+    if (bookingEndsAtInput && previousEventEnd &&
+        new Date(bookingEndsAtInput).getTime() === new Date(previousEventEnd).getTime()) {
+      bookingEndsAt = endsAt || undefined;
+    } else {
+      bookingEndsAt = bookingEndsAtInput || (endsAt ? endsAt : undefined);
+    }
     if (!startsAt) { this.error = 'Enter a valid event start time.'; return; }
+    const startChanged = !existingStartsAt || new Date(startsAt).getTime() !== new Date(existingStartsAt).getTime();
+    if (startChanged && new Date(startsAt).getTime() < Date.now() - 5 * 60_000) { this.error = 'A changed event start time cannot be in the past.'; return; }
     if (endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) { this.error = 'Event end must be after the start.'; return; }
-    if (bookingStartsAt && bookingEndsAt && new Date(bookingEndsAt).getTime() <= new Date(bookingStartsAt).getTime()) { this.error = 'Booking end must be after booking start.'; return; }
     if (bookingStartsAt && new Date(bookingStartsAt).getTime() >= new Date(startsAt).getTime()) { this.error = 'Booking must start before the event begins.'; return; }
-    if (bookingEndsAt && new Date(bookingEndsAt).getTime() > new Date(startsAt).getTime()) { this.error = 'Booking must end on or before the event start.'; return; }
+    if (bookingStartsAt && bookingEndsAt && new Date(bookingEndsAt).getTime() <= new Date(bookingStartsAt).getTime()) { this.error = 'Booking end must be after booking start.'; return; }
+    if (bookingEndsAt && new Date(bookingEndsAt).getTime() > new Date(effectiveEventEnd).getTime()) { this.error = 'Booking can remain open only until the event ends.'; return; }
     this.saving = true; this.error=''; this.success='';
     const body: Record<string, unknown> = {
       name: String(v.name || '').trim(), shortDescription: v.shortDescription || '', description: v.description || '', category: String(v.category || '').trim(),
       startsAt, endsAt, clearEndsAt: !v.endsAt, timezone,
-      bookingStartsAt, bookingEndsAt, clearBookingStartsAt: !v.bookingStartsAt, clearBookingEndsAt: !v.bookingEndsAt,
+      bookingStartsAt, bookingEndsAt, clearBookingStartsAt: !bookingStartsAt, clearBookingEndsAt: !bookingEndsAt,
       venueName: v.venueName || '', venueAddress: v.venueAddress || '', city: v.city || '', state: v.state || '', mapUrl: v.mapUrl || '',
       coverImageUrl: v.coverImageUrl || '', galleryUrls: this.lines(v.gallery), highlights: this.lines(v.highlights), terms: v.terms || '', refundPolicy: v.refundPolicy || '', ageRestriction: v.ageRestriction || '',
-      featured: !!v.featured, displayOrder: Number(v.displayOrder || 0), paymentProvider: String(v.paymentProvider || 'RAZORPAY'), organizerLogoUrl: String(v.organizerLogoUrl || ''), eventLogoUrl: String(v.eventLogoUrl || ''), eventBannerUrl: String(v.eventBannerUrl || ''), brandingMode: String(v.brandingMode || 'BOTH')
+      featured: !!v.featured, displayOrder: Number(v.displayOrder || 0), organizerLogoUrl: String(v.organizerLogoUrl || ''), eventLogoUrl: String(v.eventLogoUrl || ''), eventBannerUrl: String(v.eventBannerUrl || ''), brandingMode: String(v.brandingMode || 'BOTH')
     };
+    // Do not accidentally submit the form's default provider value as a provider change.
+    if (String(v.paymentProvider || 'RAZORPAY') !== this.originalPaymentProvider) body.paymentProvider = String(v.paymentProvider || 'RAZORPAY');
     // The backend update contract intentionally does not alter currency, slug, capacity, or organizer ownership.
     this.subscriptions.add(this.api.updateEvent(this.event.id, body).subscribe({
       next: () => { this.saving=false; this.success='Event changes saved.'; this.load(true); this.store.load(true); },
@@ -361,6 +406,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   }
 
   saveTicket(index: number): void {
+    if (this.eventEditsLocked) { this.error = 'This event is finalized and ticket inventory is now read-only.'; return; }
     const group = this.ticketForms.at(index) as any;
     if (!group || group.invalid || !this.event) { group?.markAllAsTouched(); return; }
     const v = group.getRawValue();
@@ -386,17 +432,20 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   }
 
   transition(action: 'publish'|'unpublish'|'cancel'|'complete'|'archive'): void {
-    if (!this.event) return;
+    if (!this.event || this.transitioningAction) return;
+    if (action === 'complete' && !this.canComplete) { this.error = 'An event can be completed only after its end date and time.'; return; }
+    if (this.eventEditsLocked && action !== 'archive') return;
     if ((action === 'cancel' || action === 'archive') && !globalThis.confirm(`Are you sure you want to ${action} this event?`)) return;
     this.error=''; this.success='';
     const label = action.charAt(0).toUpperCase()+action.slice(1);
     const DONE: Record<string, string> = { publish: 'published', unpublish: 'unpublished', cancel: 'cancelled', complete: 'marked as completed', archive: 'archived' };
+    this.transitioningAction = action;
     const request$ = action === 'publish'
       ? this.api.publishEvent(this.event.id)
       : this.api.adminTransition(this.event.id, action);
     this.subscriptions.add(request$.subscribe({
-      next: () => { this.success=`Event ${DONE[action]} successfully.`; this.load(true); this.store.load(true); },
-      error: err => { this.error=err?.error?.message || `${label} failed.`; }
+      next: () => { this.transitioningAction=null; this.success=`Event ${DONE[action]} successfully.`; this.load(true); this.store.load(true); },
+      error: err => { this.transitioningAction=null; this.error=err?.error?.message || `${label} failed.`; }
     }));
   }
 

@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.Locale;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -93,7 +94,7 @@ public class EventManagementService {
         validateAssetUrl(r.coverImageUrl(), "cover image");
         if (r.galleryUrls() != null) { if (r.galleryUrls().size() > 12) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_GALLERY", "At most 12 gallery images"); r.galleryUrls().forEach(u -> validateAssetUrl(u, "gallery image")); }
         validateAssetUrl(r.mapUrl(), "map");
-        validateWindow(r.bookingStartsAt(), r.bookingEndsAt(), r.startsAt());
+        validateWindow(r.bookingStartsAt(), r.bookingEndsAt(), r.startsAt(), r.endsAt());
         if (events.findBySlug(r.slug()).isPresent())
             throw new ApiException(HttpStatus.CONFLICT, "SLUG_EXISTS", "An event with this slug already exists");
 
@@ -130,7 +131,8 @@ public class EventManagementService {
         e.setShortDescription(r.shortDescription()); e.setCategory(value(r.category(), "General").trim());
         e.setTimezone(value(r.timezone(), "Asia/Kolkata")); e.setCoverImageUrl(r.coverImageUrl());
         e.setGalleryUrls(join(r.galleryUrls())); e.setHighlights(join(r.highlights()));
-        e.setBookingStartsAt(r.bookingStartsAt()); e.setBookingEndsAt(r.bookingEndsAt());
+        e.setBookingStartsAt(r.bookingStartsAt());
+        e.setBookingEndsAt(r.bookingEndsAt() != null ? r.bookingEndsAt() : r.endsAt());
         e.setTerms(r.terms()); e.setRefundPolicy(r.refundPolicy()); e.setAgeRestriction(r.ageRestriction());
         e.setFeatured(Boolean.TRUE.equals(r.featured())); e.setDisplayOrder(r.displayOrder() == null ? 0 : r.displayOrder());
         events.save(e);
@@ -155,6 +157,9 @@ public class EventManagementService {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TICKET_BOUNDS", "Ticket purchase limits are invalid");
             if (x.saleStartsAt() != null && x.saleEndsAt() != null && !x.saleEndsAt().isAfter(x.saleStartsAt()))
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TICKET_TYPE_DATES", "Ticket sale end must be after sale start");
+            Instant eventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();
+            if (x.saleEndsAt() != null && eventEnd != null && x.saleEndsAt().isAfter(eventEnd))
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TICKET_TYPE_DATES", "Ticket sale end cannot be after the event ends");
             TicketType t = new TicketType(); t.setEventId(e.getId()); t.setName(x.name().trim()); t.setDescription(x.description());
             t.setPriceMinorUnits(x.priceMinorUnits()); t.setCurrency("INR"); t.setTotalQuantity(x.totalQuantity());
             t.setMinPerOrder(min); t.setMaxPerOrder(max);
@@ -198,14 +203,19 @@ public class EventManagementService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         authorize(managedEvent, actorId, role);
         Event e = managedEvent;
+        // Publishing is idempotent so duplicate clicks/retries cannot create noisy 409s.
+        if (e.getStatus() == Enums.EventStatus.PUBLISHED) return;
         if (ticketTypes.findByEventIdOrderByPriceMinorUnitsAsc(e.getId()).isEmpty())
             throw new ApiException(HttpStatus.CONFLICT, "NO_TICKETS", "Add at least one ticket type before publishing");
-        if (e.getStartsAt().isBefore(Instant.now()))
+        Instant now = Instant.now();
+        if (e.getStartsAt().isBefore(now))
             throw new ApiException(HttpStatus.CONFLICT, "EVENT_STARTED", "An event in the past cannot be published");
         if (e.getStatus() != Enums.EventStatus.DRAFT && e.getStatus() != Enums.EventStatus.UNPUBLISHED)
             throw new ApiException(HttpStatus.CONFLICT, "INVALID_TRANSITION", "Only draft or unpublished events can be published");
+        if (e.getBookingEndsAt() == null && e.getEndsAt() != null) e.setBookingEndsAt(e.getEndsAt());
+        validateWindow(e.getBookingStartsAt(), e.getBookingEndsAt(), e.getStartsAt(), e.getEndsAt());
         e.setStatus(Enums.EventStatus.PUBLISHED);
-        if (e.getPublishedAt() == null) e.setPublishedAt(Instant.now());
+        if (e.getPublishedAt() == null) e.setPublishedAt(now);
         audit.log(actorId, "EVENT_PUBLISHED", "EVENT", e.getPublicId().toString(), null);
     }
 
@@ -217,6 +227,11 @@ public class EventManagementService {
         Event managedEvent = managed(eventPublicId, actorId, role);
         Event e = events.findByIdForUpdate(managedEvent.getId()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         Enums.EventStatus from = e.getStatus();
+        // Lifecycle endpoints are retry-safe: repeating a completed state is a no-op.
+        if ((t == Transition.UNPUBLISH && from == Enums.EventStatus.UNPUBLISHED)
+                || (t == Transition.CANCEL && from == Enums.EventStatus.CANCELLED)
+                || (t == Transition.COMPLETE && from == Enums.EventStatus.COMPLETED)
+                || (t == Transition.ARCHIVE && from == Enums.EventStatus.ARCHIVED)) return;
         Enums.EventStatus to;
         switch (t) {
             case UNPUBLISH -> { require(from == Enums.EventStatus.PUBLISHED, "Only a published event can be unpublished"); to = Enums.EventStatus.UNPUBLISHED; }
@@ -228,7 +243,13 @@ public class EventManagementService {
                     if (ticket.getStatus() == Enums.TicketStatus.ISSUED) ticket.setStatus(Enums.TicketStatus.CANCELLED);
                 });
             }
-            case COMPLETE -> { require(from == Enums.EventStatus.PUBLISHED && !e.getStartsAt().isAfter(Instant.now()), "Only a published event that has started can be completed"); to = Enums.EventStatus.COMPLETED; }
+            case COMPLETE -> {
+                Instant now = Instant.now();
+                Instant eventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();
+                require(from == Enums.EventStatus.PUBLISHED && eventEnd != null && !eventEnd.isAfter(now),
+                        "Only a published event that has ended can be completed");
+                to = Enums.EventStatus.COMPLETED;
+            }
             case ARCHIVE -> { require(from != Enums.EventStatus.PUBLISHED && from != Enums.EventStatus.ARCHIVED, "Unpublish or cancel the event before archiving"); to = Enums.EventStatus.ARCHIVED; }
             default -> throw new IllegalStateException();
         }
@@ -243,14 +264,26 @@ public class EventManagementService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         authorize(e, actorId, role);
         require(e.getStatus() != Enums.EventStatus.COMPLETED && e.getStatus() != Enums.EventStatus.ARCHIVED && e.getStatus() != Enums.EventStatus.CANCELLED, "This event can no longer be edited");
+        Instant previousEventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();
+        boolean bookingEndExplicit = Boolean.TRUE.equals(r.clearBookingEndsAt()) || r.bookingEndsAt() != null;
         if (r.name() != null) { String n = r.name().trim(); if (n.length() < 3 || n.length() > 180) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EVENT", "Event name must be between 3 and 180 characters"); e.setName(n); }
-        if (r.startsAt() != null) { if (r.startsAt().isBefore(Instant.now().minusSeconds(300))) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_START", "Event start time is invalid"); e.setStartsAt(r.startsAt()); }
+        if (r.startsAt() != null) {
+            // Allow edits to an event already in progress when its existing start instant is unchanged.
+            // A newly selected start must still be in the future.
+            if (!Objects.equals(r.startsAt(), e.getStartsAt()) && r.startsAt().isBefore(Instant.now().minusSeconds(300)))
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_START", "A changed event start time cannot be in the past");
+            e.setStartsAt(r.startsAt());
+        }
         if (Boolean.TRUE.equals(r.clearEndsAt())) e.setEndsAt(null); else if (r.endsAt() != null) e.setEndsAt(r.endsAt());
         if (e.getEndsAt() != null && !e.getEndsAt().isAfter(e.getStartsAt())) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_END", "Event end must be after start");
         if (r.timezone() != null) e.setTimezone(validateTimezone(r.timezone()));
         if (Boolean.TRUE.equals(r.clearBookingStartsAt())) e.setBookingStartsAt(null); else if (r.bookingStartsAt() != null) e.setBookingStartsAt(r.bookingStartsAt());
         if (Boolean.TRUE.equals(r.clearBookingEndsAt())) e.setBookingEndsAt(null); else if (r.bookingEndsAt() != null) e.setBookingEndsAt(r.bookingEndsAt());
-        validateWindow(e.getBookingStartsAt(), e.getBookingEndsAt(), e.getStartsAt());
+        // If booking end previously followed the event end, move it with the event end.
+        if (!bookingEndExplicit && Objects.equals(e.getBookingEndsAt(), previousEventEnd)) e.setBookingEndsAt(e.getEndsAt());
+        // A newly introduced multi-day end defaults the booking end to that event end.
+        if (!bookingEndExplicit && e.getBookingEndsAt() == null && e.getEndsAt() != null) e.setBookingEndsAt(e.getEndsAt());
+        validateWindow(e.getBookingStartsAt(), e.getBookingEndsAt(), e.getStartsAt(), e.getEndsAt());
         if (r.shortDescription() != null) e.setShortDescription(r.shortDescription());
         if (r.description() != null) e.setDescription(r.description());
         if (r.category() != null && !r.category().isBlank()) e.setCategory(r.category().trim());
@@ -291,7 +324,7 @@ public class EventManagementService {
         // inventory-configuration mutation on the same event row, matching the checkout lock order.
         Event e = events.findByIdForUpdate(managedEvent.getId()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         require(e.getStatus() == Enums.EventStatus.DRAFT || e.getStatus() == Enums.EventStatus.PUBLISHED || e.getStatus() == Enums.EventStatus.UNPUBLISHED, "Ticket types can no longer be added");
-        validateTicketType(x.name(), x.priceMinorUnits(), x.totalQuantity(), x.minPerOrder(), x.maxPerOrder(), x.saleStartsAt(), x.saleEndsAt());
+        validateTicketType(x.name(), x.priceMinorUnits(), x.totalQuantity(), x.minPerOrder(), x.maxPerOrder(), x.saleStartsAt(), x.saleEndsAt(), e);
         TicketType t = new TicketType(); t.setEventId(e.getId()); t.setName(x.name().trim()); t.setDescription(x.description());
         t.setPriceMinorUnits(x.priceMinorUnits()); t.setCurrency(e.getCurrency()); t.setTotalQuantity(x.totalQuantity());
         t.setMinPerOrder(x.minPerOrder()); t.setMaxPerOrder(x.maxPerOrder()); t.setSaleStartsAt(x.saleStartsAt()); t.setSaleEndsAt(x.saleEndsAt());
@@ -318,7 +351,7 @@ public class EventManagementService {
         int max = r.maxPerOrder() != null ? r.maxPerOrder() : t.getMaxPerOrder();
         Instant ss = Boolean.TRUE.equals(r.clearSaleStartsAt()) ? null : (r.saleStartsAt() != null ? r.saleStartsAt() : t.getSaleStartsAt());
         Instant se = Boolean.TRUE.equals(r.clearSaleEndsAt()) ? null : (r.saleEndsAt() != null ? r.saleEndsAt() : t.getSaleEndsAt());
-        validateTicketType(name, price, total, min, max, ss, se);
+        validateTicketType(name, price, total, min, max, ss, se, e);
         if (total < t.getReservedQuantity() + t.getSoldQuantity())
             throw new ApiException(HttpStatus.CONFLICT, "INVENTORY_BELOW_COMMITTED", "Quantity cannot be lower than tickets already reserved or sold");
         checkCapacity(e, t.getTotalQuantity(), total);
@@ -350,17 +383,27 @@ public class EventManagementService {
     private String parseBrandingMode(String raw) { if (raw == null || raw.isBlank()) return "BOTH"; String v=raw.trim().toUpperCase(Locale.ROOT); if (!java.util.Set.of("TEXT_ONLY","LOGO_ONLY","BOTH").contains(v)) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_BRANDING_MODE","Unsupported branding display mode"); return v; }
     private Enums.PaymentProvider parsePaymentProvider(String raw) { if (raw == null || raw.isBlank()) return Enums.PaymentProvider.RAZORPAY; try { return Enums.PaymentProvider.valueOf(raw.trim().toUpperCase(Locale.ROOT)); } catch (IllegalArgumentException ex) { throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PAYMENT_PROVIDER","Unsupported payment provider"); } }
     private void require(boolean ok, String message) { if (!ok) throw new ApiException(HttpStatus.CONFLICT, "INVALID_TRANSITION", message); }
-    private void validateWindow(Instant from, Instant to, Instant eventStart) {
-        if (from != null && to != null && !to.isAfter(from)) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOKING_WINDOW", "Booking end must be after booking start");
-        if (to != null && eventStart != null && to.isAfter(eventStart)) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOKING_WINDOW", "Booking cannot stay open past the event start");
+    private void validateWindow(Instant from, Instant to, Instant eventStart, Instant eventEnd) {
+        Instant effectiveEventEnd = eventEnd != null ? eventEnd : eventStart;
+        if (from != null && eventStart != null && !from.isBefore(eventStart))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOKING_WINDOW", "Booking start must be before the event begins");
+        if (from != null && to != null && !to.isAfter(from))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOKING_WINDOW", "Booking end must be after booking start");
+        if (to != null && effectiveEventEnd != null && to.isAfter(effectiveEventEnd))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_BOOKING_WINDOW", "Booking can remain open only until the event ends");
     }
-    private void validateTicketType(String name, long price, int total, int min, int max, Instant ss, Instant se) {
+    private void validateTicketType(String name, long price, int total, int min, int max, Instant ss, Instant se, Event event) {
         if (name == null || name.isBlank() || name.trim().length() > 120 || price <= 0 || total <= 0)
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TICKET_TYPE", "Ticket name, price and quantity are invalid");
         if (price > Long.MAX_VALUE / Math.max(1, props.checkout().maxTicketsPerOrder())) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TICKET_PRICE", "Ticket price is too large");
         if (total > 1_000_000) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TICKET_QUANTITY", "Ticket quantity is too large");
         if (min <= 0 || max < min || max > props.checkout().maxTicketsPerOrder()) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TICKET_BOUNDS", "Ticket purchase limits are invalid");
         if (ss != null && se != null && !se.isAfter(ss)) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TICKET_TYPE_DATES", "Ticket sale end must be after sale start");
+        if (se != null) {
+            Instant eventEnd = event.getEndsAt() != null ? event.getEndsAt() : event.getStartsAt();
+            if (eventEnd != null && se.isAfter(eventEnd))
+                throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_TICKET_TYPE_DATES", "Ticket sale cannot remain open past the event end");
+        }
     }
     private void checkCapacity(Event e, int oldTotal, int newTotal) {
         if (e.getCapacity() == null) return;

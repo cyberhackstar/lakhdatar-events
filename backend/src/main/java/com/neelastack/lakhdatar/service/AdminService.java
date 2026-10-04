@@ -301,11 +301,27 @@ public class AdminService {
         writer.flush();
     }
 
+    /**
+     * Bounded CSV export for HTTP downloads. Keeping the complete response in memory avoids
+     * chunked streaming across Cloudflare/HTTP3, which can otherwise surface as a browser
+     * ERR_QUIC_PROTOCOL_ERROR after the origin already returned HTTP 200. The export remains
+     * bounded by the event's ticket count and is protected by the same authorization checks.
+     */
+    @Transactional(readOnly = true)
+    public byte[] attendeesCsvBytes(UUID eventPublicId, UserPrincipal p) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(32 * 1024);
+        try (java.io.Writer writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(out, java.nio.charset.StandardCharsets.UTF_8))) {
+            writeAttendeesCsv(eventPublicId, p, writer);
+            writer.flush();
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new IllegalStateException("CSV export failed", e);
+        }
+    }
+
     /** Backward-compatible bounded helper for non-streaming callers. */
     public String attendeesCsv(UUID eventPublicId, UserPrincipal p) {
-        StringWriter writer = new StringWriter();
-        try { writeAttendeesCsv(eventPublicId, p, writer); return writer.toString(); }
-        catch (IOException e) { throw new IllegalStateException("CSV export failed", e); }
+        return new String(attendeesCsvBytes(eventPublicId, p), java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static final class CsvStreamingException extends RuntimeException {

@@ -22,7 +22,7 @@ public class CheckoutController {
   var r=orders.checkout(new OrderService.CheckoutRequest(b.eventId(),b.customerName(),b.customerEmail(),b.customerPhone(),b.idempotencyKey(),b.items().stream().map(i->new OrderService.CheckoutItem(i.ticketTypeId(),i.quantity())).toList(),clientAddress.resolve(req)));
   var out=ResponseEntity.ok().cacheControl(CacheControl.noStore());
   if(r.checkoutSessionToken()!=null){
-    ResponseCookie cookie=ResponseCookie.from("ld_checkout",r.checkoutSessionToken()).httpOnly(true).secure(props.security().refreshCookieSecure()).sameSite("Lax").path("/api/v1/public/checkout").maxAge(r.checkoutSessionTtlSeconds()).build();
+    ResponseCookie cookie=ResponseCookie.from("ld_checkout",r.checkoutSessionToken()).httpOnly(true).secure(props.security().refreshCookieSecure()).sameSite("Lax").path("/").maxAge(r.checkoutSessionTtlSeconds()).build();
     out.header("Set-Cookie",cookie.toString());
   }
   return out.body(r);
@@ -31,7 +31,7 @@ public class CheckoutController {
   OrderService.VerifyResponse response=orders.verifyAndConfirm(new OrderService.VerifyRequest(b.providerOrderId(),b.providerPaymentId(),b.providerSignature(),checkoutSessionToken,clientAddress.resolve(req)));
   ResponseEntity.BodyBuilder out=ResponseEntity.ok().cacheControl(CacheControl.noStore());
   if ("CONFIRMED".equalsIgnoreCase(response.status()) || "REFUND_PENDING".equalsIgnoreCase(response.status())) {
-    ResponseCookie clear=ResponseCookie.from("ld_checkout","").httpOnly(true).secure(props.security().refreshCookieSecure()).sameSite("Lax").path("/api/v1/public/checkout").maxAge(0).build();
+    ResponseCookie clear=ResponseCookie.from("ld_checkout","").httpOnly(true).secure(props.security().refreshCookieSecure()).sameSite("Lax").path("/").maxAge(0).build();
     out.header("Set-Cookie",clear.toString());
   }
   return out.body(response);
