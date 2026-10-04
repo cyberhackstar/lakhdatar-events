@@ -137,11 +137,14 @@ class EnterpriseScaleContractTest {
         assertTrue(pdf.contains("No customer bearer token is ever embedded in the PDF"));
     }
     @Test
-    void frontendCiUsesGlobalZoneBootstrapAndEventEditorNarrowingIsTypeSafe() throws Exception {
+    void frontendCiUsesSupportedZoneBootstrapAndEventEditorNarrowingIsTypeSafe() throws Exception {
         String angular = read("../frontend/angular.json");
+        String specTsConfig = read("../frontend/tsconfig.spec.json");
         String polyfills = read("../frontend/src/test-polyfills.ts");
         String editor = read("../frontend/src/app/features/admin/event-editor.component.ts");
-        assertTrue(angular.contains("\"polyfills\": [") && angular.contains("src/test-polyfills.ts"));
+        assertFalse(angular.contains("\"polyfills\": [\n              \"src/test-polyfills.ts\""),
+                "Angular unit-test builder must not use the unsupported polyfills option");
+        assertTrue(specTsConfig.contains("\"src/test-polyfills.ts\""));
         assertTrue(polyfills.contains("import 'zone.js';") && polyfills.contains("import 'zone.js/testing';"));
         assertTrue(editor.contains("if (!startsAt) { this.error = 'Enter a valid event start time.'; return; }"));
         assertTrue(editor.contains("const effectiveEventEnd = endsAt ?? startsAt;"));
