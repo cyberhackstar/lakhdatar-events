@@ -1,11 +1,11 @@
-NEELASTACK EVENTS v1.9.39 PRODUCTION RELEASE MANIFEST
-Release: 1.9.39
-Base: v1.9.38 production source baseline
-Changes: see CHANGES-1.9.39.md
-Validation: see VALIDATION-1.9.39.md
+NEELASTACK EVENTS v1.9.40 PRODUCTION RELEASE MANIFEST
+Release: 1.9.40
+Base: v1.9.39 production source baseline
+Changes: see CHANGES-1.9.40.md
+Validation: see VALIDATION-1.9.40.md
 Flyway: V1–V30
-Key behavior: booking is open until the effective booking end; when not explicitly configured, the event end. Cashfree uses hosted `_self` redirect; admin CSV uses native download; finance ledger reads `public_id`.
+Key behavior: multi-day booking stays open through the effective booking end; Cashfree uses hosted `_self` redirect; admin CSV uses native browser download; finance ledger reads public ids; Angular unit tests globally bootstrap Zone.js.
 
-CHANGES: CHANGES-1.9.39.md
-VALIDATION: VALIDATION-1.9.39.md
-DEPLOYMENT: PRODUCTION-DEPLOY-1.9.39.md
+CHANGES: CHANGES-1.9.40.md
+VALIDATION: VALIDATION-1.9.40.md
+DEPLOYMENT: PRODUCTION-DEPLOY-1.9.40.md

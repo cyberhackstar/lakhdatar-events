@@ -59,7 +59,7 @@ type EventRow = Dashboard['events'][number];
               @if (store.canAdministerEvents) { <a class="a-btn sm" [routerLink]="['/admin/events', e.id]">Edit</a> }
               <a class="a-btn sm" [routerLink]="['/events', e.slug]" target="_blank" rel="noopener">Public page ↗</a>
               <button type="button" class="a-btn sm" (click)="downloadCsv(e)" [disabled]="csvId() === e.id">{{ csvId() === e.id ? 'Exporting…' : 'CSV' }}</button>
-              @if (store.canAdministerEvents && e.status === 'DRAFT') {
+              @if (store.canAdministerEvents && (e.status === 'DRAFT' || e.status === 'UNPUBLISHED')) {
                 <button type="button" class="a-btn sm primary" (click)="publish(e)" [disabled]="publishingId() === e.id || !canPublish(e)" [title]="publishHint(e)">{{ publishingId() === e.id ? 'Publishing…' : 'Publish' }}</button>
               }
             </span>
@@ -147,10 +147,11 @@ export class EventsListComponent implements OnInit {
   previous(): void { if (!this.history.length) return; this.cursor = this.history.pop(); this.loadCursor(); }
 
   canPublish(e: EventRow): boolean {
-    return e.status === 'DRAFT' && new Date(e.startsAt).getTime() > Date.now();
+    return (e.status === 'DRAFT' || e.status === 'UNPUBLISHED') && new Date(e.startsAt).getTime() > Date.now();
   }
 
   publishHint(e: EventRow): string {
+    if (!['DRAFT','UNPUBLISHED'].includes(e.status)) return 'Only draft or unpublished events can be published.';
     if (!e.startsAt || new Date(e.startsAt).getTime() <= Date.now()) return 'An event in the past cannot be published.';
     return 'Publish this event';
   }

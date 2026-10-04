@@ -370,7 +370,6 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     const bookingStartsAt = this.optionalIso(v.bookingStartsAt, timezone);
     const bookingEndsAtInput = this.optionalIso(v.bookingEndsAt, timezone);
     const previousEventEnd = this.event.endsAt || this.event.startsAt;
-    const effectiveEventEnd = endsAt || startsAt;
     // When booking-end was implicitly tied to the previous event end, keep it tied
     // to the new event end. Explicit custom booking windows remain untouched.
     let bookingEndsAt: string | undefined;
@@ -381,12 +380,13 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
       bookingEndsAt = bookingEndsAtInput || (endsAt ? endsAt : undefined);
     }
     if (!startsAt) { this.error = 'Enter a valid event start time.'; return; }
+    const effectiveEventEnd = endsAt ?? startsAt;
     const startChanged = !existingStartsAt || new Date(startsAt).getTime() !== new Date(existingStartsAt).getTime();
     if (startChanged && new Date(startsAt).getTime() < Date.now() - 5 * 60_000) { this.error = 'A changed event start time cannot be in the past.'; return; }
     if (endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) { this.error = 'Event end must be after the start.'; return; }
     if (bookingStartsAt && new Date(bookingStartsAt).getTime() >= new Date(startsAt).getTime()) { this.error = 'Booking must start before the event begins.'; return; }
     if (bookingStartsAt && bookingEndsAt && new Date(bookingEndsAt).getTime() <= new Date(bookingStartsAt).getTime()) { this.error = 'Booking end must be after booking start.'; return; }
-    if (bookingEndsAt && new Date(bookingEndsAt).getTime() > new Date(effectiveEventEnd).getTime()) { this.error = 'Booking can remain open only until the event ends.'; return; }
+    if (bookingEndsAt && effectiveEventEnd && new Date(bookingEndsAt).getTime() > new Date(effectiveEventEnd).getTime()) { this.error = 'Booking can remain open only until the event ends.'; return; }
     this.saving = true; this.error=''; this.success='';
     const body: Record<string, unknown> = {
       name: String(v.name || '').trim(), shortDescription: v.shortDescription || '', description: v.description || '', category: String(v.category || '').trim(),
@@ -433,7 +433,27 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
 
   transition(action: 'publish'|'unpublish'|'cancel'|'complete'|'archive'): void {
     if (!this.event || this.transitioningAction) return;
-    if (action === 'complete' && !this.canComplete) { this.error = 'An event can be completed only after its end date and time.'; return; }
+    const status = this.event.status;
+    if (action === 'publish' && !this.canPublish) {
+      this.error = this.publishHint;
+      return;
+    }
+    if (action === 'unpublish' && status !== 'PUBLISHED') {
+      this.error = 'Only a published event can be unpublished.';
+      return;
+    }
+    if (action === 'cancel' && !['DRAFT', 'PUBLISHED', 'UNPUBLISHED'].includes(status)) {
+      this.error = 'This event can no longer be cancelled.';
+      return;
+    }
+    if (action === 'complete' && !this.canComplete) {
+      this.error = 'An event can be completed only after its end date and time.';
+      return;
+    }
+    if (action === 'archive' && (status === 'PUBLISHED' || status === 'ARCHIVED')) {
+      this.error = 'Unpublish or cancel the event before archiving.';
+      return;
+    }
     if (this.eventEditsLocked && action !== 'archive') return;
     if ((action === 'cancel' || action === 'archive') && !globalThis.confirm(`Are you sure you want to ${action} this event?`)) return;
     this.error=''; this.success='';

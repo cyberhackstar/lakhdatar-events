@@ -1,10 +1,16 @@
-## v1.9.39 — Payment, booking-window and admin reliability correction
+## v1.9.40 — Production deployment correction
+
+Enterprise multi-event ticketing platform with server-authoritative payments, admission verification, multi-day booking windows, finance/reconciliation, event lifecycle controls, and mobile gate scanning.
+
+CI/runtime corrections: strict event-end typing, cwd-independent backend contract fixtures, global Angular Zone.js test bootstrap, and preservation of the v1.9.39 payment/scanner/CSV/finance/booking protections.
+
+See `CHANGES-1.9.40.md`, `VALIDATION-1.9.40.md`, `PRODUCTION-DEPLOY-1.9.40.md`, and `RELEASE-MANIFEST.txt`.
 
 Enterprise application/worker separation is supported through `WORKER_ENABLED`; HA reference deployment, PITR runbook, operations health and k6 load scenarios are under `infra/ha`, `infra/backup`, `infra/monitoring` and `infra/loadtest`. See `docs/ENTERPRISE-RELEASE-QUALIFICATION.md` for the production qualification gates.
 
-# Release 1.9.39 — frontend test-runtime correction
+# Release 1.9.40 — frontend test-runtime correction
 
-See `CHANGES-1.9.39.md`, `VALIDATION-1.9.39.md`, `IMPLEMENTATION-STATUS.md`, `RELEASE-NOTES.md`, `ADMIN-SETUP-GUIDE.md` and `ENV-LINKAGE-AUDIT.md`.
+See `CHANGES-1.9.40.md`, `VALIDATION-1.9.40.md`, `IMPLEMENTATION-STATUS.md`, `RELEASE-NOTES.md`, `ADMIN-SETUP-GUIDE.md` and `ENV-LINKAGE-AUDIT.md`.
 
 # Release 1.9.21 — production smoke-test + SSR proxy correction
 

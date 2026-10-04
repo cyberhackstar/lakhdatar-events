@@ -221,9 +221,9 @@ export class EventCreateComponent implements OnInit {
     const endsAt = v.endsAt ? toIsoInZone(v.endsAt, DEFAULT_TZ) : undefined;
     const bookingStartsAt = v.bookingStartsAt ? toIsoInZone(v.bookingStartsAt, DEFAULT_TZ) : undefined;
     const bookingEndsAtInput = v.bookingEndsAt ? toIsoInZone(v.bookingEndsAt, DEFAULT_TZ) : undefined;
-    const effectiveEventEnd = endsAt || startsAt;
     const bookingEndsAt = bookingEndsAtInput || (endsAt || undefined);
     if (!startsAt || (v.endsAt && !endsAt) || (v.bookingStartsAt && !bookingStartsAt) || (v.bookingEndsAt && !bookingEndsAtInput)) { this.error = 'Enter valid event and booking times.'; return; }
+    const effectiveEventEnd = endsAt ?? startsAt;
     if (new Date(startsAt).getTime() < Date.now() - 5 * 60_000) { this.error = 'The event start time is in the past.'; return; }
     if (endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) { this.error = 'Event end time must be after the start time.'; return; }
     if (bookingStartsAt && new Date(bookingStartsAt).getTime() >= new Date(startsAt).getTime()) { this.error = 'Booking must start before the event begins.'; return; }
