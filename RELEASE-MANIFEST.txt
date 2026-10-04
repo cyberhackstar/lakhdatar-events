@@ -1,9 +1,9 @@
-NEELASTACK EVENTS v1.9.35 PRODUCTION RELEASE MANIFEST
+NEELASTACK EVENTS v1.9.36 PRODUCTION RELEASE MANIFEST
 ==============================================================
-Release: 1.9.35
-Base: v1.9.34 payment/scanner/admin-query reliability release; v1.9.35 corrects the frontend TypeScript build regression.
-Changes: see CHANGES-1.9.35.md.
-Validation: see VALIDATION-1.9.35.md.
+Release: 1.9.36
+Base: v1.9.35 build-corrected release; v1.9.36 corrects the frontend Angular TestBed Zone.js runtime regression.
+Changes: see CHANGES-1.9.36.md.
+Validation: see VALIDATION-1.9.36.md.
 
 Deployment-critical corrections:
 - Flyway V26 no longer references the nonexistent tickets.issued_at column; ticket cursor indexes use tickets.created_at in V28.
@@ -11,7 +11,7 @@ Deployment-critical corrections:
 - Organizer issued-ticket console explicitly shows the default All events authorized scope.
 - Cashfree checkout, scanner camera reuse, optional admin/finance filters and Cloudflare CSP are hardened for production browser reliability.
 - Release qualification correctly recognizes the escaped events.neelastack.com production hostname guard in k6 idempotency testing.
-- Runtime/package metadata aligned to 1.9.35; Flyway remains V1–V28.
+- Runtime/package metadata aligned to 1.9.36; Flyway remains V1–V28.
 
 Production topology:
 - Public host: events.neelastack.com

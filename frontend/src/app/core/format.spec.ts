@@ -1,3 +1,5 @@
+import 'zone.js';
+import 'zone.js/testing';
 import { canBook, rupees, safeImage, toAbsoluteUrl } from './format';
 
 describe('format utilities', () => {

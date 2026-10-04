@@ -1,9 +1,10 @@
-# IMPLEMENTATION STATUS 1.9.35
+# IMPLEMENTATION STATUS 1.9.36
 
-Release details: `CHANGES-1.9.35.md` and `VALIDATION-1.9.35.md`.
+Release details: `CHANGES-1.9.36.md` and `VALIDATION-1.9.36.md`.
 
 ## Current correction
-- Fixed the frontend TypeScript compilation defect reported by CI in `ApiService.queryParams()`.
+- Fixed the frontend TestBed CI failure by loading `zone.js` and `zone.js/testing` before Angular test imports.
+- Retained the v1.9.35 typed `ApiService.queryParams()` correction.
 - Preserved the v1.9.34 payment, scanner, CSP and query-sanitization runtime hardening.
 
 ---

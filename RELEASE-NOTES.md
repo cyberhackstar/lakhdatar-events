@@ -1,10 +1,10 @@
-# v1.9.35
+# v1.9.36
 
-- Corrected the Angular query-parameter sanitizer typing that blocked the production frontend compilation.
-- Added an `EventQuery` regression contract for optional filters and `false`/`0` values.
-- Retained all v1.9.34 payment, scanner, CSP and admin-query runtime fixes unchanged.
+- Fixed the Angular frontend unit-test CI failure (`NG0908`) by explicitly loading `zone.js` and `zone.js/testing` before TestBed specs.
+- Retained the `EventQuery` regression contract for optional filters and `false`/`0` values.
+- Retained the v1.9.34 payment/scanner/CSP/admin-query runtime fixes and the v1.9.35 query sanitizer typing correction unchanged.
 
-See `CHANGES-1.9.35.md` and `VALIDATION-1.9.35.md`.
+See `CHANGES-1.9.36.md` and `VALIDATION-1.9.36.md`.
 
 ---
 

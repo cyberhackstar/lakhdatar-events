@@ -116,6 +116,21 @@ if (!checkoutSource.includes('result?.paymentDetails') || !checkoutSource.includ
 if (!checkoutSource.includes('loadExternalScript') || !checkoutSource.includes('Payment SDK timed out or failed to load')) problems.push('External payment SDK loader timeout/recovery guard missing');
 if (!scannerSource.includes('verifying = true') || !scannerSource.includes('Keep the live camera session')) problems.push('scanner verification-state/camera-reuse regression detected');
 if (!apiServiceSource.includes('private queryParams<T extends object>(values: T): HttpParams')) problems.push('central optional HTTP query-param sanitizer missing');
+const specRoot = path.join(root, 'frontend/src');
+const stack = [specRoot];
+while (stack.length) {
+  const dir = stack.pop();
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) stack.push(full);
+    else if (entry.isFile() && entry.name.endsWith('.spec.ts')) {
+      const source = fs.readFileSync(full, 'utf8');
+      if (!source.includes("import 'zone.js';") || !source.includes("import 'zone.js/testing';")) {
+        problems.push(`frontend test Zone.js bootstrap missing in ${path.relative(root, full)}`);
+      }
+    }
+  }
+}
 if (!edgeNginx.includes('https://static.cloudflareinsights.com')) problems.push('Cloudflare Web Analytics CSP script source missing');
 if (problems.length) { console.error('Neelastack baseline verification FAILED:'); for (const p of problems) console.error(`- ${p}`); process.exit(1); }
 console.log('Neelastack stability baseline: PASS');
