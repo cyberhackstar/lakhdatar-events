@@ -4,7 +4,7 @@ The event platform deliberately follows the supplied Neelastack frontend/backend
 
 ## Frontend
 
-- Node: **22** (same major-line baseline used by Neelastack CI)
+- Node: **24** (same production image and `.nvmrc` baseline used by Neelastack CI)
 - Angular runtime: **20.3.30**
 - Angular SSR: **20.3.36**
 - Angular build/CLI: **20.3.36**
@@ -34,7 +34,7 @@ The other Neelastack libraries (MapStruct, Springdoc, Sentry, Tika, POI, etc.) a
 
 The supplied Neelastack `package.json` baseline and the working Neelastack install were verified independently, but the current event-platform ZIP originally carried an Angular 21 lockfile. The sandbox cannot reach npmjs.org, so a new lockfile could not be generated here without fabricating integrity data.
 
-On a networked developer machine, with Node **22** selected, perform once:
+On a networked developer machine, with Node **24** selected, perform once:
 
 ```powershell
 ./scripts/refresh-frontend-lock.ps1

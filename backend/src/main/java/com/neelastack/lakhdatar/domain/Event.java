@@ -21,6 +21,7 @@ public class Event {
  @Column(nullable=false,length=60) private String category="General";
  @Column(nullable=false,length=64) private String timezone="Asia/Kolkata";
  @Column(name="cover_image_url",length=500) private String coverImageUrl;
+ @Column(name="cover_image_public_id",length=255) private String coverImagePublicId;
  @Column(name="gallery_urls",columnDefinition="text") private String galleryUrls;
  @Column(columnDefinition="text") private String highlights;
  @Column(name="booking_starts_at") private Instant bookingStartsAt;

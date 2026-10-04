@@ -90,3 +90,24 @@ Console -> **Create event** -> pick the organizer (a dropdown appears once more 
 Overwrite `frontend/src/assets/neelastack-logo.png` with the new PNG (a square mark works best; it is shown inside fixed square slots and as the favicon),
 commit, and let CI build/deploy. If the old logo still shows, purge that URL in Cloudflare (Caching -> Configuration -> Purge by URL).
 No env var is involved.
+
+## Team & access (organizer-owned)
+Organizer owners manage their own gate staff and event managers under **Admin > Team**. The platform ADMIN can switch to any organizer for support. A brand-new organizer needs one owner login: open Team as ADMIN and use **Add organizer owner**.
+
+- Add people with an **email invite** (needs email configured) or an **initial password** (they must change it at first sign-in).
+- Assign staff to a gate and managers to events from the dropdowns. Only your own organizer's active members are listed.
+- Deactivating a person signs them out and stops sign-in and scanning immediately; assignments are kept.
+
+## Email setup (ticket delivery and invites)
+Email is optional and **off until `MAIL_HOST` and `MAIL_FROM` are set** in `.env` (also passed through `docker-compose.yml` and `infra/docker-compose.prod.yml`):
+
+```
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=you@gmail.com
+MAIL_PASSWORD=<Google App Password>
+MAIL_FROM=Neelastack Events <you@gmail.com>
+MAIL_STARTTLS=true
+```
+Gmail needs 2-Step Verification and a 16-character App Password (not your login password) and is limited to roughly 500 mails a day, so use it for testing. For production use a transactional provider (Amazon SES, Brevo, Resend, Mailgun) with a sender on your own domain so tickets do not land in spam. `PUBLIC_BASE_URL` must be your real site URL because ticket links in emails are built from it. Restart the backend after changing these values.
+

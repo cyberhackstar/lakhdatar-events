@@ -20,7 +20,13 @@ import {
   ManagerTicketType,
   ManagerTicketIssueResponse,
   AdminOrganizer,
-  AdminOrganizerList
+  AdminOrganizerList,
+  TeamView,
+  TeamKind,
+  TeamMember,
+  CreateTeamMemberBody,
+  CreatedTeamMember,
+  EventTeam
 } from './api.models';
 
 @Injectable({ providedIn: 'root' })
@@ -95,17 +101,30 @@ export class ApiService {
   updateEvent(eventId: string, body: Record<string, unknown>) { return this.http.put<void>(`${this.base}/admin/events/${eventId}`, body); }
   addTicketType(eventId: string, body: Record<string, unknown>) { return this.http.post<{ id: string; name: string }>(`${this.base}/admin/events/${eventId}/ticket-types`, body); }
   updateTicketType(ticketTypeId: string, body: Record<string, unknown>) { return this.http.put<void>(`${this.base}/admin/ticket-types/${ticketTypeId}`, body); }
-  createStaff(body: { email: string; name: string; password: string }) { return this.http.post<void>(`${this.base}/admin/staff`, body); }
   assignStaff(eventId: string, body: { email: string; gate: string }) { return this.http.post<void>(`${this.base}/admin/events/${eventId}/staff`, body); }
   attendeesCsv(eventId: string) { return this.http.get(`${this.base}/admin/events/${eventId}/attendees.csv`, { responseType: 'blob' }); }
   adminManagers(eventId: string) { return this.http.get<EventManagerView[]>(`${this.base}/admin/events/${eventId}/managers`); }
   adminTicketTypes(eventId: string) { return this.http.get<ManagerTicketType[]>(`${this.base}/admin/events/${eventId}/ticket-types`); }
-  createManager(body: { email: string; name: string; password: string }) { return this.http.post<void>(`${this.base}/admin/managers`, body); }
   assignManager(eventId: string, body: { email: string }) { return this.http.post<void>(`${this.base}/admin/events/${eventId}/managers`, body); }
+  // ---- organizer-owned team ----
+  orgTeam(slug: string) { return this.http.get<TeamView>(`${this.base}/admin/organizers/${encodeURIComponent(slug)}/team`); }
+  createTeamMember(slug: string, kind: TeamKind, body: CreateTeamMemberBody) {
+    return this.http.post<CreatedTeamMember>(`${this.base}/admin/organizers/${encodeURIComponent(slug)}/team/${kind}`, body);
+  }
+  patchTeamMember(slug: string, userId: string, body: { name?: string; active?: boolean }) {
+    return this.http.patch<TeamMember>(`${this.base}/admin/organizers/${encodeURIComponent(slug)}/team/${userId}`, body);
+  }
+  resendTeamInvite(slug: string, userId: string) {
+    return this.http.post<CreatedTeamMember>(`${this.base}/admin/organizers/${encodeURIComponent(slug)}/team/${userId}/invite`, {});
+  }
+  eventTeam(eventId: string) { return this.http.get<EventTeam>(`${this.base}/admin/events/${eventId}/team`); }
+  changeStaffGate(eventId: string, body: { email: string; gate: string }) { return this.http.put<void>(`${this.base}/admin/events/${eventId}/staff`, body); }
+  removeStaff(eventId: string, email: string) { return this.http.delete<void>(`${this.base}/admin/events/${eventId}/staff`, { params: { email } }); }
   unassignManager(eventId: string, email: string) { return this.http.delete<void>(`${this.base}/admin/events/${eventId}/managers`, { params: { email } }); }
   issueComplimentaryTicket(body: { eventId: string; ticketTypeId: string; quantity: number; attendeeName: string; attendeeEmail: string; attendeePhone?: string; idempotencyKey: string }) {
     return this.http.post<ManagerTicketIssueResponse>(`${this.base}/admin/manager-tickets/complimentary`, body);
   }
+  resendTicketEmail(orderPublicId: string) { return this.http.post<{ emailStatus: string }>(`${this.base}/admin/manager-tickets/orders/${orderPublicId}/email`, {}); }
   staffEvents() { return this.http.get<StaffEvent[]>(`${this.base}/staff/events`); }
 
   scan(eventId: string, gate: string, qrToken: string) {

@@ -9,7 +9,18 @@ import java.net.URI;
 public class ProductionConfigurationGuard {
     public ProductionConfigurationGuard(AppProperties props, Environment environment) {
         boolean production = environment.matchesProfiles("prod", "production") || "production".equalsIgnoreCase(environment.getProperty("APP_ENV"));
-        if (!production) return;
+        if (!production) {
+            // The strict checks below are opt-in (prod profile or APP_ENV=production). A deployment that
+            // forgets both flags but is clearly public-facing (non-local HTTPS origins) must still never
+            // boot with the publicly known placeholder secrets from application.yml.
+            if (servesPublicOrigins(props.cors().allowedOrigins())) {
+                rejectPlaceholder("DB_PASSWORD", environment.getProperty("spring.datasource.password"));
+                rejectPlaceholder("JWT_SECRET", props.jwt().secret());
+                rejectPlaceholder("TICKET_VIEW_SECRET", props.security().ticketViewSecret());
+                rejectPlaceholder("QR_SIGNING_SECRET", props.qr().signingSecret());
+            }
+            return;
+        }
         String dbPassword = environment.getProperty("spring.datasource.password");
         requireNonBlank("DB_PASSWORD", dbPassword);
         if ("change-me".equals(dbPassword) || dbPassword.length() < 12)
@@ -40,6 +51,26 @@ public class ProductionConfigurationGuard {
             requireProviderCredential("CLOUDINARY_API_SECRET", props.cloudinary().apiSecret());
             if (props.cloudinary().maxBytes() < 1024 || props.cloudinary().maxBytes() > 10_000_000) throw new IllegalStateException("CLOUDINARY_MAX_BYTES must be between 1KB and 10MB");
         }
+    }
+
+    private void rejectPlaceholder(String name, String value) {
+        if (value != null && (value.startsWith("replace-with-") || value.startsWith("change-me")))
+            throw new IllegalStateException(name + " is still a placeholder value on a public-facing deployment; set a unique secret (or enable the prod profile)");
+    }
+
+    private boolean servesPublicOrigins(String origins) {
+        if (origins == null || origins.isBlank()) return false;
+        for (String origin : origins.split(",")) {
+            String value = origin.trim();
+            if (value.isBlank()) continue;
+            try {
+                URI uri = URI.create(value);
+                String host = uri.getHost();
+                if ("https".equalsIgnoreCase(uri.getScheme()) && host != null
+                        && !host.equalsIgnoreCase("localhost") && !host.equals("127.0.0.1") && !host.equals("::1") && !host.equals("[::1]")) return true;
+            } catch (Exception ignored) { }
+        }
+        return false;
     }
 
     private void requireSecret(String name, String value) {

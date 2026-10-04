@@ -205,6 +205,8 @@ export interface ManagerTicketIssueResponse {
   orderPublicId: string; orderNumber: string; eventName: string; ticketType: string; quantity: number;
   amountMinorUnits: number; source: string; issuedByName: string;
   tickets: Array<{ ticketId: string; ticketNumber: string; accessToken: string }>;
+  /** SENT | NOT_CONFIGURED | FAILED | NO_TICKETS - the real outcome of the ticket email. */
+  emailStatus?: 'SENT' | 'NOT_CONFIGURED' | 'FAILED' | 'NO_TICKETS' | null;
 }
 
 export interface ScanResponse {
@@ -224,3 +226,21 @@ export interface AssetUploadResult { secureUrl: string; publicId: string; purpos
 
 export interface AdminOrganizer { id: string; slug: string; name: string; logoUrl?: string | null; description?: string | null; website?: string | null; }
 export interface AdminOrganizerList { mediaStorageConfigured: boolean; organizers: AdminOrganizer[]; }
+
+/* ---- Organizer-owned team ---- */
+export interface TeamAssignment { eventId: string; eventName: string; gate?: string | null; }
+export interface TeamMember {
+  id: string; name: string; email: string; phone?: string | null; active: boolean; invitePending: boolean;
+  createdAt: string; assignments: TeamAssignment[];
+}
+export interface TeamEventRef { id: string; name: string; status: string; startsAt: string; }
+export interface TeamView {
+  organizerId: string; slug: string; name: string; inviteEmailEnabled: boolean;
+  events: TeamEventRef[]; owners: TeamMember[]; staff: TeamMember[]; managers: TeamMember[];
+}
+export type TeamKind = 'staff' | 'managers' | 'owners';
+export interface CreateTeamMemberBody { name: string; email: string; phone?: string | null; password?: string | null; }
+export interface CreatedTeamMember { member: TeamMember; delivery: 'INVITE_SENT' | 'INVITE_FAILED' | 'PASSWORD_SET'; }
+export interface EventTeamStaffRow { userId: string; name: string; email: string; gate: string | null; active: boolean; }
+export interface EventTeamManagerRow { userId: string; name: string; email: string; active: boolean; }
+export interface EventTeam { eventId: string; eventName: string; staff: EventTeamStaffRow[]; managers: EventTeamManagerRow[]; }

@@ -16,7 +16,8 @@ public class SecurityConfig {
             .headers(h->h.contentTypeOptions(c->{}).frameOptions(f->f.deny()))
             .authorizeHttpRequests(a->a
                 .requestMatchers("/actuator/health","/actuator/health/**","/actuator/info","/actuator/prometheus").permitAll()
-                .requestMatchers("/api/v1/auth/**","/api/v1/public/**","/api/v1/webhooks/**","/api/v1/setup/**","/robots.txt","/sitemap.xml").permitAll()
+                .requestMatchers("/api/v1/auth/change-password","/api/v1/auth/password-status").authenticated()
+                .requestMatchers("/api/v1/auth/**","/api/v1/public/**","/api/v1/webhooks/**","/api/v1/setup/**","/robots.txt","/sitemap.xml","/sitemap-*.xml").permitAll()
                 .requestMatchers("/api/v1/checkin/**","/api/v1/staff/**").hasAnyRole("STAFF","EVENT_MANAGER","ORGANIZER","ADMIN")
                 .requestMatchers("/api/v1/admin/payments/**").hasAnyRole("ADMIN","FINANCE","ORGANIZER")
                 .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN","ORGANIZER","EVENT_MANAGER","FINANCE")

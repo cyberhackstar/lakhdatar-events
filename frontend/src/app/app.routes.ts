@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { HomeComponent } from './features/home/home.component';
-import { adminGuard, roleGuard, staffGuard } from './core/auth/auth.guard';
+import { adminGuard, authGuard, roleGuard, staffGuard } from './core/auth/auth.guard';
 
 // Public discovery pages are eagerly bundled with the shell for fast first paint; everything else is lazy-loaded.
 export const routes: Routes = [
@@ -12,6 +12,8 @@ export const routes: Routes = [
   { path: 'ticket/:ticketId', loadComponent: () => import('./features/ticket/ticket.component').then(m => m.TicketComponent) },
   { path: 'recover', loadComponent: () => import('./features/recover/recover.component').then(m => m.RecoverComponent) },
   { path: 'login', loadComponent: () => import('./features/auth/login.component').then(m => m.LoginComponent) },
+  { path: 'accept-invite', title: 'Accept invitation · Neelastack Events', loadComponent: () => import('./features/auth/accept-invite.component').then(m => m.AcceptInviteComponent) },
+  { path: 'change-password', title: 'Change password · Neelastack Events', canActivate: [authGuard], loadComponent: () => import('./features/auth/change-password.component').then(m => m.ChangePasswordComponent) },
   { path: 'setup/initial-admin', loadComponent: () => import('./features/setup/initial-admin.component').then(m => m.InitialAdminComponent) },
   { path: 'not-found', loadComponent: () => import('./shared/not-found.component').then(m => m.NotFoundComponent) },
   {
@@ -24,7 +26,7 @@ export const routes: Routes = [
       { path: 'events/new', title: 'Create event · Console', canActivate: [roleGuard('ADMIN', 'ORGANIZER')], loadComponent: () => import('./features/admin/event-create.component').then(m => m.EventCreateComponent) },
       { path: 'events/:eventId', title: 'Edit event · Console', canActivate: [roleGuard('ADMIN', 'ORGANIZER')], loadComponent: () => import('./features/admin/event-editor.component').then(m => m.EventEditorComponent) },
       { path: 'organizers', title: 'Organizers · Console', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./features/admin/organizers.component').then(m => m.OrganizersComponent) },
-      { path: 'team', title: 'Team & access · Console', canActivate: [roleGuard('ADMIN', 'ORGANIZER')], loadComponent: () => import('./features/admin/team.component').then(m => m.TeamComponent) },
+      { path: 'team', title: 'Team · Console', canActivate: [roleGuard('ADMIN', 'ORGANIZER')], loadComponent: () => import('./features/admin/team.component').then(m => m.TeamComponent) },
       { path: 'complimentary', title: 'Complimentary tickets · Console', canActivate: [roleGuard('EVENT_MANAGER')], loadComponent: () => import('./features/admin/complimentary.component').then(m => m.ComplimentaryComponent) },
       { path: '**', redirectTo: '' }
     ]

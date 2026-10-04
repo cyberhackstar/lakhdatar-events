@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { AdminOrganizer } from '../../core/api/api.models';
@@ -18,7 +19,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 @Component({
   selector: 'lk-organizers',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
     <div class="org-page">
       <div class="eyebrow">Event companies</div>
@@ -41,6 +42,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
             <strong>{{ o.name }}</strong>
             <small>{{ o.slug }}<ng-container *ngIf="!logo(o)"> · no logo yet</ng-container></small>
           </div>
+          <a class="small team-link" [routerLink]="['/admin/team']" [queryParams]="{ org: o.slug }">Team</a>
           <button type="button" class="small" *ngIf="canCreate && mediaStorageConfigured" [disabled]="replacingSlug === o.slug" (click)="chooseReplacement(o)">
             {{ replacingSlug === o.slug ? 'Uploading…' : (logo(o) ? 'Replace logo' : 'Add logo') }}
           </button>
@@ -88,6 +90,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
     </div>
   `,
   styles: [`
+    a.team-link{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px;border:1px solid #d8d0c7;border-radius:10px;background:#fff;color:#1a151b;font-weight:700;font-size:13px;text-decoration:none;margin-right:8px}
     :host{display:block;color:#1a151b}
     input,select,textarea{color-scheme:light}
     .org-page{max-width:860px;margin:0}

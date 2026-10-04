@@ -49,19 +49,26 @@ export class LoginComponent {
     const { email, password } = this.form.getRawValue();
     this.auth.login(email.trim().toLowerCase(), password).subscribe({
       next: r => {
-        this.loading = false;
         const returnUrl = this.safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
-        if (returnUrl) { this.router.navigateByUrl(returnUrl, { replaceUrl: true }); return; }
-        if (r.role === 'STAFF') {
-          this.router.navigateByUrl('/staff', { replaceUrl: true });
-        } else if (['ADMIN','ORGANIZER','EVENT_MANAGER','FINANCE'].includes(r.role)) {
-          this.router.navigateByUrl('/admin', { replaceUrl: true });
-        } else {
-          this.router.navigateByUrl('/', { replaceUrl: true });
-        }
+        // Accounts created with an initial password must pick their own before anything else works.
+        this.auth.mustChangePassword().subscribe({
+          next: must => { this.loading = false; if (must) this.router.navigate(['/change-password'], { queryParams: { required: 1, ...(returnUrl ? { returnUrl } : {}) }, replaceUrl: true }); else this.finish(r.role, returnUrl); },
+          error: () => { this.loading = false; this.finish(r.role, returnUrl); }
+        });
       },
       error: e => { this.loading = false; this.error = e?.error?.message || 'Invalid email or password.'; }
     });
+  }
+
+  private finish(role: string, returnUrl: string | null): void {
+    if (returnUrl) { this.router.navigateByUrl(returnUrl, { replaceUrl: true }); return; }
+    if (role === 'STAFF') {
+      this.router.navigateByUrl('/staff', { replaceUrl: true });
+    } else if (['ADMIN', 'ORGANIZER', 'EVENT_MANAGER', 'FINANCE'].includes(role)) {
+      this.router.navigateByUrl('/admin', { replaceUrl: true });
+    } else {
+      this.router.navigateByUrl('/', { replaceUrl: true });
+    }
   }
 
   private safeReturnUrl(value: string | null): string | null {

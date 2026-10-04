@@ -29,6 +29,13 @@ public class EventAccessService {
                 .orElse(false);
     }
 
+    /** Throws 403 unless the actor is ADMIN or an OWNER member of this organizer. Single choke point for team management. */
+    public void requireOrganizerAccess(Long organizerId, Long userId, String role) {
+        if (!canManage(userId, role, organizerId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "You do not have access to this organizer's team");
+        }
+    }
+
     /**
      * Event authorization is deliberately stricter for EVENT_MANAGER:
      * organizer membership alone is never sufficient. The manager must be

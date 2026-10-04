@@ -21,6 +21,7 @@ public class Payment {
  @Column(name="razorpay_order_state",nullable=false,length=24) private String razorpayOrderState="NOT_CREATED";
  @Column(name="razorpay_order_attempts",nullable=false) private int razorpayOrderAttempts=0;
  @Column(name="provider_last_error") private String providerLastError;
+ @Column(name="last_reconciled_at") private Instant lastReconciledAt;
  @Column(name="created_at",updatable=false) private Instant createdAt=Instant.now();
  @Column(name="updated_at") private Instant updatedAt=Instant.now();
  @PreUpdate void touch(){updatedAt=Instant.now();}

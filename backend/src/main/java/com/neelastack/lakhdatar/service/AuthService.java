@@ -3,6 +3,8 @@ package com.neelastack.lakhdatar.service;
 import com.neelastack.lakhdatar.config.AppProperties;
 import com.neelastack.lakhdatar.domain.RefreshToken;
 import com.neelastack.lakhdatar.domain.User;
+import com.neelastack.lakhdatar.domain.UserInvite;
+import com.neelastack.lakhdatar.repository.UserInviteRepository;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.RefreshTokenRepository;
 import com.neelastack.lakhdatar.repository.UserRepository;
@@ -26,11 +28,15 @@ import java.util.Base64;
 public class AuthService {
     private final UserRepository users;
     private final RefreshTokenRepository refreshTokens;
+    private final UserInviteRepository invites;
     private final PasswordEncoder encoder;
     private final JwtService jwt;
     private final RateLimitService rateLimits;
     private final AppProperties props;
     private final SecureRandom random = new SecureRandom();
+    // A rotated refresh token that is presented again within this window is treated as a lost
+    // response (flaky network), not theft: the request is rejected but other sessions survive.
+    @org.springframework.beans.factory.annotation.Value("${app.security.refresh-reuse-grace-seconds:30}") private long refreshReuseGraceSeconds = 30;
 
     public record AuthResult(String accessToken,String refreshToken,String role,String fullName) {}
 
@@ -58,7 +64,9 @@ public class AuthService {
             // A revoked token that was rotated is a reuse signal. Revoke every remaining active
             // session for the user so a stolen refresh token cannot be used to keep minting sessions.
             if (current.getRevokedAt() != null && current.getReplacedByTokenHash() != null) {
-                refreshTokens.revokeAllActiveByUserId(current.getUserId(), Instant.now());
+                boolean withinGrace = refreshReuseGraceSeconds > 0
+                        && !current.getRevokedAt().plusSeconds(refreshReuseGraceSeconds).isBefore(Instant.now());
+                if (!withinGrace) refreshTokens.revokeAllActiveByUserId(current.getUserId(), Instant.now());
             }
             throw new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_REFRESH_TOKEN","Refresh token expired or revoked");
         }
@@ -69,6 +77,53 @@ public class AuthService {
         current.setReplacedByTokenHash(hash(r.refreshToken()));
         refreshTokens.save(current);
         return r;
+    }
+
+
+    // ---- invites and forced password change -------------------------------------------------------------
+
+    /** Single-use, 48h set-password link. Every failure mode returns the same error so tokens cannot be probed. */
+    @Transactional(noRollbackFor = ApiException.class)
+    public AuthResult acceptInvite(String token, String newPassword, String clientKey){
+        java.time.Duration window=java.time.Duration.ofSeconds(props.rateLimit().windowSeconds());
+        if(!rateLimits.allow("invite-client:"+clientKey,Math.max(5,props.rateLimit().loginPerWindow()),window))
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","Too many attempts");
+        ApiException invalid=new ApiException(HttpStatus.BAD_REQUEST,"INVALID_INVITE","This invite link is invalid or has expired");
+        if(token==null||token.isBlank()||newPassword==null||newPassword.length()<12||newPassword.length()>128) throw invalid;
+        UserInvite inv=invites.findByTokenHashForUpdate(TeamService.sha256(token)).orElseThrow(()->invalid);
+        Instant now=Instant.now();
+        if(inv.getUsedAt()!=null||!inv.getExpiresAt().isAfter(now)) throw invalid;
+        User u=users.findById(inv.getUserId()).filter(User::isEnabled).orElseThrow(()->invalid);
+        u.setPasswordHash(encoder.encode(newPassword));
+        u.setMustChangePassword(false);
+        users.save(u);
+        inv.setUsedAt(now);
+        invites.save(inv);
+        refreshTokens.revokeAllActiveByUserId(u.getId(),now);
+        return issue(u);
+    }
+
+    @Transactional
+    public AuthResult changePassword(Long userId,String current,String next){
+        java.time.Duration window=java.time.Duration.ofSeconds(props.rateLimit().windowSeconds());
+        if(!rateLimits.allow("pwchange:"+userId,5,window))
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","Too many attempts");
+        User u=users.findById(userId).filter(User::isEnabled).orElseThrow(()->new ApiException(HttpStatus.UNAUTHORIZED,"UNAUTHORIZED","Authentication required"));
+        if(!encoder.matches(current==null?"":current,u.getPasswordHash()))
+            throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_CURRENT_PASSWORD","Current password is incorrect");
+        if(next==null||next.length()<12||next.length()>128)
+            throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PASSWORD","New password must be between 12 and 128 characters");
+        if(next.equals(current)) throw new ApiException(HttpStatus.BAD_REQUEST,"PASSWORD_REUSED","Choose a password different from the current one");
+        u.setPasswordHash(encoder.encode(next));
+        u.setMustChangePassword(false);
+        users.save(u);
+        refreshTokens.revokeAllActiveByUserId(u.getId(),Instant.now());
+        return issue(u);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean mustChangePassword(Long userId){
+        return users.findById(userId).map(User::isMustChangePassword).orElse(false);
     }
 
     @Transactional

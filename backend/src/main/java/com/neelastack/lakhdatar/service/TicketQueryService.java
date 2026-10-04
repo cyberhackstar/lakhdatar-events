@@ -26,7 +26,7 @@ public class TicketQueryService {
     public record TicketView(UUID ticketId, String ticketNumber, String status, String attendeeName, String eventName,
                              java.time.Instant startsAt, java.time.Instant endsAt, String venueName, String venueAddress,
                              String ticketType, long amountMinorUnits, String currency, java.time.Instant checkedInAt,
-                             String source, String issuedByName, BrandService.BrandView brand) {}
+                             String source, String issuedByName, String qrDataUri, BrandService.BrandView brand) {}
 
     public TicketView get(UUID id, String token) {
         if (!accessTokens.verify(token, id))
@@ -54,7 +54,7 @@ public class TicketQueryService {
         String cred = qr.credentialFor(t.getPublicId());
         return new TicketView(t.getPublicId(), t.getTicketNumber(), displayStatus, t.getAttendeeName(), e.getName(),
                 e.getStartsAt(), e.getEndsAt(), v == null ? null : v.getName(), address, tt.getName(), amount,
-                e.getCurrency(), t.getCheckedInAt(), t.getSource().name(), issuerName,
+                e.getCurrency(), t.getCheckedInAt(), t.getSource().name(), issuerName, qr.pngDataUri(cred),
                 brand.view(e.getBrandConfigId(), o == null ? "Event organizer" : o.getName()));
     }
 }

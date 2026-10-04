@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.springframework.security.core.Authentication;
+import com.neelastack.lakhdatar.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseCookie;
@@ -27,6 +29,9 @@ public class AuthController {
     /** Body refresh is retained as a non-browser API fallback; browsers use the HttpOnly cookie. */
     public record RefreshBody(@Size(max=512) String refreshToken) {}
     public record LogoutBody(@Size(max=512) String refreshToken) {}
+    public record AcceptInviteBody(@NotBlank @Size(max=256) String token, @NotBlank @Size(min=12,max=128) String password) {}
+    public record ChangePasswordBody(@NotBlank @Size(max=128) String currentPassword, @NotBlank @Size(min=12,max=128) String newPassword) {}
+    public record PasswordStatus(boolean mustChangePassword) {}
     public record Response(String accessToken, String refreshToken, String tokenType, String role, String fullName) {}
 
     @PostMapping("/login")
@@ -35,6 +40,31 @@ public class AuthController {
         return baseResponse()
                 .header("Set-Cookie", refreshCookie(r.refreshToken(), req))
                 .body(new Response(r.accessToken(), "", "Bearer", r.role(), r.fullName()));
+    }
+
+    /** Completes an emailed invite: sets the password, consumes the one-time token and signs the user in. */
+    @PostMapping("/accept-invite")
+    ResponseEntity<Response> acceptInvite(@Valid @RequestBody AcceptInviteBody b, HttpServletRequest req) {
+        var r = auth.acceptInvite(b.token(), b.password(), clientAddress.resolve(req));
+        return baseResponse()
+                .header("Set-Cookie", refreshCookie(r.refreshToken(), req))
+                .body(new Response(r.accessToken(), "", "Bearer", r.role(), r.fullName()));
+    }
+
+    /** Authenticated. Required before any other API call while must_change_password is set (enforced in JwtAuthFilter). */
+    @PostMapping("/change-password")
+    ResponseEntity<Response> changePassword(@Valid @RequestBody ChangePasswordBody b, Authentication a, HttpServletRequest req) {
+        UserPrincipal u = (UserPrincipal) a.getPrincipal();
+        var r = auth.changePassword(u.userId(), b.currentPassword(), b.newPassword());
+        return baseResponse()
+                .header("Set-Cookie", refreshCookie(r.refreshToken(), req))
+                .body(new Response(r.accessToken(), "", "Bearer", r.role(), r.fullName()));
+    }
+
+    @GetMapping("/password-status")
+    ResponseEntity<PasswordStatus> passwordStatus(Authentication a) {
+        UserPrincipal u = (UserPrincipal) a.getPrincipal();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new PasswordStatus(auth.mustChangePassword(u.userId())));
     }
 
     @PostMapping("/refresh")

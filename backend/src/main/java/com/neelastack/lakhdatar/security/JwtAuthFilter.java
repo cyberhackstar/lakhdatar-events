@@ -22,7 +22,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
   if(h!=null&&h.startsWith("Bearer ")){
    UserPrincipal token=jwtService.parse(h.substring(7));
    if(token!=null&&token.userId()!=null){
-    users.findById(token.userId()).filter(com.neelastack.lakhdatar.domain.User::isEnabled).ifPresent(user->{String role=user.getRole().name();UserPrincipal current=new UserPrincipal(user.getId(),user.getEmail(),role);var auth=new UsernamePasswordAuthenticationToken(current,null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));SecurityContextHolder.getContext().setAuthentication(auth);});
+    var found=users.findById(token.userId()).filter(com.neelastack.lakhdatar.domain.User::isEnabled);
+    if(found.isPresent()){
+     var user=found.get();
+     // Accounts created with an initial password must change it first; only the auth endpoints stay reachable.
+     if(user.isMustChangePassword() && !req.getRequestURI().startsWith("/api/v1/auth/")){
+      res.setStatus(403);res.setContentType("application/json");
+      res.getWriter().write("{\"status\":403,\"code\":\"PASSWORD_CHANGE_REQUIRED\",\"message\":\"You must change your password before continuing\"}");
+      return;
+     }
+     String role=user.getRole().name();UserPrincipal current=new UserPrincipal(user.getId(),user.getEmail(),role);var auth=new UsernamePasswordAuthenticationToken(current,null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));SecurityContextHolder.getContext().setAuthentication(auth);
+    }
    }
   }
   chain.doFilter(req,res);

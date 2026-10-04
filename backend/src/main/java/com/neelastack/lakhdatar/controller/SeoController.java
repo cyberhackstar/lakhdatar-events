@@ -44,18 +44,51 @@ public class SeoController {
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic()).body(body);
     }
 
+    private static final int SITEMAP_PAGE_SIZE = 10_000;
+
     @GetMapping(value = "/sitemap.xml", produces = MediaType.APPLICATION_XML_VALUE)
-    public ResponseEntity<byte[]> sitemap() {
+    public ResponseEntity<byte[]> sitemapIndex() {
+        String base = base();
+        long total = events.publishedEventCount();
+        long pages = Math.max(1L, (total + SITEMAP_PAGE_SIZE - 1L) / SITEMAP_PAGE_SIZE);
+        StringBuilder x = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
+        for (long page = 1; page <= pages; page++) {
+            x.append("  <sitemap><loc>")
+                    .append(escape(base + "/sitemap-" + page + ".xml"))
+                    .append("</loc></sitemap>\n");
+        }
+        x.append("</sitemapindex>\n");
+        return xml(x);
+    }
+
+    @GetMapping(value = "/sitemap-{page:[0-9]+}.xml", produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<byte[]> sitemapPage(@org.springframework.web.bind.annotation.PathVariable int page) {
+        if (page < 1) {
+            return ResponseEntity.notFound().build();
+        }
+        long total = events.publishedEventCount();
+        long totalPages = Math.max(1L, (total + SITEMAP_PAGE_SIZE - 1L) / SITEMAP_PAGE_SIZE);
+        if ((long) page > totalPages) {
+            return ResponseEntity.notFound().build();
+        }
         String base = base();
         StringBuilder x = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
-        entry(x, base + "/", null, "daily", "1.0");
-        entry(x, base + "/events", null, "daily", "0.9");
-        for (PublicEventService.SitemapEntry e : events.sitemapEntries()) {
+        if (page == 1) {
+            entry(x, base + "/", null, "daily", "1.0");
+            entry(x, base + "/events", null, "daily", "0.9");
+        }
+        for (PublicEventService.SitemapEntry e : events.sitemapPage(page - 1, SITEMAP_PAGE_SIZE)) {
             entry(x, base + "/events/" + e.slug(), e.lastModified(), "daily", "0.8");
         }
         x.append("</urlset>\n");
-        return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofMinutes(10)).cachePublic())
-                .contentType(MediaType.APPLICATION_XML).body(x.toString().getBytes(StandardCharsets.UTF_8));
+        return xml(x);
+    }
+
+    private ResponseEntity<byte[]> xml(StringBuilder body) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(Duration.ofMinutes(10)).cachePublic())
+                .contentType(MediaType.APPLICATION_XML)
+                .body(body.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private String base() {

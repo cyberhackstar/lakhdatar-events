@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import java.nio.charset.StandardCharsets;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -22,6 +24,7 @@ public class AdminController {
     private final EventManagementService eventService;
     private final RefundService refunds;
     private final OrganizerAdminService organizerAdmin;
+    private final TeamService team;
 
     private UserPrincipal p(Authentication a) { return (UserPrincipal) a.getPrincipal(); }
 
@@ -85,12 +88,28 @@ public class AdminController {
         UserPrincipal u = p(a); admin.assignStaff(id, b.email(), b.gate(), u.userId(), u.role()); return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/events/{id}/staff")
+    ResponseEntity<Void> changeGate(@PathVariable UUID id, @Valid @RequestBody StaffAssignment b, Authentication a) {
+        UserPrincipal u = p(a); team.changeStaffGate(id, b.email(), b.gate(), u.userId(), u.role()); return ResponseEntity.noContent().build();
+    }
+    @DeleteMapping("/events/{id}/staff")
+    ResponseEntity<Void> removeStaff(@PathVariable UUID id, @RequestParam @Email @Size(max=255) String email, Authentication a) {
+        UserPrincipal u = p(a); team.removeStaffAssignment(id, email, u.userId(), u.role()); return ResponseEntity.noContent().build();
+    }
+    @GetMapping("/events/{id}/team")
+    TeamService.EventTeam eventTeam(@PathVariable UUID id, Authentication a) { return team.eventTeam(id, p(a)); }
+
+    /** @deprecated ADMIN-only; use POST /admin/organizers/{slug}/team/staff. */
+    @Deprecated
     public record StaffCreate(@NotBlank @Email @Size(max=255) String email, @NotBlank @Size(max=120) String name, @NotBlank @Size(min = 12, max = 128) String password) {}
 
     public record ManagerCreate(@NotBlank @Email @Size(max=255) String email, @NotBlank @Size(min=2,max=120) String name, @NotBlank @Size(min=12,max=128) String password) {}
+    /** @deprecated ADMIN-only; use POST /admin/organizers/{slug}/team/managers. */
+    @Deprecated
     @PostMapping("/managers")
     ResponseEntity<Void> createManager(@Valid @RequestBody ManagerCreate b, Authentication a) {
-        UserPrincipal u = p(a); admin.createManager(b.email(), b.name(), b.password(), u.userId(), u.role()); return ResponseEntity.status(201).build();
+        UserPrincipal u = p(a); admin.createManager(b.email(), b.name(), b.password(), u.userId(), u.role());
+        return ResponseEntity.status(201).header("Deprecation", "true").header("Link", "</api/v1/admin/organizers/{slug}/team/managers>; rel=\"successor-version\"").build();
     }
 
     public record ManagerAssignment(@NotBlank @Email @Size(max=255) String email) {}
@@ -107,9 +126,12 @@ public class AdminController {
     @GetMapping("/events/{id}/managers")
     List<AdminService.ManagerView> managers(@PathVariable UUID id, Authentication a) { return admin.managersForEvent(id, p(a)); }
 
+    /** @deprecated ADMIN-only; use POST /admin/organizers/{slug}/team/staff. */
+    @Deprecated
     @PostMapping("/staff")
     ResponseEntity<Void> createStaff(@Valid @RequestBody StaffCreate b, Authentication a) {
-        UserPrincipal u = p(a); admin.createStaff(b.email(), b.name(), b.password(), u.userId(), u.role()); return ResponseEntity.status(201).build();
+        UserPrincipal u = p(a); admin.createStaff(b.email(), b.name(), b.password(), u.userId(), u.role());
+        return ResponseEntity.status(201).header("Deprecation", "true").header("Link", "</api/v1/admin/organizers/{slug}/team/staff>; rel=\"successor-version\"").build();
     }
 
     @PostMapping("/payments/{paymentId}/refund")
@@ -118,7 +140,13 @@ public class AdminController {
     }
 
     @GetMapping(value = "/events/{eventId}/attendees.csv", produces = "text/csv")
-    ResponseEntity<String> csv(@PathVariable UUID eventId, Authentication a) {
-        return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=attendees.csv").body(admin.attendeesCsv(eventId, p(a)));
+    ResponseEntity<StreamingResponseBody> csv(@PathVariable UUID eventId, Authentication a) {
+        UserPrincipal u = p(a);
+        StreamingResponseBody body = output -> {
+            try (var writer = new java.io.BufferedWriter(new java.io.OutputStreamWriter(output, StandardCharsets.UTF_8))) {
+                admin.writeAttendeesCsv(eventId, u, writer);
+            }
+        };
+        return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=attendees.csv").body(body);
     }
 }

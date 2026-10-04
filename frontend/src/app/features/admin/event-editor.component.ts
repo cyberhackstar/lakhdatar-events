@@ -8,11 +8,12 @@ import { AdminEventView } from '../../core/api/api.models';
 import { DEFAULT_TZ, TIMEZONES, toIsoInZone, toLocalInput } from '../../core/datetime';
 import { ADMIN_UI_STYLES } from './admin.styles';
 import { AdminStore } from './admin-store.service';
+import { EventTeamPanelComponent } from './event-team-panel.component';
 
 @Component({
   selector: 'lk-event-editor',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, EventTeamPanelComponent],
   template: `
     <a class="back" routerLink="/admin/events">← All events</a>
     <section class="editor" id="event-editor" *ngIf="event">
@@ -149,10 +150,13 @@ import { AdminStore } from './admin-store.service';
       </form>
     </section>
 
+    <lk-event-team-panel class="team-panel" *ngIf="event && event.organizerSlug" [eventId]="event.id" [organizerSlug]="event.organizerSlug" />
+
     <div class="editor-loading" *ngIf="loading && !event">Loading event editor…</div>
     <div class="editor-message error standalone" *ngIf="!event && !loading && error" role="alert">{{ error }} <a class="a-btn sm" routerLink="/admin/events">Back to events</a></div>
   `,
   styles: [ADMIN_UI_STYLES, `
+    .team-panel{display:block;margin-top:16px}
     .back{display:inline-block;margin-bottom:18px;color:#6b6270;text-decoration:none;font-size:13px}.back:hover{color:var(--ink)}
     .editor{background:#fff;border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 18px 55px rgba(33,24,31,.06)}
     .editor-head{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:26px 28px;border-bottom:1px solid #eee8e0;background:linear-gradient(145deg,#fffdf9,#f8f3eb)}

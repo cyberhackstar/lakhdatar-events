@@ -41,7 +41,11 @@ public class ManagerTicketService {
 
     public record IssueResponse(String orderPublicId, String orderNumber, String eventName,
                                 String ticketType, int quantity, long amountMinorUnits,
-                                String source, String issuedByName, List<TicketRef> tickets) {}
+                                String source, String issuedByName, List<TicketRef> tickets, String emailStatus) {
+        public IssueResponse withEmailStatus(String status) {
+            return new IssueResponse(orderPublicId, orderNumber, eventName, ticketType, quantity, amountMinorUnits, source, issuedByName, tickets, status);
+        }
+    }
 
     @Transactional
     public IssueResponse issue(IssueRequest r, UserPrincipal actor) {
@@ -152,7 +156,7 @@ public class ManagerTicketService {
         String issuer = o.getUserId() == null ? "Event Manager" : users.findById(o.getUserId()).map(User::getFullName).orElse("Event Manager");
         List<TicketRef> refs = ticketList.stream().map(t -> new TicketRef(t.getPublicId(), t.getTicketNumber(), accessTokens.issue(t.getPublicId()))).toList();
         return new IssueResponse(o.getPublicId().toString(), o.getOrderNumber(), e.getName(), ticketType,
-                ticketList.size(), 0L, Enums.TicketSource.COMPLIMENTARY_MANAGER.name(), issuer, refs);
+                ticketList.size(), 0L, Enums.TicketSource.COMPLIMENTARY_MANAGER.name(), issuer, refs, null);
     }
 
     private static void validateText(String value, String label, int min, int max) {

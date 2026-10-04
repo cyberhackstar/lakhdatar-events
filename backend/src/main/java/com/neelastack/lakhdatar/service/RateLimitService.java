@@ -21,6 +21,19 @@ public class RateLimitService {
     private final com.neelastack.lakhdatar.config.AppProperties props;
 
     public boolean allow(String key,int limit,Duration window){
+        return check(key,limit,window,props.rateLimit().failClosedOnRedisError());
+    }
+
+    /**
+     * Same limit, but when Redis is unavailable it degrades to the per-instance local bucket
+     * instead of rejecting. Used for gate scans, where a Redis blip must not lock people out of
+     * an event. Login, checkout and other abuse-sensitive paths keep using {@link #allow}.
+     */
+    public boolean allowFailOpen(String key,int limit,Duration window){
+        return check(key,limit,window,false);
+    }
+
+    private boolean check(String key,int limit,Duration window,boolean failClosed){
         String normalized = key == null ? "unknown" : key.trim();
         if (normalized.length() > 180) normalized = normalized.substring(0,180);
         try{
@@ -29,23 +42,27 @@ public class RateLimitService {
             Long n=redis.execute(RATE_SCRIPT, java.util.List.of(k), String.valueOf(Math.max(1, window.toMillis())));
             return n!=null && n<=limit;
         }catch(Exception ignored){
-            if (props.rateLimit().failClosedOnRedisError()) return false;
-            String localKey = sha256(normalized);
-            long now=System.nanoTime();
-            if(local.size()>=MAX_LOCAL_KEYS && !local.containsKey(localKey)) {
-                final long cutoff = now - window.toNanos();
-                int removed = 0;
-                for (var entry : local.entrySet()) {
-                    if (entry.getValue().windowStartNanos < cutoff && local.remove(entry.getKey(), entry.getValue())) {
-                        if (++removed >= 256) break;
-                    }
-                }
-                if(local.size()>=MAX_LOCAL_KEYS && !local.containsKey(localKey)) return false;
-            }
-            Bucket b=local.compute(localKey,(k,v)->v==null||now-v.windowStartNanos>=window.toNanos()?new Bucket(now):v);
-            int count=b.count.incrementAndGet();
-            return count <= limit;
+            if (failClosed) return false;
+            return allowLocal(normalized,limit,window);
         }
+    }
+
+    private boolean allowLocal(String normalized,int limit,Duration window){
+        String localKey = sha256(normalized);
+        long now=System.nanoTime();
+        if(local.size()>=MAX_LOCAL_KEYS && !local.containsKey(localKey)) {
+            final long cutoff = now - window.toNanos();
+            int removed = 0;
+            for (var entry : local.entrySet()) {
+                if (entry.getValue().windowStartNanos < cutoff && local.remove(entry.getKey(), entry.getValue())) {
+                    if (++removed >= 256) break;
+                }
+            }
+            if(local.size()>=MAX_LOCAL_KEYS && !local.containsKey(localKey)) return false;
+        }
+        Bucket b=local.compute(localKey,(k,v)->v==null||now-v.windowStartNanos>=window.toNanos()?new Bucket(now):v);
+        int count=b.count.incrementAndGet();
+        return count <= limit;
     }
     private String sha256(String value){
         try {

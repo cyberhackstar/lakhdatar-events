@@ -8,6 +8,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+import java.io.IOException;
+import java.io.Writer;
+import java.io.StringWriter;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -33,6 +38,8 @@ public class AdminService {
     private final AuditService audit;
     private final PasswordEncoder passwordEncoder;
     private final EventAccessService eventAccess;
+    private final TeamService team;
+    private final JdbcTemplate jdbc;
 
     public record EventSummary(UUID id, String slug, String name, String status,
                                java.time.Instant startsAt, long ticketsSold, long ticketsCheckedIn,
@@ -86,14 +93,17 @@ public class AdminService {
         if (u.getRole() != Enums.UserRole.STAFF) {
             throw new ApiException(HttpStatus.CONFLICT, "INVALID_STAFF_ROLE", "Only STAFF users can be assigned to event gates");
         }
-        EventStaff s = staff.findByEventIdAndUserId(e.getId(), u.getId()).orElseGet(EventStaff::new);
+        team.requireTeamMemberOf(e.getOrganizerId(), u, "STAFF", role);
+        EventStaff s = staff.findByEventIdAndUserId(e.getId(), u.getId()).orElseGet(EventStaff::new); // upsert = idempotent
         s.setEventId(e.getId());
         s.setUserId(u.getId());
-        s.setGate(gate.trim());
+        s.setGate(team.cleanGate(gate));
         staff.save(s);
         audit.log(actorId, "STAFF_ASSIGNED", "EVENT", e.getPublicId().toString(), u.getPublicId().toString());
     }
 
+    /** @deprecated ADMIN-only legacy path. Use TeamService via /admin/organizers/{slug}/team/staff. */
+    @Deprecated
     public void createStaff(String email, String name, String password, Long actorId, String role) {
         if (!"ADMIN".equals(role)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Only an administrator can provision staff users");
@@ -101,6 +111,8 @@ public class AdminService {
         createUser(email, name, password, Enums.UserRole.STAFF, actorId, "STAFF_CREATED");
     }
 
+    /** @deprecated ADMIN-only legacy path. Use TeamService via /admin/organizers/{slug}/team/managers. */
+    @Deprecated
     public void createManager(String email, String name, String password, Long actorId, String role) {
         if (!"ADMIN".equals(role)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Only an administrator can provision event managers");
@@ -123,13 +135,7 @@ public class AdminService {
         if (u.getRole() != Enums.UserRole.EVENT_MANAGER) {
             throw new ApiException(HttpStatus.CONFLICT, "INVALID_MANAGER_ROLE", "The selected account is not an EVENT_MANAGER");
         }
-        if (!members.existsByOrganizerIdAndUserId(e.getOrganizerId(), u.getId())) {
-            OrganizerMember member = new OrganizerMember();
-            member.setOrganizerId(e.getOrganizerId());
-            member.setUserId(u.getId());
-            member.setRole("EVENT_MANAGER");
-            members.save(member);
-        }
+        team.requireTeamMemberOf(e.getOrganizerId(), u, "EVENT_MANAGER", role);
         if (!managerAssignments.existsByEventIdAndUserId(e.getId(), u.getId())) {
             EventManagerAssignment assignment = new EventManagerAssignment();
             assignment.setEventId(e.getId());
@@ -178,26 +184,60 @@ public class AdminService {
                 .map(u->new ManagerView(u.getPublicId(),u.getEmail(),u.getFullName(),u.getRole().name(),e.getName())).toList();
     }
 
-    public String attendeesCsv(UUID eventPublicId, UserPrincipal p) {
+    /**
+     * Streams attendees directly from PostgreSQL so a large event does not require the complete
+     * ticket set, issuer map, and CSV buffer to coexist in heap memory. The method stays transactional
+     * for the duration of the stream and uses a forward-only JDBC cursor.
+     */
+    @Transactional(readOnly = true)
+    public void writeAttendeesCsv(UUID eventPublicId, UserPrincipal p, Writer writer) throws IOException {
         Event e = events.findByPublicId(eventPublicId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         if (!eventAccess.canManageEvent(e.getId(), p.userId(), p.role()) && !canViewOrganizer(e.getOrganizerId(), p)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized");
         }
-        StringBuilder b = new StringBuilder("ticket_number,attendee_name,ticket_status,ticket_source,issued_by,created_at,checked_in_at\n");
-        List<Ticket> eventTickets=tickets.findByEventIdOrderByTicketNumberAsc(e.getId());
-        Map<Long,User> issuers=users.findAllById(eventTickets.stream().map(Ticket::getIssuedByUserId).filter(Objects::nonNull).toList()).stream().collect(java.util.stream.Collectors.toMap(User::getId,java.util.function.Function.identity()));
-        for (Ticket t : eventTickets) {
-            String issuer = t.getIssuedByUserId()==null?"":java.util.Optional.ofNullable(issuers.get(t.getIssuedByUserId())).map(User::getEmail).orElse("");
-            b.append(csv(t.getTicketNumber())).append(',')
-                    .append(csv(t.getAttendeeName())).append(',')
-                    .append(t.getStatus()).append(',')
-                    .append(t.getSource()).append(',')
-                    .append(csv(issuer)).append(',')
-                    .append(t.getCreatedAt()).append(',')
-                    .append(t.getCheckedInAt() == null ? "" : t.getCheckedInAt()).append('\n');
+        writer.write("ticket_number,attendee_name,ticket_status,ticket_source,issued_by,created_at,checked_in_at\n");
+        try {
+            jdbc.query(con -> {
+            var ps = con.prepareStatement(
+                    "select t.ticket_number,t.attendee_name,t.status,t.source,u.email,t.created_at,t.checked_in_at " +
+                    "from tickets t left join users u on u.id=t.issued_by_user_id " +
+                    "where t.event_id=? order by t.ticket_number",
+                    java.sql.ResultSet.TYPE_FORWARD_ONLY, java.sql.ResultSet.CONCUR_READ_ONLY);
+            ps.setLong(1, e.getId());
+            ps.setFetchSize(1000);
+            return ps;
+        }, rs -> {
+            try {
+                writer.write(csv(rs.getString(1))); writer.write(',');
+                writer.write(csv(rs.getString(2))); writer.write(',');
+                writer.write(String.valueOf(rs.getString(3))); writer.write(',');
+                writer.write(String.valueOf(rs.getString(4))); writer.write(',');
+                writer.write(csv(rs.getString(5))); writer.write(',');
+                writer.write(String.valueOf(rs.getTimestamp(6).toInstant())); writer.write(',');
+                var checkedIn = rs.getTimestamp(7);
+                if (checkedIn != null) writer.write(checkedIn.toInstant().toString());
+                writer.write('\n');
+            } catch (IOException ex) {
+                throw new CsvStreamingException(ex);
+            }
+            });
+        } catch (CsvStreamingException ex) {
+            throw ex.getIOException();
         }
-        return b.toString();
+        writer.flush();
+    }
+
+    /** Backward-compatible bounded helper for non-streaming callers. */
+    public String attendeesCsv(UUID eventPublicId, UserPrincipal p) {
+        StringWriter writer = new StringWriter();
+        try { writeAttendeesCsv(eventPublicId, p, writer); return writer.toString(); }
+        catch (IOException e) { throw new IllegalStateException("CSV export failed", e); }
+    }
+
+    private static final class CsvStreamingException extends RuntimeException {
+        CsvStreamingException(IOException cause) { super(cause); }
+        IOException getIOException() { return (IOException) getCause(); }
     }
 
     private void createUser(String email, String name, String password, Enums.UserRole targetRole,

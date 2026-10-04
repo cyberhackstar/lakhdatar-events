@@ -43,6 +43,14 @@ import { AdminStore } from './admin-store.service';
       @if (result(); as r) {
         <div class="result">
           <div>Issued {{ r.quantity }} × {{ r.ticketType }} · ₹0 · <strong>{{ r.issuedByName }}</strong></div>
+          @switch (emailStatus()) {
+            @case ('SENT') { <div class="mail ok" role="status">Ticket emailed to the attendee (QR code included).</div> }
+            @case ('NOT_CONFIGURED') { <div class="mail warn" role="status">Email is not set up on this server, so nothing was sent. Open each ticket below and share the link or a screenshot of the QR yourself. An administrator can enable email in the server settings.</div> }
+            @default { <div class="mail warn" role="alert">The ticket was issued, but the email could not be sent. Check the address, then use “Email again”, or open the tickets below and share them yourself.</div> }
+          }
+          @if (emailStatus() !== 'SENT' && emailStatus() !== 'NOT_CONFIGURED') {
+            <button type="button" class="a-btn sm" [disabled]="resending()" (click)="resend(r.orderPublicId)">{{ resending() ? 'Sending…' : 'Email again' }}</button>
+          }
           @for (t of r.tickets; track t.ticketId) {
             <div class="t"><b>{{ t.ticketNumber }}</b><a [href]="ticketUrl(t)" target="_blank" rel="noopener">Open QR ↗</a></div>
           }
@@ -54,6 +62,7 @@ import { AdminStore } from './admin-store.service';
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
     form .a-btn{margin-top:18px;min-width:240px;justify-content:space-between;min-height:48px}
     .result{margin-top:16px;padding:14px;border-radius:12px;background:#f2efe8;color:#5c4e30;font-size:14px;line-height:1.55;display:grid;gap:8px}
+    .mail{padding:10px 12px;border-radius:10px;font-size:13px}.mail.ok{background:#eaf6ee;color:#23623a}.mail.warn{background:#fff7e0;color:#6d5311}
     .t{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;background:#fff;border:1px solid #e6dfd3;border-radius:10px}.t a{color:#7a5a12;font-weight:800;text-decoration:none}
     @media(max-width:700px){.grid{grid-template-columns:1fr}form .a-btn{width:100%}}
   `]
@@ -69,6 +78,8 @@ export class ComplimentaryComponent implements OnInit {
   readonly message = signal('');
   readonly error = signal('');
   readonly result = signal<ManagerTicketIssueResponse | undefined>(undefined);
+  readonly emailStatus = signal<string>('');
+  readonly resending = signal(false);
 
   readonly form = this.fb.nonNullable.group({
     eventId: ['', Validators.required], ticketTypeId: ['', Validators.required],
@@ -85,6 +96,14 @@ export class ComplimentaryComponent implements OnInit {
   bad(field: 'eventId' | 'ticketTypeId' | 'quantity' | 'attendeeName' | 'attendeeEmail'): boolean { const c = this.form.controls[field]; return c.invalid && c.touched; }
   ticketUrl(t: { ticketId: string; accessToken: string }): string { return `/ticket/${encodeURIComponent(t.ticketId)}#access=${encodeURIComponent(t.accessToken)}`; }
 
+  resend(orderPublicId: string): void {
+    this.resending.set(true);
+    this.api.resendTicketEmail(orderPublicId).subscribe({
+      next: r => { this.resending.set(false); this.emailStatus.set(r.emailStatus); },
+      error: e => { this.resending.set(false); this.error.set(e?.error?.message || 'The email could not be sent.'); }
+    });
+  }
+
   onEventChange(eventId: string): void {
     this.types.set([]); this.form.controls.ticketTypeId.setValue('');
     if (!eventId) return;
@@ -100,7 +119,7 @@ export class ComplimentaryComponent implements OnInit {
     const v = this.form.getRawValue();
     this.api.issueComplimentaryTicket(v).subscribe({
       next: r => {
-        this.busy.set(false); this.result.set(r); this.message.set(`Complimentary ticket(s) issued for ${r.eventName}.`);
+        this.busy.set(false); this.result.set(r); this.emailStatus.set(r.emailStatus || 'FAILED'); this.message.set(`Complimentary ticket(s) issued for ${r.eventName}.`);
         this.form.patchValue({ attendeeName: '', attendeeEmail: '', attendeePhone: '', quantity: 1, idempotencyKey: this.newKey() });
         this.form.controls.attendeeName.markAsUntouched(); this.form.controls.attendeeEmail.markAsUntouched();
         this.onEventChange(v.eventId); this.form.controls.eventId.setValue(v.eventId);

@@ -42,7 +42,7 @@ public class CheckInService {
     @Transactional
     public ScanResult scan(ScanRequest r) {
         if (r.staffUserId() == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Staff authentication required");
-        if (!limits.allow("scan:" + r.staffUserId(), props.rateLimit().scanPerMinute(), java.time.Duration.ofMinutes(1)))
+        if (!limits.allowFailOpen("scan:" + r.staffUserId(), props.rateLimit().scanPerMinute(), java.time.Duration.ofMinutes(1)))
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many scan requests");
 
         if (r.eventId() == null) return record(Enums.CheckInResult.INVALID, "Invalid event", null, r, null);

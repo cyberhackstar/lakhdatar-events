@@ -137,7 +137,8 @@ jobs:
           for i in $(seq 1 20); do
             if curl -fsS --max-time 15 "$PUBLIC_URL/" >/dev/null && \
                curl -fsS --max-time 15 "$PUBLIC_URL/api/v1/public/events/upcoming" >/dev/null && \
-               curl -fsS --max-time 15 "$PUBLIC_URL/sitemap.xml" >/dev/null; then
+               curl -fsS --max-time 15 "$PUBLIC_URL/sitemap.xml" >/dev/null && \
+               curl -fsS --max-time 15 "$PUBLIC_URL/sitemap-1.xml" >/dev/null; then
               echo "Public smoke tests passed."
               exit 0
             fi

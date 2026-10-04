@@ -12,6 +12,7 @@ public class Organizer {
  @Column(name="contact_phone") private String contactPhone;
 
  @Column(name="logo_url",length=500) private String logoUrl;
+ @Column(name="logo_public_id",length=255) private String logoPublicId;
  @Column(columnDefinition="text") private String description;
  @Column(length=500) private String address;
  @Column(name="support_hours",length=255) private String supportHours;

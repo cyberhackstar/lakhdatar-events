@@ -8,6 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Comparator;
@@ -29,6 +30,7 @@ public class OrganizerAdminService {
     private final EventAccessService eventAccess;
     private final CloudinaryAssetService assets;
     private final AuditService audit;
+    private final TransactionTemplate tx;
 
     public record OrganizerSummary(UUID id, String slug, String name, String logoUrl, String description, String website) {}
     public record OrganizerList(boolean mediaStorageConfigured, List<OrganizerSummary> organizers) {}
@@ -68,22 +70,34 @@ public class OrganizerAdminService {
             throw new ApiException(HttpStatus.CONFLICT, "ORGANIZER_EXISTS", "An organizer with this slug already exists");
 
         String logoUrl = null;
-        if (logo != null && !logo.isEmpty())
-            logoUrl = assets.storeImage(logo, CloudinaryAssetService.Purpose.ORGANIZER_LOGO).secureUrl();
-
-        Organizer o = new Organizer();
-        o.setName(cleanName);
-        o.setSlug(cleanSlug);
-        o.setDescription(cleanDescription);
-        o.setWebsite(cleanWebsite);
-        o.setLogoUrl(logoUrl);
-        try {
-            o = organizers.saveAndFlush(o);
-        } catch (DataIntegrityViolationException e) {
-            throw new ApiException(HttpStatus.CONFLICT, "ORGANIZER_EXISTS", "An organizer with this slug already exists");
+        CloudinaryAssetService.UploadResult uploadedLogo = null;
+        if (logo != null && !logo.isEmpty()) {
+            uploadedLogo = assets.storeImage(logo, CloudinaryAssetService.Purpose.ORGANIZER_LOGO);
+            logoUrl = uploadedLogo.secureUrl();
         }
-        audit.log(actorId, "ORGANIZER_CREATED", "ORGANIZER", o.getPublicId().toString(), null);
-        return summary(o);
+
+        final String persistedLogoUrl = logoUrl;
+        final String persistedLogoPublicId = uploadedLogo == null ? null : uploadedLogo.publicId();
+        try {
+            return tx.execute(status -> {
+                Organizer o = new Organizer();
+                o.setName(cleanName);
+                o.setSlug(cleanSlug);
+                o.setDescription(cleanDescription);
+                o.setWebsite(cleanWebsite);
+                o.setLogoUrl(persistedLogoUrl);
+                o.setLogoPublicId(persistedLogoPublicId);
+                o = organizers.saveAndFlush(o);
+                audit.log(actorId, "ORGANIZER_CREATED", "ORGANIZER", o.getPublicId().toString(), null);
+                return summary(o);
+            });
+        } catch (DataIntegrityViolationException e) {
+            if (uploadedLogo != null) assets.deleteRemote(uploadedLogo.publicId());
+            throw new ApiException(HttpStatus.CONFLICT, "ORGANIZER_EXISTS", "An organizer with this slug already exists");
+        } catch (RuntimeException e) {
+            if (uploadedLogo != null) assets.deleteRemote(uploadedLogo.publicId());
+            throw e;
+        }
     }
 
     private OrganizerSummary summary(Organizer o) {

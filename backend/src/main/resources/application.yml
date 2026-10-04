@@ -1,4 +1,16 @@
 spring:
+  mail:
+    # Empty host = no mail sender bean = email features stay off (ticket page + /recover still work).
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS:true}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
   autoconfigure:
     exclude:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
@@ -51,6 +63,10 @@ server:
     min-response-size: 1024
 
 management:
+  health:
+    mail:
+      # An unreachable SMTP server must never take the API out of the load balancer.
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -76,6 +92,12 @@ management:
         http.server.requests: 100ms,300ms,1s,3s
 
 app:
+  mail:
+    # Ticket emails and team invites are enabled only when MAIL_HOST and MAIL_FROM are both set.
+    from: ${MAIL_FROM:}
+  mail-delivery-sweep: ${MAIL_DELIVERY_SWEEP:30000}
+  mail-delivery-cleanup-sweep: ${MAIL_DELIVERY_CLEANUP_SWEEP:21600000}
+  mail-delivery-repair-sweep: ${MAIL_DELIVERY_REPAIR_SWEEP:30000}
   jwt:
     secret: ${JWT_SECRET:replace-with-a-long-random-secret-at-least-32-bytes}
     access-token: ${JWT_ACCESS_TOKEN:15m}

@@ -1,3 +1,19 @@
+# v1.9.25 — Production release hardening
+
+This release closes the v1.9.24 production blockers: public sitemap shard authorization and bounds, plus event publish/update parent-row locking. No public API payload contracts were intentionally changed and no existing test files were modified.
+
+See `CHANGES-1.9.25.md` and `VALIDATION-1.9.25.md`.
+
+---
+
+# v1.9.23 — Enterprise hardening
+
+v1.9.25 is a production-hardening release focused on event inventory correctness, durable ticket-email delivery, media transaction boundaries, large-export performance, QR caching, scalable sitemaps, database integrity, and explicit runtime tuning. Existing v1.9.22 APIs and regression tests are retained; targeted regression coverage was added.
+
+See `CHANGES-1.9.23.md` for the complete change set.
+
+---
+
 # Lakhdatar Events v1.9.22 — organizer management, PNG logo, env wiring
 
 - New: `GET/POST /api/v1/admin/organizers` and an Organizers admin page. Organizer name and logo are entered at creation; the logo goes to Cloudinary and only its HTTPS URL is stored. ADMIN only for creation.
@@ -154,3 +170,7 @@
 - Added fail-fast detection for exited/dead backend containers and automatic diagnostic capture of Compose state, container health state, and recent backend logs.
 - Added equivalent bounded readiness diagnostics for the local edge endpoint before smoke testing.
 - Preserved the Flyway safety rule: no automatic image rollback after backend startup.
+
+
+## Current release
+See `CHANGES-1.9.25.md` and `VALIDATION-1.9.25.md`.

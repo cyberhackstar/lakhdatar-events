@@ -12,6 +12,9 @@ import com.neelastack.lakhdatar.repository.OrganizerRepository;
 import com.neelastack.lakhdatar.repository.TicketTypeRepository;
 import com.neelastack.lakhdatar.repository.VenueRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -101,11 +104,27 @@ public class PublicEventService {
         return new Facets(catalog.distinctCategories(), catalog.distinctCities());
     }
 
+    /** Legacy full-list API retained for compatibility with existing callers/tests.
+     * New SEO endpoints use the bounded paginated method below. */
     public List<SitemapEntry> sitemapEntries() {
         List<SitemapEntry> out = new ArrayList<>();
         for (Event e : events.findByStatusOrderByStartsAtAsc(Enums.EventStatus.PUBLISHED))
             out.add(new SitemapEntry(e.getSlug(), e.getUpdatedAt()));
         return out;
+    }
+
+    public long publishedEventCount() {
+        return events.countByStatus(Enums.EventStatus.PUBLISHED);
+    }
+
+    public List<SitemapEntry> sitemapPage(int page, int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 10_000));
+        Slice<Event> result = events.findByStatusOrderByStartsAtAsc(Enums.EventStatus.PUBLISHED,
+                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.ASC, "startsAt", "id")));
+        return result.getContent().stream()
+                .map(e -> new SitemapEntry(e.getSlug(), e.getUpdatedAt()))
+                .toList();
     }
 
     private PageView<EventCard> toCards(EventCatalogRepository.Page result, int page, int size) {

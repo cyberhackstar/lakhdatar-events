@@ -20,6 +20,21 @@ export class AuthService {
     return this.http.post<AuthResponse>(`${this.base}/auth/login`, { email, password }, { withCredentials: true }).pipe(tap(r => this.store(r)));
   }
 
+  /** Completes an emailed invite: sets the password, consumes the one-time token and signs the user in. */
+  acceptInvite(token: string, password: string): Observable<AuthResponse> {
+    this.sessionProbe = undefined;
+    return this.http.post<AuthResponse>(`${this.base}/auth/accept-invite`, { token, password }, { withCredentials: true }).pipe(tap(r => this.store(r)));
+  }
+
+  changePassword(currentPassword: string, newPassword: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.base}/auth/change-password`, { currentPassword, newPassword }, { withCredentials: true }).pipe(tap(r => this.store(r)));
+  }
+
+  /** True while an account created with an initial password has not yet chosen its own. */
+  mustChangePassword(): Observable<boolean> {
+    return this.http.get<{ mustChangePassword: boolean }>(`${this.base}/auth/password-status`, { withCredentials: true }).pipe(map(r => !!r.mustChangePassword));
+  }
+
   refresh(): Observable<AuthResponse> {
     if (this.refreshInFlight) return this.refreshInFlight;
     this.refreshInFlight = this.http.post<AuthResponse>(`${this.base}/auth/refresh`, {}, { withCredentials: true }).pipe(

@@ -2,13 +2,14 @@ import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { BrandMarkComponent } from '../../shared/brand-mark.component';
+import { ToastsComponent } from '../../shared/toasts.component';
 import { AdminStore } from './admin-store.service';
 
 /** Console frame: persistent sidebar (tabs on mobile) + routed pages. Every link is a real route, nothing relies on #anchors. */
 @Component({
   selector: 'lk-admin-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, BrandMarkComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, BrandMarkComponent, ToastsComponent],
   template: `
     <div class="shell">
       <aside>
@@ -19,7 +20,7 @@ import { AdminStore } from './admin-store.service';
           <a routerLink="/admin/events" routerLinkActive="on"><i>◈</i><span>Events</span></a>
           @if (canAdminister()) { <a routerLink="/admin/events/new" routerLinkActive="on"><i>＋</i><span>Create event</span></a> }
           @if (isAdmin()) { <a routerLink="/admin/organizers" routerLinkActive="on"><i>▣</i><span>Organizers</span></a> }
-          @if (canAdminister()) { <a routerLink="/admin/team" routerLinkActive="on"><i>◉</i><span>Team &amp; access</span></a> }
+          @if (canAdminister()) { <a routerLink="/admin/team" routerLinkActive="on"><i>◉</i><span>{{ isAdmin() ? 'Teams' : 'Team' }}</span></a> }
           @if (isManager()) { <a routerLink="/admin/complimentary" routerLinkActive="on"><i>✦</i><span>Complimentary tickets</span></a> }
           <a routerLink="/staff"><i>⌖</i><span>Scanner console</span></a>
         </nav>
@@ -32,6 +33,7 @@ import { AdminStore } from './admin-store.service';
       </aside>
       <main><router-outlet /></main>
     </div>
+    <lk-toasts />
   `,
   styles: [`
     :host{display:block;color-scheme:light}

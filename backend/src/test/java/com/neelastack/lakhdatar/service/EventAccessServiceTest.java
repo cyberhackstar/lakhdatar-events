@@ -53,4 +53,18 @@ class EventAccessServiceTest {
         assertTrue(access.canManageEvent(new UserPrincipal(1L, "admin@example.com", "ADMIN"), 999L));
         verifyNoInteractions(events, assignments, members);
     }
+
+    @Test void requireOrganizerAccessAllowsAdminAndOwnerOnly() {
+        assertDoesNotThrow(() -> access.requireOrganizerAccess(7L, 1L, "ADMIN"));
+        var owner = new com.neelastack.lakhdatar.domain.OrganizerMember(); owner.setRole("OWNER");
+        when(members.findByOrganizerIdAndUserId(7L, 5L)).thenReturn(Optional.of(owner));
+        assertDoesNotThrow(() -> access.requireOrganizerAccess(7L, 5L, "ORGANIZER"));
+    }
+
+    @Test void requireOrganizerAccessRejectsOtherOrganizersEventManagersAndStaff() {
+        assertThrows(com.neelastack.lakhdatar.exception.ApiException.class, () -> access.requireOrganizerAccess(7L, 6L, "ORGANIZER"));
+        assertThrows(com.neelastack.lakhdatar.exception.ApiException.class, () -> access.requireOrganizerAccess(7L, 6L, "EVENT_MANAGER"));
+        assertThrows(com.neelastack.lakhdatar.exception.ApiException.class, () -> access.requireOrganizerAccess(7L, 6L, "STAFF"));
+        assertThrows(com.neelastack.lakhdatar.exception.ApiException.class, () -> access.requireOrganizerAccess(7L, null, "ORGANIZER"));
+    }
 }

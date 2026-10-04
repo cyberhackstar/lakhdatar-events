@@ -1,6 +1,6 @@
-# Release 1.9.22 — organizer management, PNG platform logo, env wiring fixes
+# Release 1.9.25 — production release hardening
 
-See `CHANGES-1.9.22.md`, `IMPLEMENTATION-STATUS.md`, `ADMIN-SETUP-GUIDE.md` and `ENV-LINKAGE-AUDIT.md`.
+See `CHANGES-1.9.25.md`, `VALIDATION-1.9.25.md`, `IMPLEMENTATION-STATUS.md`, `RELEASE-NOTES.md`, `ADMIN-SETUP-GUIDE.md` and `ENV-LINKAGE-AUDIT.md`.
 
 # Release 1.9.21 — production smoke-test + SSR proxy correction
 
@@ -68,7 +68,7 @@ booking-closed are derived states, computed from live inventory and the booking 
 
 Production must keep `BOOTSTRAP_ENABLED=false`. For a fresh deployment, set `INITIAL_ADMIN_SETUP_ENABLED=true` and a unique `INITIAL_ADMIN_SETUP_TOKEN` of at least 32 bytes in the VM `.env`, deploy, then open `/setup/initial-admin` or call the setup endpoint. The setup creates the first `ADMIN` account and an `OWNER` membership for the first organizer, but never creates a sample event. The database marks setup complete under a row lock, so the endpoint cannot be reused even if the environment flag remains enabled. After successful provisioning, set `INITIAL_ADMIN_SETUP_ENABLED=false` and redeploy.
 
-After setup, add organizers (name + logo) under **Admin console -> Organizers**; logos are uploaded to Cloudinary and only the URL is stored. The Neelastack logo is the file `frontend/src/assets/neelastack-logo.png`. Full steps: `ADMIN-SETUP-GUIDE.md`.
+After setup, add organizers (name + logo) under **Admin console -> Organizers**; logos are uploaded to Cloudinary and their HTTPS URL plus provider public ID are stored so replacements can be compensated and old assets reclaimed safely. The Neelastack logo is the file `frontend/src/assets/neelastack-logo.png`. Full steps: `ADMIN-SETUP-GUIDE.md`.
 
 Configure Cloudinary only when branding uploads are required: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_FOLDER`, and `CLOUDINARY_MAX_BYTES`. The API secret remains backend-only.
 
@@ -82,7 +82,7 @@ docker compose up --build
 ```
 
 Backend tests: `cd backend && mvn -B verify` (integration tests need Docker; `mvn verify -Punit` skips them).
-Frontend: use Node 24, refresh the lock once with `./scripts/refresh-frontend-lock.ps1`, then `cd frontend && npm ci && npm run build`; run the built SSR server with `PORT=3000 SSR_API_BASE_URL=http://localhost:8081/api/v1 node dist/frontend/server/server.mjs`.
+Frontend: use Node 24 (`.nvmrc` and production image baseline), refresh the lock once with `./scripts/refresh-frontend-lock.ps1`, then `cd frontend && npm ci && npm run build`; run the built SSR server with `PORT=3000 SSR_API_BASE_URL=http://localhost:8081/api/v1 node dist/frontend/server/server.mjs`.
 
 ## CI/CD
 
@@ -95,3 +95,7 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 - [PHASE5-VALIDATION.md](PHASE5-VALIDATION.md): release validation and environment limitations
 - [docs/deployment.md](docs/deployment.md): Oracle VM, Cloudflare Tunnel, CI/CD, rollback
 - [docs/architecture.md](docs/architecture.md), [docs/security.md](docs/security.md), [docs/payments.md](docs/payments.md), [docs/checkin.md](docs/checkin.md), [docs/backup-restore.md](docs/backup-restore.md), [docs/production-checklist.md](docs/production-checklist.md)
+
+
+## Current release
+See `CHANGES-1.9.25.md` and `VALIDATION-1.9.25.md`.

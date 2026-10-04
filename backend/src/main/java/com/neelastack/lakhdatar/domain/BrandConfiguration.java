@@ -7,10 +7,13 @@ public class BrandConfiguration {
  @Column(nullable=false,length=32) private String scope;
  @Column(name="organizer_id") private Long organizerId;
  @Column(name="organizer_logo_url") private String organizerLogoUrl;
+ @Column(name="organizer_logo_public_id",length=255) private String organizerLogoPublicId;
  @Column(name="branding_mode",nullable=false,length=16) private String brandingMode="BOTH";
  @Column(name="organizer_name") private String organizerName;
  @Column(name="event_logo_url") private String eventLogoUrl;
+ @Column(name="event_logo_public_id",length=255) private String eventLogoPublicId;
  @Column(name="event_banner_url") private String eventBannerUrl;
+ @Column(name="event_banner_public_id",length=255) private String eventBannerPublicId;
  @Column(name="primary_brand_color") private String primaryBrandColor;
  @Column(name="secondary_brand_color") private String secondaryBrandColor;
  @Column(name="technology_partner_enabled",nullable=false) private boolean technologyPartnerEnabled=true;

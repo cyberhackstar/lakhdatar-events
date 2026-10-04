@@ -18,6 +18,7 @@ public class User {
     @Column(name="full_name", nullable=false, length=255) private String fullName;
     @Enumerated(EnumType.STRING) @Column(nullable=false, length=32) private Enums.UserRole role;
     @Column(nullable=false) private boolean enabled=true;
+    @Column(name="must_change_password", nullable=false) private boolean mustChangePassword=false;
     @Column(name="created_at", updatable=false) private Instant createdAt=Instant.now();
     @Column(name="updated_at") private Instant updatedAt=Instant.now();
     @PreUpdate void touch(){updatedAt=Instant.now();}

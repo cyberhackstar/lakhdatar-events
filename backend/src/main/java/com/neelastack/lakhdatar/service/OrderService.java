@@ -24,9 +24,11 @@ import java.util.*;
 public class OrderService {
     private final EventRepository events; private final TicketTypeRepository ticketTypes; private final OrderRepository orders; private final OrderItemRepository items;
     private final PaymentRepository payments; private final TicketRepository tickets; private final TicketReservationRepository reservations; private final TicketReservationService reservationService;
-    private final PaymentGatewayRouter gateways; private final QrCredentialService qr; private final AccessTokenService accessTokens; private final AuditService audit; private final AppProperties props;
+    private final TicketMailService ticketMail; private final PaymentGatewayRouter gateways; private final QrCredentialService qr; private final AccessTokenService accessTokens; private final AuditService audit; private final AppProperties props;
     private final JdbcTemplate jdbc; private final RateLimitService rateLimits; private final TransactionTemplate tx; private final DistributedLockService locks; private final RefundService refundService; private final PaymentStateMachine paymentStateMachine;
     private final SecureRandom secureRandom = new SecureRandom();
+    @org.springframework.beans.factory.annotation.Value("${app.payment.reconciliation-window-hours:168}") private long recoveryWindowHours = 168;
+    @org.springframework.beans.factory.annotation.Value("${app.payment.recovery-recheck-ms:30000}") private long recoveryRecheckMs = 30_000;
 
     public record CheckoutItem(UUID ticketTypeId,int quantity){}
     public record CheckoutRequest(UUID eventId,String customerName,String customerEmail,String customerPhone,String idempotencyKey,List<CheckoutItem> items,String clientKey){}
@@ -377,6 +379,7 @@ public class OrderService {
             }
         }
         o.setStatus(Enums.OrderStatus.CONFIRMED);paymentStateMachine.transition(p,Enums.PaymentStatus.COMPLETED);audit.log(o.getUserId(),"TICKETS_ISSUED","ORDER",o.getPublicId().toString(),null);
+        ticketMail.sendAfterCommit(o.getId()); // best-effort email after commit; never affects the sale
     }
 
     public void transitionPaymentForWebhook(Payment payment, Enums.PaymentStatus target){ paymentStateMachine.transition(payment,target); payments.save(payment); }
@@ -407,14 +410,21 @@ public class OrderService {
      */
     @Scheduled(fixedDelayString = "${app.razorpay.order-recovery-sweep:30000}")
     public void recoverMissingProviderOrders(){
-        var candidates = payments.findTop100ByProviderOrderIdIsNullAndStatusInOrderByCreatedAtAsc(
+        // Bounded look-back window plus per-payment rotation: abandoned checkouts must not starve newer ones.
+        Instant now = Instant.now();
+        var candidates = payments.findMissingProviderOrderCandidates(
                 List.of(Enums.PaymentStatus.CREATED, Enums.PaymentStatus.PENDING,
-                        Enums.PaymentStatus.PAYMENT_INITIATED, Enums.PaymentStatus.AUTHORIZED));
+                        Enums.PaymentStatus.PAYMENT_INITIATED, Enums.PaymentStatus.AUTHORIZED),
+                now.minus(Duration.ofHours(Math.max(1, recoveryWindowHours))),
+                now.minusMillis(Math.max(0, recoveryRecheckMs)),
+                org.springframework.data.domain.PageRequest.of(0, 100));
         for (var payment : candidates) {
             try {
                 provisionPaymentOrder(payment.getOrderId());
             } catch (Exception ex) {
                 // Recovery is best-effort; the next scheduled sweep retries the payment.
+            } finally {
+                try { payments.markReconciled(payment.getId(), Instant.now()); } catch (Exception ignored) { }
             }
         }
     }

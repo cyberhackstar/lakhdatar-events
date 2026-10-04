@@ -194,9 +194,10 @@ public class EventManagementService {
     public void publish(UUID eventPublicId, Long actorId, String role) {
         if (!organizerManagementRole(role))
             throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Only platform administrators or organizer owners can publish events");
-        Event e = events.findByPublicId(eventPublicId).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
-        if (!eventAccess.canManageEvent(e.getId(), actorId, role))
-            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Not authorized for this event");
+        Event managedEvent = events.findByPublicIdForUpdate(eventPublicId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
+        authorize(managedEvent, actorId, role);
+        Event e = managedEvent;
         if (ticketTypes.findByEventIdOrderByPriceMinorUnitsAsc(e.getId()).isEmpty())
             throw new ApiException(HttpStatus.CONFLICT, "NO_TICKETS", "Add at least one ticket type before publishing");
         if (e.getStartsAt().isBefore(Instant.now()))
@@ -237,7 +238,10 @@ public class EventManagementService {
 
     @Transactional
     public void update(UUID eventPublicId, UpdateEventRequest r, Long actorId, String role) {
-        Event e = managed(eventPublicId, actorId, role);
+        Event managedEvent = managed(eventPublicId, actorId, role);
+        Event e = events.findByIdForUpdate(managedEvent.getId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
+        authorize(e, actorId, role);
         require(e.getStatus() != Enums.EventStatus.COMPLETED && e.getStatus() != Enums.EventStatus.ARCHIVED && e.getStatus() != Enums.EventStatus.CANCELLED, "This event can no longer be edited");
         if (r.name() != null) { String n = r.name().trim(); if (n.length() < 3 || n.length() > 180) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EVENT", "Event name must be between 3 and 180 characters"); e.setName(n); }
         if (r.startsAt() != null) { if (r.startsAt().isBefore(Instant.now().minusSeconds(300))) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_START", "Event start time is invalid"); e.setStartsAt(r.startsAt()); }
@@ -282,7 +286,10 @@ public class EventManagementService {
 
     @Transactional
     public TicketTypeCreated addTicketType(UUID eventPublicId, CreateTicketType x, Long actorId, String role) {
-        Event e = managed(eventPublicId, actorId, role);
+        Event managedEvent = managed(eventPublicId, actorId, role);
+        // Event-wide capacity is an aggregate invariant across ticket types. Serialize every
+        // inventory-configuration mutation on the same event row, matching the checkout lock order.
+        Event e = events.findByIdForUpdate(managedEvent.getId()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         require(e.getStatus() == Enums.EventStatus.DRAFT || e.getStatus() == Enums.EventStatus.PUBLISHED || e.getStatus() == Enums.EventStatus.UNPUBLISHED, "Ticket types can no longer be added");
         validateTicketType(x.name(), x.priceMinorUnits(), x.totalQuantity(), x.minPerOrder(), x.maxPerOrder(), x.saleStartsAt(), x.saleEndsAt());
         TicketType t = new TicketType(); t.setEventId(e.getId()); t.setName(x.name().trim()); t.setDescription(x.description());
@@ -299,7 +306,9 @@ public class EventManagementService {
     @Transactional
     public void updateTicketType(UUID ticketTypePublicId, UpdateTicketType r, Long actorId, String role) {
         TicketType found = ticketTypes.findByPublicId(ticketTypePublicId).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "TICKET_TYPE_NOT_FOUND", "Ticket type not found"));
-        Event e = events.findById(found.getEventId()).orElseThrow();
+        // Lock the parent event before the ticket type so capacity edits serialize with both
+        // checkout inventory reservations and other admin inventory edits.
+        Event e = events.findByIdForUpdate(found.getEventId()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         authorize(e, actorId, role);
         TicketType t = ticketTypes.findByIdForUpdate(found.getId()).orElseThrow();
         String name = r.name() != null ? r.name() : t.getName();

@@ -54,3 +54,9 @@ configured public origin and list only published events.
 - Public image upload/asset management is still URL-based; the rich event editor manages the configured event metadata and ticket settings
 - Prometheus and Alertmanager are not part of the Compose stack; `infra/monitoring/alerts.yml` is ready to load into yours
 - Per-organizer branding beyond the existing brand configuration
+
+## Teams, scoping and ticket delivery
+- Staff and event managers belong to exactly one organizer (`organizer_members`, roles `STAFF` / `EVENT_MANAGER`, unique per user). Roles: ADMIN > ORGANIZER (owner) > EVENT_MANAGER (per event) > STAFF (per gate).
+- Gate and manager assignment rejects people from another organizer (409 `DIFFERENT_ORGANIZER`); repeating an assignment is idempotent.
+- Every ticket carries a signed QR credential; the ticket page receives the QR image as `qrDataUri`. Buyers get tickets by email when email is configured, and can always recover them at `/recover`.
+
