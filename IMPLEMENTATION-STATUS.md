@@ -1,6 +1,6 @@
-# IMPLEMENTATION STATUS 1.9.46
+# IMPLEMENTATION STATUS 1.9.47
 
-Release details: `CHANGES-1.9.46.md` and `VALIDATION-1.9.46.md`.
+Release details: `CHANGES-1.9.47.md` and `VALIDATION-1.9.47.md`.
 
 The release preserves the v1.9.39 production reliability baseline while addressing the CI failures observed in the frontend build and backend contract tests.
 
