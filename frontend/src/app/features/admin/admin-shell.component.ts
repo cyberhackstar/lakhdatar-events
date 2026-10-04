@@ -13,7 +13,7 @@ import { AdminStore } from './admin-store.service';
   template: `
     <div class="shell">
       <aside>
-        <a routerLink="/admin" class="brand" aria-label="Console home"><lk-brand-mark label="Events" [height]="30" /></a>
+        <a routerLink="/admin" class="brand" aria-label="Console home"><lk-brand-mark label="Events" [height]="48" /></a>
         <div class="role">{{ roleLabel() }}</div>
         <nav aria-label="Console">
           <a routerLink="/admin" routerLinkActive="on" [routerLinkActiveOptions]="{exact:true}"><i>◧</i><span>Overview</span></a>

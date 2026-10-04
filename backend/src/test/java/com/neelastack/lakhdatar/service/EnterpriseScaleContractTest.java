@@ -8,10 +8,14 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 class EnterpriseScaleContractTest {
-    /** Resolve contract-test fixtures from either the backend module directory or the repository root. */
+    /**
+     * Resolve contract-test fixtures from either the backend module directory or
+     * the repository root.
+     */
     private static String read(String path) throws Exception {
         Path requested = Path.of(path);
-        if (requested.isAbsolute() && Files.isRegularFile(requested)) return Files.readString(requested);
+        if (requested.isAbsolute() && Files.isRegularFile(requested))
+            return Files.readString(requested);
 
         Path cursor = Path.of("").toAbsolutePath().normalize();
         while (cursor != null) {
@@ -19,17 +23,22 @@ class EnterpriseScaleContractTest {
                     && Files.isDirectory(cursor.resolve("frontend/src"))) {
                 Path root = cursor;
                 String normalized = path.replace('\\', '/');
-                if (normalized.startsWith("../")) normalized = normalized.substring(3);
-                if (normalized.startsWith("./")) normalized = normalized.substring(2);
+                if (normalized.startsWith("../"))
+                    normalized = normalized.substring(3);
+                if (normalized.startsWith("./"))
+                    normalized = normalized.substring(2);
                 Path candidate = root.resolve(normalized).normalize();
-                if (Files.isRegularFile(candidate)) return Files.readString(candidate);
+                if (Files.isRegularFile(candidate))
+                    return Files.readString(candidate);
                 if (path.startsWith("src/")) {
                     Path backendCandidate = root.resolve("backend").resolve(path).normalize();
-                    if (Files.isRegularFile(backendCandidate)) return Files.readString(backendCandidate);
+                    if (Files.isRegularFile(backendCandidate))
+                        return Files.readString(backendCandidate);
                 }
             }
             Path candidate = cursor.resolve(path).normalize();
-            if (Files.isRegularFile(candidate)) return Files.readString(candidate);
+            if (Files.isRegularFile(candidate))
+                return Files.readString(candidate);
             cursor = cursor.getParent();
         }
         throw new java.nio.file.NoSuchFileException(path);
@@ -58,21 +67,27 @@ class EnterpriseScaleContractTest {
     void orderAndPublicSalesUseFullEventEndForMultiDayBookings() throws Exception {
         String publicService = read("src/main/java/com/neelastack/lakhdatar/service/PublicEventService.java");
         String orderService = read("src/main/java/com/neelastack/lakhdatar/service/OrderService.java");
-        assertTrue(publicService.contains("Instant eventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();"));
-        assertTrue(publicService.contains("Instant bookingEnd = e.getBookingEndsAt() != null ? e.getBookingEndsAt() : eventEnd;"));
-        assertTrue(orderService.contains("Instant eventEnd = event.getEndsAt() != null ? event.getEndsAt() : event.getStartsAt();"));
+        assertTrue(
+                publicService.contains("Instant eventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();"));
+        assertTrue(publicService
+                .contains("Instant bookingEnd = e.getBookingEndsAt() != null ? e.getBookingEndsAt() : eventEnd;"));
+        assertTrue(orderService
+                .contains("Instant eventEnd = event.getEndsAt() != null ? event.getEndsAt() : event.getStartsAt();"));
         assertFalse(publicService.contains("return end.isAfter(now) ? \"BOOKING_CLOSED\" : \"COMPLETED\";"));
     }
 
     @Test
-    void cashfreeUsesHostedRedirectAndAdminEventsCsvUsesNativeDownload() throws Exception {
+    void cashfreeUsesHostedRedirectAndAdminEventsCsvUsesAuthenticatedBlobDownload() throws Exception {
         String checkout = read("../frontend/src/app/features/checkout/checkout.component.ts");
         String ops = read("../frontend/src/app/features/admin/event-operations.component.ts");
         String list = read("../frontend/src/app/features/admin/events-list.component.ts");
+        String api = read("../frontend/src/app/core/api/api.service.ts");
         assertTrue(checkout.contains("redirectTarget: '_self'"));
-        assertTrue(ops.contains("/attendees.csv"));
-        assertTrue(list.contains("/api/v1/admin/events/${encodeURIComponent(e.id)}/attendees.csv"));
-        assertFalse(list.contains("responseType: 'blob'"));
+        assertTrue(api.contains("attendeesCsv(eventId: string)"));
+        assertTrue(ops.contains("this.api.attendeesCsv(this.eventId)"));
+        assertTrue(list.contains("this.api.attendeesCsv(e.id)"));
+        assertFalse(ops.contains("a.href = `/api/v1/admin/events/"));
+        assertFalse(list.contains("a.href = `/api/v1/admin/events/"));
     }
 
     @Test
@@ -136,6 +151,28 @@ class EnterpriseScaleContractTest {
         assertTrue(controller.contains("/tickets/{ticketId}/pdf"));
         assertTrue(pdf.contains("No customer bearer token is ever embedded in the PDF"));
     }
+
+    @Test
+    void productionBrowserNeverTargetsPublicBackendPortAndCashfreeReturnIsRecoverable() throws Exception {
+        String apiToken = read("../frontend/src/app/core/api/api.tokens.ts");
+        String auth = read("../frontend/src/app/core/auth/auth.service.ts");
+        String env = read("../frontend/src/environments/environment.prod.ts");
+        String paymentResult = read("../frontend/src/app/features/payment-result/payment-result.component.ts");
+        String recover = read("../frontend/src/app/features/recover/recover.component.ts");
+        String orderService = read("src/main/java/com/neelastack/lakhdatar/service/OrderService.java");
+        assertTrue(env.contains("apiBaseUrl: '/api/v1'"));
+        assertTrue(apiToken.contains("if (typeof window !== 'undefined' && environment.production) return '/api/v1';"));
+        assertTrue(auth.contains("inject(API_BASE_URL)"));
+        assertFalse(apiToken.contains("events.neelastack.com:8080"));
+        assertTrue(paymentResult.contains("Never turn a transient verification error into a forced recovery redirect"));
+        assertTrue(paymentResult.contains("maxReturnAttempts = 8"));
+        assertTrue(recover.contains("Cashfree transaction ID"));
+        assertTrue(recover.contains("finalize(() => { this.loading = false; })"));
+        assertTrue(orderService.contains("findByProviderPaymentId(normalized)"));
+        assertTrue(orderService.contains(
+                "if(verifiedOrder.getStatus()==Enums.OrderStatus.CONFIRMED) return response(verifiedOrder);"));
+    }
+
     @Test
     void frontendCiUsesSupportedZoneBootstrapAndEventEditorNarrowingIsTypeSafe() throws Exception {
         String angular = read("../frontend/angular.json");
@@ -148,6 +185,18 @@ class EnterpriseScaleContractTest {
         assertTrue(polyfills.contains("import 'zone.js';") && polyfills.contains("import 'zone.js/testing';"));
         assertTrue(editor.contains("if (!startsAt) { this.error = 'Enter a valid event start time.'; return; }"));
         assertTrue(editor.contains("const effectiveEventEnd = endsAt ?? startsAt;"));
+        String checkout = read("../frontend/src/app/features/checkout/checkout.component.ts");
+        String header = read("../frontend/src/app/shared/site-header.component.ts");
+        String csvList = read("../frontend/src/app/features/admin/events-list.component.ts");
+        String login = read("../frontend/src/app/features/auth/login.component.ts");
+        String paymentResult = read("../frontend/src/app/features/payment-result/payment-result.component.ts");
+        assertTrue(checkout.contains("color-scheme:light"));
+        assertTrue(checkout.contains("-webkit-text-fill-color:#171219"));
+        assertTrue(checkout.contains("maxlength=\"10\""));
+        assertTrue(header.contains("[height]=\"48\""));
+        assertTrue(csvList.contains("attendeesCsv"));
+        assertTrue(login.contains("this.form.markAllAsTouched()") && login.contains("Validators.minLength(8)"));
+        assertTrue(paymentResult.contains("const recoveryOrder = this.booking.getRecoveryHint();"));
     }
 
 }

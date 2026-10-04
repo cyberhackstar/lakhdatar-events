@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, finalize, map, of, shareReplay, tap, throwError } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { API_BASE_URL } from '../api/api.tokens';
 import { AuthResponse } from '../api/api.models';
 
 const ROLE = 'lk_role';
@@ -11,7 +11,7 @@ const LOGGED_OUT = 'lk_logged_out';
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
-  private readonly base = environment.apiBaseUrl;
+  private readonly base = inject(API_BASE_URL);
   private access?: string;
   private refreshInFlight?: Observable<AuthResponse>;
   private sessionProbe?: Observable<boolean>;

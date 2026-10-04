@@ -1,21 +1,21 @@
-# v1.9.42
+# v1.9.45
 
 - Corrected strict TypeScript event-end narrowing in the admin event editor.
 - Corrected backend contract-test fixture resolution for CI working directories.
 - Globally configured Zone.js for Angular unit tests.
 - Retained payment, scanner, CSV, finance, event lifecycle, multi-day booking, and ticket-count protections from v1.9.39.
 
-See `CHANGES-1.9.42.md`, `VALIDATION-1.9.42.md`, and `PRODUCTION-DEPLOY-1.9.42.md`.
+See `CHANGES-1.9.45.md`, `VALIDATION-1.9.45.md`, and `PRODUCTION-DEPLOY-1.9.45.md`.
 
 ---
 
-# v1.9.42
+# v1.9.44
 
 - Fixed the Angular frontend unit-test CI failure (`NG0908`) by explicitly loading `zone.js` and `zone.js/testing` before TestBed specs.
 - Retained the `EventQuery` regression contract for optional filters and `false`/`0` values.
 - Retained the v1.9.34 payment/scanner/CSP/admin-query runtime fixes and the v1.9.35 query sanitizer typing correction unchanged.
 
-See `CHANGES-1.9.42.md` and `VALIDATION-1.9.42.md`.
+See `CHANGES-1.9.44.md` and `VALIDATION-1.9.44.md`.
 
 ---
 

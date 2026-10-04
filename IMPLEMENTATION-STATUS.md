@@ -1,14 +1,14 @@
-# IMPLEMENTATION STATUS 1.9.42
+# IMPLEMENTATION STATUS 1.9.45
 
-Release details: `CHANGES-1.9.42.md` and `VALIDATION-1.9.42.md`.
+Release details: `CHANGES-1.9.45.md` and `VALIDATION-1.9.45.md`.
 
 The release preserves the v1.9.39 production reliability baseline while addressing the CI failures observed in the frontend build and backend contract tests.
 
 ---
 
-# IMPLEMENTATION STATUS 1.9.42
+# IMPLEMENTATION STATUS 1.9.44
 
-Release details: `CHANGES-1.9.42.md` and `VALIDATION-1.9.42.md`.
+Release details: `CHANGES-1.9.44.md` and `VALIDATION-1.9.44.md`.
 
 ## Current correction
 - Fixed the live Cashfree hosted-checkout CSP/iframe failure by using the supported `_self` redirect and removed the mobile checkout blocking/blur state.

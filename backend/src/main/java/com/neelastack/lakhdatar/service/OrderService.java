@@ -280,6 +280,10 @@ public class OrderService {
             Order verifiedOrder=orders.findById(lockedPayment.getOrderId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
             if(verifiedOrder.getCheckoutSessionHash()==null || !MessageDigest.isEqual(verifiedOrder.getCheckoutSessionHash().getBytes(StandardCharsets.US_ASCII),hashCheckoutSession(req.checkoutSessionToken()).getBytes(StandardCharsets.US_ASCII)))
                 throw new ApiException(HttpStatus.UNAUTHORIZED,"CHECKOUT_SESSION_INVALID","Checkout session is invalid or expired");
+            // The payment provider webhook can win the race and fulfill this order before the browser
+            // returns from the hosted checkout. Verification must therefore be idempotent: once the
+            // order is confirmed, never attempt a backwards state transition such as COMPLETED -> CAPTURED.
+            if(verifiedOrder.getStatus()==Enums.OrderStatus.CONFIRMED) return response(verifiedOrder);
             PaymentGatewayProvider gateway=gateways.forPayment(lockedPayment);
             PaymentGatewayProvider.ProviderPayment provider;
             if(lockedPayment.getProvider()==Enums.PaymentProvider.RAZORPAY){
@@ -287,10 +291,19 @@ public class OrderService {
                     throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PAYMENT_SIGNATURE","Payment verification failed");
                 provider=gateway.fetchPayment(req.providerPaymentId());
             } else {
-                provider=gateway.fetchPaymentsForOrder(lockedPayment.getProviderOrderId()).stream()
+                List<PaymentGatewayProvider.ProviderPayment> cashfreePayments = gateway.fetchPaymentsForOrder(lockedPayment.getProviderOrderId());
+                Optional<PaymentGatewayProvider.ProviderPayment> captured = cashfreePayments.stream()
                         .filter(x->x.amount()==lockedPayment.getAmountMinor()&&lockedPayment.getCurrency().equalsIgnoreCase(x.currency()))
                         .filter(x->"captured".equalsIgnoreCase(x.status()) && x.captured())
-                        .findFirst().orElseThrow(()->new ApiException(HttpStatus.CONFLICT,"PAYMENT_NOT_CONFIRMED","Cashfree has not confirmed a successful payment for this order yet"));
+                        .findFirst();
+                if (captured.isEmpty()) {
+                    // Cashfree redirects here for both success and user-cancelled/failed attempts.
+                    // A missing captured payment is therefore a normal non-final state, not a client error.
+                    Order pendingOrder=orders.findById(lockedPayment.getOrderId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+                    boolean failed = cashfreePayments.stream().anyMatch(x -> "failed".equalsIgnoreCase(x.status()) || "cancelled".equalsIgnoreCase(x.status()));
+                    return new VerifyResponse(pendingOrder.getPublicId().toString(), pendingOrder.getOrderNumber(), failed ? "CANCELLED" : "PENDING", List.of());
+                }
+                provider=captured.get();
             }
             tx.executeWithoutResult(status->{
                 Payment current=payments.findByIdForUpdate(lockedPayment.getId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"PAYMENT_NOT_FOUND","Payment session not found"));
@@ -464,8 +477,15 @@ public class OrderService {
     }
     public record PublicEventControllerTicket(UUID ticketId,String ticketNumber,String accessToken){}
     public record RecoveryOrder(String orderNumber,Enums.OrderStatus status,String eventName,List<PublicEventControllerTicket> tickets){}
-    public RecoveryOrder findForRecovery(String orderNumber,String email){
-        Order o=orders.findByOrderNumber(orderNumber.trim().toUpperCase()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+    public RecoveryOrder findForRecovery(String reference,String email){
+        String normalized=reference.trim();
+        Order o;
+        if(normalized.matches("(?i)^LK-[A-Z0-9]{12}$")) {
+            o=orders.findByOrderNumber(normalized.toUpperCase()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+        } else {
+            Payment providerPayment=payments.findByProviderPaymentId(normalized).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+            o=orders.findById(providerPayment.getOrderId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+        }
         if(!o.getCustomerEmail().equalsIgnoreCase(email.trim()))throw new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found");
         Event e=events.findById(o.getEventId()).orElseThrow();
         List<PublicEventControllerTicket> ts=tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream()

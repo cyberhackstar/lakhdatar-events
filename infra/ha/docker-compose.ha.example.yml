@@ -12,7 +12,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       APP_ENV: production
-      APP_VERSION: ${APP_VERSION:-1.9.42}
+      APP_VERSION: ${APP_VERSION:-1.9.45}
       DB_URL: ${DB_URL:?DB_URL is required}
       DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
@@ -89,7 +89,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      APP_VERSION: ${APP_VERSION:-1.9.42}
+      APP_VERSION: ${APP_VERSION:-1.9.45}
       SSR_API_BASE_URL: ${SSR_API_BASE_URL:-http://backend:8080/api/v1}
       NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:?NG_ALLOWED_HOSTS is required}
       NG_TRUST_PROXY_HEADERS: X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO

@@ -19,7 +19,7 @@
 .skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);animation:shimmer 1.4s infinite}
 @keyframes shimmer{to{transform:translateX(100%)}}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-input,select,textarea{color-scheme:dark}
+input,select,textarea{color-scheme:normal}
 
 /* iOS/Safari form stability: keep editable controls at >=16px so focusing fields does not trigger automatic page zoom. */
 input, select, textarea { font-size: 16px !important; }
@@ -27,3 +27,8 @@ input, select, textarea { font-size: 16px !important; }
 
 /* Platform mark: whatever shape the supplied logo PNG has, never stretch it inside its fixed-size slot. */
 img[src="/assets/neelastack-logo.png"]{object-fit:contain}
+
+
+/* Premium form baseline: explicit readable text, placeholder, autofill and error states. Page-level themes may override colors. */
+input:not([type="checkbox"]):not([type="radio"]),select,textarea{transition:border-color .18s ease,box-shadow .18s ease,background-color .18s ease,color .18s ease}input:not([type="checkbox"]):not([type="radio"])::placeholder,textarea::placeholder{opacity:1}input:not([type="checkbox"]):not([type="radio"]):disabled,select:disabled,textarea:disabled{cursor:not-allowed;opacity:.65}input[aria-invalid="true"],select[aria-invalid="true"],textarea[aria-invalid="true"]{border-color:#c87979!important;box-shadow:0 0 0 3px rgba(200,121,121,.08)}
+.checkout-page input,.checkout-page select,.checkout-page textarea{color-scheme:light}.recover-page input,.recover-page select,.recover-page textarea,.success-page input,.success-page select,.success-page textarea,.login-page input,.login-page select,.login-page textarea,.page input,.page select,.page textarea,.staff-page input,.staff-page select,.staff-page textarea{color-scheme:dark}

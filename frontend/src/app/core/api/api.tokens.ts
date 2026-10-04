@@ -7,5 +7,10 @@ import { environment } from '../../../environments/environment';
  */
 export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL', {
   providedIn: 'root',
-  factory: () => environment.apiBaseUrl
+  factory: () => {
+    // Production browser traffic must stay same-origin so Cloudflare/Nginx can proxy /api to the backend.
+    // SSR overrides this token with the private Docker URL in app.config.server.ts.
+    if (typeof window !== 'undefined' && environment.production) return '/api/v1';
+    return environment.apiBaseUrl;
+  }
 });

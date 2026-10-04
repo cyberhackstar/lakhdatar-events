@@ -16,7 +16,7 @@ public class OperationsHealthService {
     private final StringRedisTemplate redis;
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
     @Value("${spring.application.name:lakhdatar-events-backend}") private String applicationName;
-    @Value("${spring.application.version:1.9.42}") private String applicationVersion;
+    @Value("${spring.application.version:1.9.45}") private String applicationVersion;
 
     public record Health(String application, String version, Instant checkedAt, Component database, Component redis,
                          Queues queues, long publishedEvents, long organizers, boolean workerEnabled) {}

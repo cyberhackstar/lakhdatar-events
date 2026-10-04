@@ -12,7 +12,7 @@ import { SET_PASSWORD_STYLES } from './set-password.styles';
   imports: [ReactiveFormsModule, BrandMarkComponent],
   template: `
     <div class="page"><div class="card">
-      <div class="brand"><lk-brand-mark label="Events" [height]="34" /></div>
+      <div class="brand"><lk-brand-mark label="Events" [height]="48" /></div>
       <div class="eyebrow">Account security</div>
       <h1>Choose a new password</h1>
       @if (required) { <div class="alert info" role="status">Your account was created with an initial password. Choose your own to continue.</div> }

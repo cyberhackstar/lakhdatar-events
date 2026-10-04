@@ -81,8 +81,8 @@ import { StatePanelComponent } from '../../shared/state-panel.component';
     h1{margin:0;font-size:clamp(44px,8.5vw,104px)}h1 em{font-style:italic;color:var(--gold-2)}
     .lede{margin:0;max-width:640px;font-size:clamp(16px,2vw,19px);line-height:1.65;color:#b9b2bd}
     .search{display:flex;gap:10px;width:min(100%,640px);padding:8px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
-    .search input{flex:1;min-width:0;background:transparent;border:0;color:var(--text);font-size:16px;padding:0 16px;outline:none}.search input::placeholder{color:#8a8390}
-    .search:focus-within{border-color:var(--gold)}
+    .search input{flex:1;min-width:0;background:transparent;border:0;color:var(--text)!important;-webkit-text-fill-color:var(--text);font-size:16px;padding:0 16px;outline:none}.search input::placeholder{color:#8a8390}
+    .search:focus-within{border-color:var(--gold);box-shadow:0 0 0 4px rgba(212,166,78,.08)}
     .chips{display:flex;gap:10px;flex-wrap:wrap}
     .block{padding-top:clamp(40px,6vw,76px)}
     .head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:26px;flex-wrap:wrap}.head h2{margin:8px 0 0;font-size:clamp(30px,4.5vw,46px)}

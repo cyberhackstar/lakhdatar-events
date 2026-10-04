@@ -17,7 +17,7 @@ import { environment } from '../../environments/environment';
           <a [href]="neelastackUrl" target="_blank" rel="noopener noreferrer">Neelastack ↗</a>
         </nav>
       </div>
-      <div class="container legal">© {{ year }} Neelastack. Event ticketing technology by Neelastack. Payments processed securely by Razorpay.</div>
+      <div class="container legal">© {{ year }} Neelastack. Event ticketing technology by Neelastack. Payments processed securely by our payment partners.</div>
     </footer>
   `,
   styles: [`

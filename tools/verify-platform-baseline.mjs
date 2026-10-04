@@ -107,6 +107,10 @@ const edgeNginx = read('edge/nginx.conf');
 const checkoutSource = read('frontend/src/app/features/checkout/checkout.component.ts');
 const scannerSource = read('frontend/src/app/features/scanner/scanner.component.ts');
 const apiServiceSource = read('frontend/src/app/core/api/api.service.ts');
+const apiTokenSource = read('frontend/src/app/core/api/api.tokens.ts');
+const prodEnvironmentSource = read('frontend/src/environments/environment.prod.ts');
+const paymentResultSource = read('frontend/src/app/features/payment-result/payment-result.component.ts');
+const recoverySource = read('frontend/src/app/features/recover/recover.component.ts');
 if (/map\s+\$http_cf_connecting_ip\s+\$client_rate_key\s*\{[^}]*\$binary_remote_addr/.test(edgeNginx)) problems.push('edge NGINX must not fall back to $binary_remote_addr: it is forwarded as X-Forwarded-For/X-Real-IP and raw bytes make Node/Tomcat answer 400');
 if (/proxy_set_header\s+\S+\s+\$binary_remote_addr/.test(edgeNginx)) problems.push('edge NGINX must never forward $binary_remote_addr in a request header');
 if (!edgeNginx.includes('"~^[0-9A-Fa-f:.]{3,45}$"')) problems.push('edge NGINX must validate CF-Connecting-IP as an IP literal before forwarding it');
@@ -116,6 +120,12 @@ if (!checkoutSource.includes('result?.paymentDetails') || !checkoutSource.includ
 if (!checkoutSource.includes('loadExternalScript') || !checkoutSource.includes('Payment SDK timed out or failed to load')) problems.push('External payment SDK loader timeout/recovery guard missing');
 if (!scannerSource.includes('verifying = true') || !scannerSource.includes('Keep the live camera session')) problems.push('scanner verification-state/camera-reuse regression detected');
 if (!apiServiceSource.includes('private queryParams<T extends object>(values: T): HttpParams')) problems.push('central optional HTTP query-param sanitizer missing');
+if (!prodEnvironmentSource.includes("apiBaseUrl: '/api/v1'")) problems.push('production browser API base must be same-origin /api/v1');
+if (!apiTokenSource.includes("if (typeof window !== 'undefined' && environment.production) return '/api/v1';")) problems.push('production browser API token guard missing');
+if (apiTokenSource.includes('events.neelastack.com:8080') || recoverySource.includes('http://events.neelastack.com:8080') || paymentResultSource.includes('http://events.neelastack.com:8080')) problems.push('public backend :8080 URL leaked into frontend source');
+if (!paymentResultSource.includes('Never turn a transient verification error into') || !paymentResultSource.includes('a forced recovery redirect')) problems.push('payment-return recovery redirect regression detected');
+if (!recoverySource.includes('Cashfree transaction ID')) problems.push('recovery transaction-reference copy missing');
+if (!recoverySource.includes('finalize(() => { this.loading = false; })')) problems.push('recovery loading finalizer missing');
 const specRoot = path.join(root, 'frontend/src');
 const stack = [specRoot];
 while (stack.length) {

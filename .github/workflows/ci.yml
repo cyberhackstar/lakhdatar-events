@@ -114,6 +114,10 @@ jobs:
             echo "Dev API URL leaked into production bundle" >&2
             exit 1
           fi
+          if grep -rEl "events\.neelastack\.com:8080|http://events\.neelastack\.com" dist/frontend/browser; then
+            echo "Public backend URL leaked into production browser bundle" >&2
+            exit 1
+          fi
       - name: Smoke-test Angular SSR server
         working-directory: frontend
         run: |

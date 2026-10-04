@@ -167,13 +167,24 @@ export class EventsListComponent implements OnInit {
   downloadCsv(e: EventRow): void {
     if (this.csvId()) return;
     this.csvId.set(e.id); this.actionError.set('');
-    // Browser-native same-origin download. Authentication remains on the httpOnly cookie
-    // and the request is no longer routed through Angular's XHR/blob pipeline.
-    const a = document.createElement('a');
-    a.href = `/api/v1/admin/events/${encodeURIComponent(e.id)}/attendees.csv`;
-    a.download = `${e.slug}-attendees.csv`;
-    a.rel = 'noopener'; a.style.display = 'none';
-    document.body.appendChild(a); a.click(); a.remove();
-    window.setTimeout(() => this.csvId.set(''), 1200);
+    this.api.attendeesCsv(e.id).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${e.slug}-attendees.csv`;
+        a.rel = 'noopener';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        this.csvId.set('');
+      },
+      error: err => {
+        this.csvId.set('');
+        this.actionError.set(err?.error?.message || 'Attendee CSV could not be downloaded. Please retry.');
+      }
+    });
   }
 }

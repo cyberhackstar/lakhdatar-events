@@ -61,8 +61,8 @@ const PAGE_SIZE = 12;
     .wrap{padding-top:clamp(36px,6vw,72px)}h1{margin:8px 0 28px;font-size:clamp(38px,6vw,64px)}
     .filters{display:grid;grid-template-columns:2fr repeat(5,1fr) auto;gap:12px;align-items:end;padding:18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);margin-bottom:30px}
     .f{display:grid;gap:6px;min-width:0}.f span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-    .f input,.f select{height:46px;border-radius:12px;border:1px solid var(--line);background:#0e0c12;color:var(--text);padding:0 12px;font-size:16px;min-width:0;width:100%}
-    .f input:focus,.f select:focus{outline:none;border-color:var(--gold)}
+    .f input,.f select{height:48px;border-radius:13px;border:1px solid var(--line);background:#0e0c12;color:var(--text)!important;-webkit-text-fill-color:var(--text);padding:0 13px;font-size:16px;min-width:0;width:100%;color-scheme:dark}.f input::placeholder{color:#7f7785;opacity:1}
+    .f input:focus,.f select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(212,166,78,.07)}
     .actions{display:flex;flex-direction:row;gap:8px}.actions .btn{min-height:46px;padding:0 20px}
     .count{color:var(--muted);font-size:14px;margin:0 0 16px}
     .sk-card{height:400px}

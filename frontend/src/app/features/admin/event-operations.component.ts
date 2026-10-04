@@ -77,18 +77,25 @@ export class EventOperationsComponent implements OnInit {
   previousOrders(): void { if(!this.orderHistory.length)return; this.orderCursor=this.orderHistory.pop(); this.orderPage.update(p=>Math.max(0,p-1)); this.fetchOrders(); }
   downloadCsv(): void {
     if (!this.eventId || this.csvBusy) return;
-    // Use a normal same-origin browser download instead of an XHR blob. This avoids
-    // Chrome/HTTP3 QUIC failures observed on streamed CSV responses while preserving
-    // the existing httpOnly authentication cookie.
     this.csvBusy = true; this.error = '';
-    const a = document.createElement('a');
-    a.href = `/api/v1/admin/events/${encodeURIComponent(this.eventId)}/attendees.csv`;
-    a.download = `${this.eventId}-attendees.csv`;
-    a.rel = 'noopener';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => { this.csvBusy = false; }, 1200);
+    this.api.attendeesCsv(this.eventId).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.eventId}-attendees.csv`;
+        a.rel = 'noopener';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        this.csvBusy = false;
+      },
+      error: e => {
+        this.csvBusy = false;
+        this.error = e?.error?.message || 'Attendee CSV could not be downloaded. Please retry.';
+      }
+    });
   }
 }

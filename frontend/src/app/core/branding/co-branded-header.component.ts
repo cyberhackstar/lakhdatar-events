@@ -19,7 +19,7 @@ import { BrandConfig } from './branding.model';
   `,
   styles: [`
     .brand-header{height:84px;display:flex;align-items:center;padding:0 clamp(18px,4vw,52px);gap:20px;position:relative;z-index:4;background:rgba(10,8,14,.72);backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0}
-    .header-spacer{flex:1}.partner-brand,.organizer-brand{display:flex;align-items:center;color:inherit;gap:11px}.partner-brand{opacity:.9;text-decoration:none}.partner-brand img{height:30px;width:auto}.organizer-brand img{height:46px;width:auto;max-width:220px;object-fit:contain}.partner-brand span{font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:#a7a0ad}.organizer-brand span{display:none;color:#fff;font-size:12px;font-weight:700;letter-spacing:.08em}    @media(max-width:560px){.brand-header{height:70px;padding:0 14px;gap:10px}.partner-brand span{display:none}.partner-brand img{height:26px}.organizer-brand img{height:38px;max-width:170px}}
+    .header-spacer{flex:1}.partner-brand,.organizer-brand{display:flex;align-items:center;color:inherit;gap:11px}.partner-brand{opacity:.9;text-decoration:none}.partner-brand img{height:48px;width:auto}.organizer-brand img{height:48px;width:auto;max-width:220px;object-fit:contain}.partner-brand span{font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:#a7a0ad}.organizer-brand span{display:none;color:#fff;font-size:12px;font-weight:700;letter-spacing:.08em}    @media(max-width:560px){.brand-header{height:70px;padding:0 14px;gap:10px}.partner-brand span{display:none}.partner-brand img{height:40px}.organizer-brand img{height:38px;max-width:170px}}
   `]
 })
 export class CoBrandedHeaderComponent { @Input({ required: true }) brand!: BrandConfig; }

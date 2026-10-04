@@ -12,7 +12,7 @@ import { SET_PASSWORD_STYLES } from './set-password.styles';
   imports: [ReactiveFormsModule, RouterLink, BrandMarkComponent],
   template: `
     <div class="page"><div class="card">
-      <div class="brand"><lk-brand-mark label="Events" [height]="34" /></div>
+      <div class="brand"><lk-brand-mark label="Events" [height]="48" /></div>
       <div class="eyebrow">Team invitation</div>
       <h1>Set your password</h1>
       @if (!token) {

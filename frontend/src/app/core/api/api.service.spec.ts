@@ -44,6 +44,14 @@ describe('ApiService optional query parameters', () => {
     req.flush({ items: [], page: 0, size: 20, totalPages: 0, totalElements: 0 });
   });
 
+
+  it('requests attendee CSV through the authenticated API path as a blob', () => {
+    api.attendeesCsv('event-123').subscribe();
+    const req = http.expectOne('/api/v1/admin/events/event-123/attendees.csv');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['name,email\nGuest,guest@example.com\n'], { type: 'text/csv' }));
+  });
+
   it('keeps real optional filter values', () => {
     api.allIssuedTicketsCursor({ q: 'bhawesh', status: 'ACTIVE', source: 'PUBLIC', eventId: undefined, size: 25 }).subscribe();
     const req = http.expectOne(r => r.url === '/api/v1/admin/tickets/cursor' && r.params.get('q') === 'bhawesh');
