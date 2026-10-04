@@ -77,9 +77,6 @@
           "options": {
             "tsConfig": "tsconfig.spec.json",
             "runner": "karma",
-            "polyfills": [
-              "src/test-polyfills.ts"
-            ],
             "browsers": [
               "ChromeHeadless"
             ],

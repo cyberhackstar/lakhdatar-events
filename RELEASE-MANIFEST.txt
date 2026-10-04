@@ -1,11 +1,9 @@
-NEELASTACK EVENTS v1.9.40 PRODUCTION RELEASE MANIFEST
-Release: 1.9.40
-Base: v1.9.39 production source baseline
-Changes: see CHANGES-1.9.40.md
-Validation: see VALIDATION-1.9.40.md
-Flyway: V1–V30
-Key behavior: multi-day booking stays open through the effective booking end; Cashfree uses hosted `_self` redirect; admin CSV uses native browser download; finance ledger reads public ids; Angular unit tests globally bootstrap Zone.js.
+NEELASTACK EVENTS v1.9.41 PRODUCTION RELEASE MANIFEST
+Release: 1.9.41
+Previous stable release: v1.9.40
+Changes: see CHANGES-1.9.41.md
+Validation: see VALIDATION-1.9.41.md
+Deployment: see PRODUCTION-DEPLOY-1.9.41.md
 
-CHANGES: CHANGES-1.9.40.md
-VALIDATION: VALIDATION-1.9.40.md
-DEPLOYMENT: PRODUCTION-DEPLOY-1.9.40.md
+Included runtime source plus production deployment configuration.
+Frontend unit-test configuration is compatible with Angular CLI 20.3.x unit-test builder; Zone.js is imported explicitly by test specs.
