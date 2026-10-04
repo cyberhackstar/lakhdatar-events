@@ -1,4 +1,4 @@
-# Validation — v1.9.47
+# Validation — v1.9.48
 
 ## Source validation
 - EnterpriseScaleContractTest release-gate assertion updated from comment matching to runtime-behavior matching.

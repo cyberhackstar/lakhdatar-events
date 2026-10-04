@@ -1,9 +1,9 @@
-NEELASTACK EVENTS v1.9.47 PRODUCTION RELEASE MANIFEST
-Release: 1.9.47
-Previous stable release: v1.9.40
-Changes: see CHANGES-1.9.47.md
-Validation: see VALIDATION-1.9.47.md
-Deployment: see PRODUCTION-DEPLOY-1.9.47.md
+NEELASTACK EVENTS v1.9.48 PRODUCTION RELEASE MANIFEST
+Release: 1.9.48
+Previous stable release: v1.9.47
+Changes: see CHANGES-1.9.48.md
+Validation: see VALIDATION-1.9.48.md
+Deployment: see PRODUCTION-DEPLOY-1.9.48.md
 
 Included runtime source plus production deployment configuration.
 Frontend unit-test configuration is compatible with Angular CLI 20.3.x unit-test builder; Zone.js is imported explicitly by test specs.

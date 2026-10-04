@@ -1,4 +1,4 @@
-# Production Deployment — v1.9.47
+# Production Deployment — v1.9.48
 
 1. Build and publish the backend/frontend images from this release.
 2. Deploy using the existing production compose/deploy workflow.
