@@ -1,22 +1,32 @@
-LAKHDATAR EVENTS v1.9.29 FINAL PRODUCTION RELEASE MANIFEST
-============================================================
-Release: 1.9.29
-Base: v1.9.25 production-hardened release, including v1.9.27 checkout recovery and organizer operations.
-Changes: see CHANGES-1.9.29.md.
-Validation: see VALIDATION-1.9.29.md.
+NEELASTACK EVENTS v1.9.33 PRODUCTION RELEASE MANIFEST
+==============================================================
+Release: 1.9.33
+Base: v1.9.32 compilation-fixed enterprise production release; v1.9.33 adds deployment-qualification and migration hardening.
+Changes: see CHANGES-1.9.33.md.
+Validation: see VALIDATION-1.9.33.md.
 
-Primary fixes and features:
-- Payment-order recovery safely retries only after provider NOT_FOUND; transient provider failures remain fail-closed.
-- Top-level Issued Tickets console with server-enforced platform/organizer/event-manager scope, event filter, search, status/source filters and pagination.
-- Event Operations includes Issued Tickets, Orders, attendee CSV and operational metrics.
-- Platform Admin -> Organizer -> Organizer Owner -> Event Manager / Gate Staff hierarchy is preserved and documented.
-- Generated tickets, payment-result and recovery pages expose Share and Save as PDF actions.
-- Ticket access fragments are read correctly on the generated ticket route, so shared/PDF links authenticate correctly.
-- Printable tickets retain organizer and Neelastack branding while hiding navigation/actions.
-- Deployment no longer sources the full .env, so custom values such as quoted MAIL_FROM cannot break Bash deployment.
-- Existing v1.9.25 test sources preserved byte-for-byte; additive contract coverage only.
-- No new database migration; Flyway remains at V24.
+Deployment-critical corrections:
+- Flyway V26 no longer references the nonexistent tickets.issued_at column; ticket cursor indexes use tickets.created_at in V28.
+- Multi-event manager authorization contract verifies the actual event_manager_assignments SQL boundary.
+- Organizer issued-ticket console explicitly shows the default All events authorized scope.
+- Release qualification correctly recognizes the escaped events.neelastack.com production hostname guard in k6 idempotency testing.
+- Runtime/package metadata aligned to 1.9.33; Flyway remains V1–V28.
 
-Packaging-sandbox status:
-- Repository/static validation passed.
-- Maven/Docker/browser/live-provider gates remain mandatory in CI/VM because those runtimes are not available in this workspace.
+Production topology:
+- Public host: events.neelastack.com
+- Edge bind: 127.0.0.1:4002
+- Production directory: /home/ubuntu/apps/lakhdatar-events
+- Backend: Spring Boot / Java 21 / PostgreSQL / Redis
+- Frontend: Angular SSR / Node 24
+- Images are deployed by immutable 40-character Git SHA.
+
+Mandatory gates before public release:
+- Backend: mvn -B -ntp clean verify
+- Frontend: npm ci --no-audit --no-fund && npm run build && npm test
+- CI security/CodeQL/Trivy/Gitleaks/provenance gates
+- Fresh and upgraded Flyway validation
+- VM readiness and public smoke tests
+- Payment- and ticket-concurrency/load/chaos evidence
+- PITR restore and HA failover evidence when claiming enterprise HA
+
+Packaging-sandbox validation is source/static validation only; no unsupported claim is made that a fresh Maven/Angular build was executed in the offline packaging workspace.

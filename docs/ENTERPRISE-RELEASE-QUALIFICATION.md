@@ -1,4 +1,4 @@
-# Enterprise release qualification — v1.9.31
+# Enterprise release qualification — v1.9.33
 
 This release is **enterprise-scale ready at the application architecture level**, but “BookMyShow-class” production availability is an infrastructure and operational claim that must be verified in the target environment.
 

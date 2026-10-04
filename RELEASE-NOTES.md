@@ -1,12 +1,26 @@
+# Release Notes — v1.9.33
+
+## v1.9.33 — Deployment qualification correction
+
+- Fixed Flyway `V26__enterprise_cursor_indexes.sql`: the `tickets` table has `created_at`, not `issued_at`; V26 now contains only the valid event-order cursor index.
+- Kept ticket cursor indexes on the authoritative `tickets.created_at` ordering in V28 and removed the stale `issued_at` reference from migration documentation.
+- Hardened migration regression coverage so an invalid `issued_at` cursor index cannot return.
+- Corrected implementation-contract tests that were coupled to an outdated AdminService repository-call string while the runtime authorization path already enforced `event_manager_assignments`.
+- Made the issued-ticket organizer console's default scope explicit as **All events** (within the caller's authorized organization/event scope).
+- Corrected the release qualification contract to accept the properly escaped production hostname guard used by the k6 idempotency test.
+- Bumped runtime/package metadata to v1.9.33; no new database migration was added.
+
+See `CHANGES-1.9.33.md` and `VALIDATION-1.9.33.md`.
+
+---
+
 # Release Notes — v1.9.32
 
 ## v1.9.32 — Compilation and release-gate correction
 
 - Fixed `FinanceService` compilation by importing the shared `Enums` type used by cursor refund validation.
 - Fixed `OperationsHealthService` compilation by explicitly selecting the `RedisCallback` overload for `RedisTemplate.execute(...)`.
-- Fixed Angular `OperationsHealthComponent` template control-flow syntax from invalid `@if(data() as d)` to valid alias syntax `@if (data(); as d)`.
-- Removed the unused `DecimalPipe` import from `OperationsHealthComponent`, eliminating the associated Angular warning.
-- Bumped runtime/package metadata to v1.9.32; no Flyway migration added.
+- Fixed Angular `OperationsHealthComponent` control-flow syntax and removed the unused `DecimalPipe` import.
 
 See `CHANGES-1.9.32.md` and `VALIDATION-1.9.32.md`.
 

@@ -30,7 +30,7 @@ class EnterpriseReleaseQualificationContractTest {
         assertTrue(checkout.contains("checkout_server_errors"));
         assertTrue(checkout.contains("status >= 500"));
         assertTrue(idem.contains("idempotency_server_errors"));
-        assertTrue(idem.contains("events.neelastack.com"));
+        assertTrue(idem.contains("events\\.neelastack\\.com") || idem.contains("events.neelastack.com"));
         assertTrue(checkin.contains("CHECKIN_RATE"));
         assertTrue(suite.contains("--summary-export=\"/results/"));
     }

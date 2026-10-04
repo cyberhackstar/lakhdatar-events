@@ -1,4 +1,4 @@
-# Enterprise API and flow validation matrix — v1.9.31
+# Enterprise API and flow validation matrix — v1.9.33
 
 This matrix is the release-review index. Static/source validation confirms endpoint presence, authorization wiring and core invariants; CI/staging must execute the runtime gates listed in `docs/ENTERPRISE-RELEASE-QUALIFICATION.md`.
 

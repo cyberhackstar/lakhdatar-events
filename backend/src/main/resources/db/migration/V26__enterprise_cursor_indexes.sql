@@ -1,7 +1,5 @@
--- v1.9.29: index physical ordering used by cursor-paginated operational APIs.
-CREATE INDEX IF NOT EXISTS idx_tickets_event_issued_cursor
-    ON tickets(event_id, issued_at DESC, id DESC);
-CREATE INDEX IF NOT EXISTS idx_tickets_issued_cursor
-    ON tickets(issued_at DESC, id DESC);
+-- v1.9.29: cursor-pagination index for event-scoped operational orders.
+-- Ticket cursor APIs are indexed in V28 using the authoritative tickets.created_at column.
+-- Keep this migration valid on a fresh database and on upgrades where V26 has not yet applied.
 CREATE INDEX IF NOT EXISTS idx_orders_event_created_cursor
     ON orders(event_id, created_at DESC, id DESC);

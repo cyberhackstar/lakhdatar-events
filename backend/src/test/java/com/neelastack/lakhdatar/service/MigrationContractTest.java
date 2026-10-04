@@ -29,6 +29,14 @@ class MigrationContractTest {
         assertEquals(expected, actual);
     }
     @Test
+    void enterpriseCursorMigrationReferencesOnlyRealTicketColumns() throws Exception {
+        String sql = Files.readString(Path.of("src/main/resources/db/migration/V26__enterprise_cursor_indexes.sql"));
+        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("issued_at"),
+                "tickets has no issued_at column; cursor indexes must use created_at");
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("orders(event_id, created_at DESC, id DESC)"));
+    }
+
+    @Test
     void firstProductionMigrationAllowsComplimentaryOrdersAndAddsSearchIndexes() throws Exception {
         String sql = Files.readString(Path.of("src/main/resources/db/migration/V15__first_production_release_hardening.sql"));
         org.junit.jupiter.api.Assertions.assertTrue(sql.contains("DROP CONSTRAINT IF EXISTS chk_order_total_positive"));

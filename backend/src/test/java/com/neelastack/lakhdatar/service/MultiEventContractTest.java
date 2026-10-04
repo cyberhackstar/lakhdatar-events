@@ -94,7 +94,9 @@ class MultiEventContractTest {
     @Test void managerScopeIsEnforcedAtDashboardAndScannerBoundaries() throws Exception {
         String admin = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/AdminService.java"));
         String staff = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/controller/StaffController.java"));
-        assertTrue(admin.contains("findAllByManagerUserIdOrderByStartsAtDesc"));
+        assertTrue(admin.contains("event_manager_assignments ema"));
+        assertTrue(admin.contains("ema.event_id=e.id"));
+        assertTrue(admin.contains("ema.user_id=?"));
         assertTrue(staff.contains("findAllByManagerUserIdOrderByStartsAtDesc"));
         String access = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/EventAccessService.java"));
         assertTrue(access.contains("EVENT_MANAGER") && access.contains("existsByEventIdAndUserId"));
