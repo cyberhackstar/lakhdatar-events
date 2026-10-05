@@ -17,7 +17,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+import jakarta.servlet.FilterChain;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -75,11 +79,29 @@ class TeamAuthContractTest {
     }
 
     @Test void initialPasswordAccountsAreBlockedUntilTheyChangeIt() throws Exception {
-        String f = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/security/JwtAuthFilter.java"));
-        assertTrue(f.contains("PASSWORD_CHANGE_REQUIRED"));
-        assertTrue(f.contains("!req.getRequestURI().startsWith(\"/api/v1/auth/\")"));
-        String sec = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/config/SecurityConfig.java"));
-        assertTrue(sec.contains("\"/api/v1/auth/change-password\",\"/api/v1/auth/password-status\").authenticated()"));
+        User u = staff(true);
+        u.setMustChangePassword(true);
+        when(jwt.parse("access-token")).thenReturn(new com.neelastack.lakhdatar.security.UserPrincipal(7L, u.getEmail(), u.getRole().name()));
+        when(users.findById(7L)).thenReturn(Optional.of(u));
+
+        JwtAuthFilter filter = new JwtAuthFilter(jwt, users);
+        MockHttpServletRequest blockedReq = new MockHttpServletRequest("GET", "/api/v1/admin/events");
+        blockedReq.addHeader("Authorization", "Bearer access-token");
+        MockHttpServletResponse blockedRes = new MockHttpServletResponse();
+        FilterChain chain = (request, response) -> ((MockHttpServletResponse) response).setStatus(200);
+
+        filter.doFilter(blockedReq, blockedRes, chain);
+
+        assertEquals(403, blockedRes.getStatus());
+        assertEquals("application/json", blockedRes.getContentType());
+        assertTrue(blockedRes.getContentAsString().contains("PASSWORD_CHANGE_REQUIRED"));
+
+        MockHttpServletRequest allowedReq = new MockHttpServletRequest("POST", "/api/v1/auth/change-password");
+        allowedReq.addHeader("Authorization", "Bearer access-token");
+        MockHttpServletResponse allowedRes = new MockHttpServletResponse();
+        filter.doFilter(allowedReq, allowedRes, chain);
+
+        assertEquals(200, allowedRes.getStatus());
     }
 
     @Test void acceptingAnInviteSetsThePasswordClearsTheFlagAndConsumesTheToken() {

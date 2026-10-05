@@ -1,5 +1,7 @@
-# v1.9.53
+# Neelastack Event Platform — v1.9.54
 
-Production qualification repair release. Fixes the v1.9.52 backend compile regressions reported by CI and preserves the v1.9.52 payment/refund hardening changes.
+Enterprise release-qualification patch for the v1.9.53 CI failures.
 
-See `CHANGES-1.9.53.md` and `VALIDATION-1.9.53.md`.
+The two failing tests are corrected without weakening production controls: forced-password-change protection is tested behaviorally, and the event lifecycle integration test uses a deterministic test-only payment provider.
+
+See `CHANGES-1.9.54.md` and `VALIDATION-1.9.54.md`.

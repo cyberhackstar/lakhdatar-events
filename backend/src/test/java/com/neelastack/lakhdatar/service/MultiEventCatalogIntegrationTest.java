@@ -5,6 +5,7 @@ import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Import;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
@@ -15,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Event isolation, visibility and catalogue filtering against a real PostgreSQL. */
 @Tag("integration")
+@Import(IntegrationPaymentGatewayConfiguration.class)
 class MultiEventCatalogIntegrationTest extends AbstractPostgresIntegrationTest {
 
     @Autowired private PublicEventService publicEvents;
@@ -26,6 +28,7 @@ class MultiEventCatalogIntegrationTest extends AbstractPostgresIntegrationTest {
     @Autowired private VenueRepository venues;
     @Autowired private TicketReservationService reservations;
 
+    
     private Organizer organizer(String prefix) {
         Organizer o = new Organizer();
         o.setName(prefix + " Org");
@@ -41,7 +44,7 @@ class MultiEventCatalogIntegrationTest extends AbstractPostgresIntegrationTest {
         e.setOrganizerId(o.getId()); e.setVenueId(v.getId());
         e.setName(slugPrefix); e.setSlug(slugPrefix + "-" + UUID.randomUUID().toString().substring(0, 8));
         e.setStartsAt(Instant.now().plusSeconds(startDays * 86_400L));
-        e.setStatus(status); e.setCurrency("INR"); e.setCategory(category);
+        e.setStatus(status); e.setCurrency("INR"); e.setCategory(category); e.setPaymentProvider(Enums.PaymentProvider.RAZORPAY);
         return events.saveAndFlush(e);
     }
 

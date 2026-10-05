@@ -1,4 +1,4 @@
-# v1.9.53 — Enterprise observability and publish reliability
+# v1.9.54 — Enterprise observability and publish reliability
 
 This release adds full-stack metrics/logs/traces, provisioned SRE dashboards, production alert rules, edge/backend correlation and a server-authoritative publication gate.
 
@@ -126,7 +126,7 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 
 
 ## Current release
-See `CHANGES-1.9.52.md` and `VALIDATION-1.9.52.md`.
+See `CHANGES-1.9.54.md` and `VALIDATION-1.9.54.md`.
 
 
 ### Deployment dotenv safety
