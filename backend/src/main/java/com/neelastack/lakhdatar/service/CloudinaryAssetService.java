@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.cloudinary.Cloudinary;
 import com.neelastack.lakhdatar.config.AppProperties;
 import com.neelastack.lakhdatar.domain.BrandConfiguration;
@@ -54,6 +56,8 @@ public class CloudinaryAssetService {
         // Upload to the remote provider before opening a DB transaction. External network latency
         // must never hold a PostgreSQL connection/lock. The DB mutation is then atomic, with one
         // best-effort remote compensation path if the transaction rolls back.
+        EnterpriseLog.info(log, "media.upload.started", "event.category", "media", "media.purpose", purpose.name(),
+                "event.public_id", eventPublicId, "actor.user_id", actorId, "actor.role", role, "media.bytes", bytes.length);
         UploadResult result = uploadBytes(bytes, purpose);
         AtomicBoolean cleaned = registerRollbackCompensation(result.publicId());
         try {
@@ -63,9 +67,13 @@ public class CloudinaryAssetService {
             if (target.previousPublicId() != null && !target.previousPublicId().equals(result.publicId())) {
                 deleteRemote(target.previousPublicId());
             }
+            EnterpriseLog.info(log, "media.upload.succeeded", "event.category", "media", "media.purpose", purpose.name(),
+                    "media.public_id", result.publicId(), "media.bytes", bytes.length);
             return result;
         } catch (RuntimeException ex) {
             if (cleaned.compareAndSet(false, true)) deleteRemote(result.publicId());
+            EnterpriseLog.error(log, "media.upload.failed", ex, "event.category", "media", "media.purpose", purpose.name(),
+                    "media.public_id", result.publicId(), "error.type", ex.getClass().getSimpleName());
             throw ex;
         }
     }
@@ -173,7 +181,8 @@ public class CloudinaryAssetService {
                     "secure", true));
             cloudinary.uploader().destroy(publicId, Map.of("resource_type", "image", "invalidate", true));
         } catch (Exception ex) {
-            log.warn("Cloudinary compensation failed for uploaded asset (reason={})", ex.getClass().getSimpleName());
+            EnterpriseLog.warn(log, "media.compensation.failed", "event.category", "media",
+                    "media.public_id", publicId, "error.type", ex.getClass().getSimpleName());
         }
     }
 

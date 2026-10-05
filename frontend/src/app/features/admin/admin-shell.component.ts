@@ -20,7 +20,7 @@ import { AdminStore } from './admin-store.service';
           @if (canViewEventOperations()) { <a routerLink="/admin/events" routerLinkActive="on"><i>◈</i><span>Events</span></a> }
           @if (canViewTickets()) { <a routerLink="/admin/tickets" routerLinkActive="on"><i>▤</i><span>Issued tickets</span></a> }
           @if (canViewFinance()) { <a routerLink="/admin/finance" routerLinkActive="on"><i>¤</i><span>Finance</span></a> }
-          @if (canViewOperationsHealth()) { <a routerLink="/admin/operations" routerLinkActive="on"><i>♥</i><span>Operations Center</span></a> }
+          @if (canViewOperationsHealth()) { <a routerLink="/admin/operations" routerLinkActive="on"><i>♥</i><span>Business Operations</span></a> }
           @if (canAdminister()) { <a routerLink="/admin/events/new" routerLinkActive="on"><i>＋</i><span>Create event</span></a> }
           @if (isAdmin()) { <a routerLink="/admin/organizers" routerLinkActive="on"><i>▣</i><span>Organizers</span></a> }
           @if (canAdminister()) { <a routerLink="/admin/team" routerLinkActive="on"><i>◉</i><span>{{ isAdmin() ? 'Teams' : 'Team' }}</span></a> }
@@ -29,6 +29,7 @@ import { AdminStore } from './admin-store.service';
         </nav>
         <div class="bottom">
           <div class="who">{{ auth.fullName() }}</div>
+          @if (isAdmin()) { <a href="https://monitor.neelastack.com/" target="_blank" rel="noopener noreferrer">Open SRE Monitor ↗</a> }
           <a routerLink="/" target="_blank">View public site ↗</a>
           <a href="https://neelastack.com" target="_blank" rel="noopener noreferrer">Powered by Neelastack ↗</a>
           <button type="button" (click)="logout()">Sign out</button>

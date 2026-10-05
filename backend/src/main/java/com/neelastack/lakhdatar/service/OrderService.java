@@ -1,11 +1,15 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.neelastack.lakhdatar.config.AppProperties;
 import com.neelastack.lakhdatar.domain.*;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,6 +27,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class OrderService {
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
     private final EventRepository events; private final TicketTypeRepository ticketTypes; private final OrderRepository orders; private final OrderItemRepository items;
     private final PaymentRepository payments; private final PaymentAttemptRepository paymentAttempts; private final TicketRepository tickets; private final TicketReservationRepository reservations; private final TicketReservationService reservationService;
     private final TicketMailService ticketMail; private final PaymentGatewayRouter gateways; private final QrCredentialService qr; private final AccessTokenService accessTokens; private final AuditService audit; private final AppProperties props;
@@ -47,6 +52,7 @@ public class OrderService {
     public record CaptureReconciliation(String orderNumber,String status){}
 
     public CheckoutResponse checkout(CheckoutRequest request){
+        long started = System.nanoTime();
         java.time.Duration checkoutWindow=java.time.Duration.ofSeconds(props.rateLimit().windowSeconds());
         String client = request.clientKey()==null?"unknown":request.clientKey();
         String checkoutEmailKey = request.customerEmail()==null?"unknown":hashForRateLimit(request.customerEmail().trim().toLowerCase());
@@ -58,7 +64,9 @@ public class OrderService {
 
         LocalCheckout local = tx.execute(status -> createLocalCheckout(request));
         if (local == null) throw new ApiException(HttpStatus.CONFLICT,"CHECKOUT_INITIALIZATION_FAILED","Checkout could not be initialized");
-        return provisionPaymentOrder(local.orderId(), local.checkoutSessionToken());
+        CheckoutResponse response = provisionPaymentOrder(local.orderId(), local.checkoutSessionToken());
+        EnterpriseLog.info(log, "order.checkout.initialized", "event.category", "order", "order.id", local.orderId(), "payment.provider", response.provider(), "payment.amount_minor", response.amountMinorUnits(), "cart.item_count", request.items()==null?0:request.items().size(), "duration.ms", (System.nanoTime()-started)/1_000_000L);
+        return response;
     }
 
     private LocalCheckout createLocalCheckout(CheckoutRequest request){
@@ -84,6 +92,7 @@ public class OrderService {
             String checkoutSessionToken = newCheckoutSessionToken();
             o.setCheckoutSessionHash(hashCheckoutSession(checkoutSessionToken));
             orders.saveAndFlush(o);
+            EnterpriseLog.info(log, "order.checkout.idempotent_reuse", "event.category", "order", "order.id", o.getId(), "order.number", o.getOrderNumber());
             return new LocalCheckout(o.getId(), checkoutSessionToken);
         }
         Event event=events.findByPublicIdForUpdate(request.eventId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"EVENT_NOT_FOUND","Event not found"));
@@ -117,6 +126,7 @@ public class OrderService {
         String checkoutSessionToken = newCheckoutSessionToken();
         order.setCheckoutSessionHash(hashCheckoutSession(checkoutSessionToken));
         order=orders.saveAndFlush(order);
+        EnterpriseLog.info(log, "order.created", "event.category", "order", "order.id", order.getId(), "order.number", order.getOrderNumber(), "event.id", order.getEventId(), "order.total_minor", order.getTotalMinorUnits(), "order.status", order.getStatus().name());
         for(TicketType tt:lockedTypes){
             int q=merged.get(tt.getPublicId());
             OrderItem oi=new OrderItem(); oi.setOrderId(order.getId()); oi.setTicketTypeId(tt.getId()); oi.setQuantity(q); oi.setUnitPriceMinor(tt.getPriceMinorUnits()); oi.setSubtotalMinor(Math.multiplyExact(tt.getPriceMinorUnits(),q)); items.save(oi);
@@ -127,7 +137,7 @@ public class OrderService {
         return new LocalCheckout(order.getId(), checkoutSessionToken);
     }
 
-    public CheckoutResponse provisionPaymentOrder(Long orderId){ return provisionPaymentOrder(orderId, null); }
+    public CheckoutResponse provisionPaymentOrder(Long orderId){ EnterpriseLog.debug(log, "payment.order.provision.requested", "event.category", "payment", "order.id", orderId); return provisionPaymentOrder(orderId, null); }
 
     private CheckoutResponse provisionPaymentOrder(Long orderId, String checkoutSessionToken){
         var lock = locks.tryAcquire("payment-order:" + orderId, java.time.Duration.ofSeconds(90));
@@ -269,6 +279,7 @@ public class OrderService {
     }
 
     public VerifyResponse verifyAndConfirm(VerifyRequest req){
+        EnterpriseLog.info(log, "payment.verification.started", "event.category", "payment", "provider.order.id", req.providerOrderId());
         String client=req.clientKey()==null?"unknown":req.clientKey();
         Duration verifyWindow=Duration.ofSeconds(props.rateLimit().windowSeconds());
         String orderKey=req.providerOrderId()==null?"unknown":hashForRateLimit(req.providerOrderId().trim());
@@ -315,6 +326,7 @@ public class OrderService {
                                         || "cancelled".equalsIgnoreCase(x.status())
                                         || "user_dropped".equalsIgnoreCase(x.status()));
                     // A failed/abandoned earlier attempt must not hide a newer pending attempt.
+                    EnterpriseLog.debug(log, "payment.verification.pending", "event.category", "payment", "order.id", pendingOrder.getId(), "order.number", pendingOrder.getOrderNumber(), "payment.status", failed ? "CANCELLED" : "PENDING");
                     return new VerifyResponse(pendingOrder.getPublicId().toString(), pendingOrder.getOrderNumber(),
                             failed ? "CANCELLED" : "PENDING", List.of());
                 }
@@ -339,6 +351,8 @@ public class OrderService {
                 tx.executeWithoutResult(status->{
                     orders.findByIdForUpdate(pendingOrder.getId()).ifPresent(order -> { order.setCheckoutSessionHash(null); orders.save(order); });
                 });
+                EnterpriseLog.warn(log, "payment.verification.refund_pending", "event.category", "payment",
+                        "order.id", pendingOrder.getId(), "order.number", pendingOrder.getOrderNumber(), "refund.required", true);
                 return new VerifyResponse(pendingOrder.getPublicId().toString(), result.orderNumber(), "REFUND_PENDING", List.of());
             }
             Order o=orders.findByOrderNumber(result.orderNumber()).orElseThrow();
@@ -460,6 +474,7 @@ public class OrderService {
     public void transitionPaymentForWebhook(Payment payment, Enums.PaymentStatus target){ paymentStateMachine.transition(payment,target); payments.save(payment); }
 
     public void failPayment(String providerOrderId,String reason){
+        EnterpriseLog.warn(log, "payment.marked_failed", "event.category", "payment", "provider.order.id", providerOrderId, "reason", reason);
         tx.executeWithoutResult(status->{
             payments.findByProviderOrderId(providerOrderId).ifPresent(found->{
                 Payment p=payments.findByIdForUpdate(found.getId()).orElseThrow();
@@ -526,7 +541,14 @@ public class OrderService {
         return Enums.PaymentStatus.PENDING;
     }
 
-    public VerifyResponse response(Order o){List<TicketRef> refs=tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream().map(t->new TicketRef(t.getPublicId(),t.getTicketNumber(),accessTokens.issue(t.getPublicId()))).toList();return new VerifyResponse(o.getPublicId().toString(),o.getOrderNumber(),o.getStatus().name(),refs);}
+    public VerifyResponse response(Order o){
+        List<TicketRef> refs=tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream()
+                .map(t->new TicketRef(t.getPublicId(),t.getTicketNumber(),accessTokens.issue(t.getPublicId()))).toList();
+        EnterpriseLog.info(log, "payment.verification.completed", "event.category", "payment",
+                "order.id", o.getId(), "order.number", o.getOrderNumber(), "order.status", o.getStatus().name(),
+                "ticket.count", refs.size());
+        return new VerifyResponse(o.getPublicId().toString(),o.getOrderNumber(),o.getStatus().name(),refs);
+    }
     public CheckoutResponse existingResponse(Order o){return provisionPaymentOrder(o.getId());}
 
     /**
@@ -553,7 +575,7 @@ public class OrderService {
             try {
                 provisionPaymentOrder(payment.getOrderId());
             } catch (Exception ex) {
-                // Recovery is best-effort; the next scheduled sweep retries the payment.
+                EnterpriseLog.warn(log, "payment.provider_order_recovery.failed", "event.category", "payment", "payment.id", payment.getId(), "error.type", ex.getClass().getSimpleName());
             } finally {
                 try { payments.markReconciled(payment.getId(), Instant.now()); } catch (Exception ignored) { }
             }

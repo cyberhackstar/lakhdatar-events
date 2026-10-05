@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { HomeComponent } from './features/home/home.component';
-import { adminGuard, authGuard, roleGuard, staffGuard } from './core/auth/auth.guard';
+import { adminGuard, authGuard, platformAdminGuard, roleGuard, staffGuard } from './core/auth/auth.guard';
 
 // Public discovery pages are eagerly bundled with the shell for fast first paint; everything else is lazy-loaded.
 export const routes: Routes = [
@@ -15,6 +15,7 @@ export const routes: Routes = [
   { path: 'accept-invite', title: 'Accept invitation · Neelastack Events', loadComponent: () => import('./features/auth/accept-invite.component').then(m => m.AcceptInviteComponent) },
   { path: 'change-password', title: 'Change password · Neelastack Events', canActivate: [authGuard], loadComponent: () => import('./features/auth/change-password.component').then(m => m.ChangePasswordComponent) },
   { path: 'setup/initial-admin', loadComponent: () => import('./features/setup/initial-admin.component').then(m => m.InitialAdminComponent) },
+  { path: 'monitor', title: 'Production Monitor · Neelastack', canActivate: [platformAdminGuard], loadComponent: () => import('./features/monitor-console.component').then(m => m.MonitorConsoleComponent) },
   { path: 'not-found', loadComponent: () => import('./shared/not-found.component').then(m => m.NotFoundComponent) },
   {
     path: 'admin',

@@ -1,10 +1,14 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neelastack.lakhdatar.config.AppProperties;
 import com.neelastack.lakhdatar.domain.Enums;
 import com.neelastack.lakhdatar.exception.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +27,7 @@ import java.util.*;
 
 @Component
 public class CashfreeGatewayProvider implements PaymentGatewayProvider {
+    private static final Logger log = LoggerFactory.getLogger(CashfreeGatewayProvider.class);
     private final AppProperties props;
     private final ObjectMapper mapper;
     private final HttpClient client;
@@ -55,18 +60,26 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
     }
 
     private JsonNode call(HttpRequest request) {
+        long started = System.nanoTime();
+        String requestPath = request.uri().getPath();
+        EnterpriseLog.debug(log, "payment.provider.http.started", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath);
         try {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            long durationMs = (System.nanoTime() - started) / 1_000_000L;
             if (response.statusCode() == 404) {
+                EnterpriseLog.warn(log, "payment.provider.http.not_found", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "http.status_code", 404, "duration.ms", durationMs);
                 throw new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_PROVIDER_NOT_FOUND", "Cashfree resource was not found");
             }
             if (response.statusCode() / 100 != 2) {
+                EnterpriseLog.warn(log, "payment.provider.http.failed", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "http.status_code", response.statusCode(), "duration.ms", durationMs);
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_PROVIDER_ERROR", "Cashfree payment service returned an error");
             }
+            EnterpriseLog.debug(log, "payment.provider.http.succeeded", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "http.status_code", response.statusCode(), "duration.ms", durationMs);
             return mapper.readTree(response.body());
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
+            EnterpriseLog.warn(log, "payment.provider.http.failed", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "error.type", e.getClass().getSimpleName(), "duration.ms", (System.nanoTime()-started)/1_000_000L);
             throw new ApiException(HttpStatus.GATEWAY_TIMEOUT, "PAYMENT_PROVIDER_UNAVAILABLE", "Cashfree payment service is temporarily unavailable");
         }
     }

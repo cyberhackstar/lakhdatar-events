@@ -30,4 +30,4 @@ Set `WORKER_ENABLED=false` on horizontally scaled HTTP API nodes and run one or 
 
 ## Operations console
 
-Platform administrators can open `/admin/operations` to inspect PostgreSQL/Redis health and recovery queue sizes. Treat this as an operator signal, not a replacement for Prometheus/Alertmanager.
+Platform administrators use `/admin/operations` for business/event operations. Deep PostgreSQL/Redis health, recovery queues and searchable logs are served by the dedicated `https://monitor.neelastack.com/` SRE console. Treat application dashboards as operator signals, not a replacement for Prometheus/Alertmanager.

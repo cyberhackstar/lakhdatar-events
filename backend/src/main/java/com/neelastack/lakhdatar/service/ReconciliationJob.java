@@ -1,6 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
 import com.neelastack.lakhdatar.config.AppProperties;
+import com.neelastack.lakhdatar.config.EnterpriseLog;
 import com.neelastack.lakhdatar.domain.Enums;
 import com.neelastack.lakhdatar.domain.Payment;
 import com.neelastack.lakhdatar.repository.PaymentRepository;
@@ -31,12 +32,16 @@ public class ReconciliationJob {
         locks.withLock("job:payment-reconciliation", Duration.ofSeconds(55), this::reconcileLocked);
     }
     private void reconcileLocked(){
+        long started = System.nanoTime();
         Instant cutoff=Instant.now().minusMillis(props.payment().reconciliationAgeMs());
         List<Enums.PaymentStatus> states=List.of(Enums.PaymentStatus.CREATED,Enums.PaymentStatus.PENDING,Enums.PaymentStatus.PAYMENT_INITIATED,Enums.PaymentStatus.AUTHORIZED,Enums.PaymentStatus.CAPTURED,Enums.PaymentStatus.COMPLETED);
         Instant now=Instant.now();
         Instant windowStart=now.minus(Duration.ofHours(Math.max(1,windowHours)));
         Instant recheckBefore=now.minusMillis(Math.max(0,recheckMs));
-        for(Payment p:payments.findReconciliationCandidates(states,cutoff,windowStart,recheckBefore,PageRequest.of(0,100))){
+        var candidates = payments.findReconciliationCandidates(states,cutoff,windowStart,recheckBefore,PageRequest.of(0,100));
+        EnterpriseLog.debug(log, "payment.reconciliation.sweep.started", "event.category", "recovery", "batch.size", candidates.size());
+        int failed = 0;
+        for(Payment p:candidates){
             try{
                 if(p.getProviderOrderId()==null) continue;
                 var providerPayments = gateways.forPayment(p).fetchPaymentsForOrder(p.getProviderOrderId());
@@ -45,14 +50,19 @@ public class ReconciliationJob {
                     if(orders.reconcileProviderRefundsIfPresent(p.getId(),provider.get())) { /* provider refund is already being reconciled */ }
                     else {var result=orders.reconcileCapturedPayment(p.getId(),provider.get()); if("REFUND_PENDING".equals(result.status())) orders.completeQueuedRefundIfNeeded(p.getId(),"Reservation expired before payment reconciliation");}
                 }
-            }catch(Exception ex){log.warn("Payment reconciliation deferred paymentId={}",p.getId());}
+            }catch(Exception ex){ failed++; EnterpriseLog.warn(log, "payment.reconciliation.deferred", "event.category", "recovery", "payment.id", p.getId(), "error.type", ex.getClass().getSimpleName());}
             finally{ markReconciledQuietly(p.getId()); }
         }
-        for(Payment p:payments.findTop100ByStatusInAndCreatedAtBeforeOrderByCreatedAtAsc(List.of(Enums.PaymentStatus.REFUND_PENDING),cutoff)){
-            try{orders.completeQueuedRefundIfNeeded(p.getId(),"Payment captured without an active ticket reservation");}catch(Exception ex){log.warn("Refund reconciliation deferred paymentId={}",p.getId());}
+        var refundCandidates = payments.findTop100ByStatusInAndCreatedAtBeforeOrderByCreatedAtAsc(List.of(Enums.PaymentStatus.REFUND_PENDING),cutoff);
+        for(Payment p:refundCandidates){
+            try{orders.completeQueuedRefundIfNeeded(p.getId(),"Payment captured without an active ticket reservation");}catch(Exception ex){ failed++; EnterpriseLog.warn(log, "refund.reconciliation.deferred", "event.category", "recovery", "payment.id", p.getId(), "error.type", ex.getClass().getSimpleName());}
         }
+        EnterpriseLog.info(log, "payment.reconciliation.sweep.completed", "event.category", "recovery", "batch.size", candidates.size(), "refund_batch.size", refundCandidates.size(), "failed", failed, "duration.ms", (System.nanoTime()-started)/1_000_000L);
     }
     private void markReconciledQuietly(Long id){
-        try{ payments.markReconciled(id,Instant.now()); }catch(Exception ex){ log.warn("Could not record reconciliation time paymentId={}",id); }
+        try{ payments.markReconciled(id,Instant.now()); }catch(Exception ex){
+            EnterpriseLog.warn(log, "payment.reconciliation.timestamp_failed", "event.category", "recovery",
+                    "payment.id", id, "error.type", ex.getClass().getSimpleName());
+        }
     }
 }

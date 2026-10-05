@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.neelastack.lakhdatar.config.AppProperties;
 import com.neelastack.lakhdatar.domain.*;
 import com.neelastack.lakhdatar.exception.ApiException;
@@ -10,6 +12,8 @@ import com.neelastack.lakhdatar.repository.TicketRepository;
 import com.neelastack.lakhdatar.repository.TicketTypeRepository;
 import com.neelastack.lakhdatar.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +27,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class CheckInService {
+    private static final Logger log = LoggerFactory.getLogger(CheckInService.class);
     private final TicketRepository tickets;
     private final TicketTypeRepository ticketTypes;
     private final UserRepository users;
@@ -42,7 +47,8 @@ public class CheckInService {
 
     @Transactional
     public ScanResult scan(ScanRequest r) {
-        if (r.staffUserId() == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Staff authentication required");
+        long started = System.nanoTime();
+        if (r.staffUserId() == null) { EnterpriseLog.warn(log, "checkin.rejected", "event.category", "checkin", "result", "UNAUTHORIZED"); throw new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Staff authentication required"); }
         if (!limits.allowFailOpen("scan:" + r.staffUserId(), props.rateLimit().scanPerMinute(), java.time.Duration.ofMinutes(1)))
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many scan requests");
 
@@ -79,7 +85,7 @@ public class CheckInService {
         }
         if (ticketPosition == 0) ticketPosition = 1;
 
-        return switch (t.getStatus()) {
+        ScanResult result = switch (t.getStatus()) {
             case CANCELLED -> record(Enums.CheckInResult.CANCELLED, "Ticket was cancelled", t, r, e.getId(), ticketPosition, orderTicketCount);
             case REFUNDED -> record(Enums.CheckInResult.REFUNDED, "Ticket was refunded", t, r, e.getId(), ticketPosition, orderTicketCount);
             case CHECKED_IN -> record(Enums.CheckInResult.ALREADY_USED, "Ticket already checked in", t, r, e.getId(), ticketPosition, orderTicketCount);
@@ -89,6 +95,8 @@ public class CheckInService {
                 yield record(Enums.CheckInResult.ACCEPTED, "Entry accepted", t, r, e.getId(), ticketPosition, orderTicketCount);
             }
         };
+        EnterpriseLog.info(log, "checkin.completed", "event.category", "checkin", "result", result.result().name(), "ticket.id", t.getPublicId(), "event.id", r.eventId(), "staff.user_id", r.staffUserId(), "gate", r.gate(), "order.ticket_count", result.orderTicketCount(), "duration.ms", (System.nanoTime()-started)/1_000_000L);
+        return result;
     }
 
     private ScanResult record(Enums.CheckInResult result, String msg, Ticket t, ScanRequest r, Long eventId, int ticketPosition, long orderTicketCount) {
@@ -104,6 +112,7 @@ public class CheckInService {
         c.setResult(result);
         c.setCorrelationId(r.correlationId());
         checkins.save(c);
+        EnterpriseLog.debug(log, "checkin.recorded", "event.category", "checkin", "result", result.name(), "event.id", eventId, "staff.user_id", r.staffUserId(), "gate", r.gate(), "correlation.id", r.correlationId());
         audit.log(r.staffUserId(), result == Enums.CheckInResult.ACCEPTED ? "CHECKIN_ACCEPTED" : "CHECKIN_REJECTED", "TICKET", t == null ? "unknown" : t.getPublicId().toString(), r.correlationId());
         if (!exposeTicket) return new ScanResult(result, msg, null, null, null, null, 0, 0);
         String ticketType = t == null ? null : ticketTypes.findById(t.getTicketTypeId()).map(TicketType::getName).orElse(null);

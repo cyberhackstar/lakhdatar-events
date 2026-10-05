@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /setup
 Disallow: /admin
+Disallow: /monitor
 Disallow: /staff
 Disallow: /login
 Disallow: /recover

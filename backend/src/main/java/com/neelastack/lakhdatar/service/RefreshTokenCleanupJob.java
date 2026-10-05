@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.neelastack.lakhdatar.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +33,6 @@ public class RefreshTokenCleanupJob {
 
     private void deleteExpired() {
         int removed = refreshTokens.deleteExpiredOrOldRevoked(Instant.now().minus(Duration.ofDays(1)));
-        if (removed > 0) log.info("Removed {} expired/revoked refresh tokens", removed);
+        if (removed > 0) EnterpriseLog.info(log, "auth.refresh_tokens.cleaned", "event.category", "security", "auth.refresh_tokens.removed", removed);
     }
 }

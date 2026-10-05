@@ -221,7 +221,7 @@ jobs:
             exit 1
           fi
           location=$(curl -fsSI --max-time 3 -H 'Host: monitor.neelastack.com' http://127.0.0.1:18082/ | awk -F': ' 'tolower($1)=="location" {gsub("\r", "", $2); print $2; exit}')
-          test "$location" = "https://monitor.neelastack.com/admin/operations" || {
+          test "$location" = "/monitor" || {
             echo "::error::Monitor canonical redirect mismatch: $location"
             docker logs "$container" || true
             exit 1

@@ -8,22 +8,34 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.slf4j.MDC;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.neelastack.lakhdatar.config.EnterpriseLog;
 
 import java.time.Instant;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private ResponseEntity<ApiError> error(HttpStatus status, String code, String message){
         return ResponseEntity.status(status).body(new ApiError(Instant.now(), status.value(), code, message, MDC.get("correlationId")));
     }
     @ExceptionHandler(ApiException.class)
-    ResponseEntity<ApiError> handle(ApiException ex){ return error(ex.status(), ex.code(), ex.getMessage()); }
+    ResponseEntity<ApiError> handle(ApiException ex){
+        if (ex.status().is5xxServerError()) {
+            EnterpriseLog.error(log, "api.error", ex, "event.category", "http", "error.code", ex.code(), "http.status_code", ex.status().value());
+        } else {
+            EnterpriseLog.warn(log, "api.rejected", "event.category", "http", "error.code", ex.code(), "http.status_code", ex.status().value());
+        }
+        return error(ex.status(), ex.code(), ex.getMessage());
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex){
         String message = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage).filter(m->m!=null).distinct().collect(Collectors.joining(", "));
+        EnterpriseLog.debug(log, "api.validation.rejected", "event.category", "http", "http.status_code", 400, "validation.error_count", ex.getBindingResult().getErrorCount());
         return error(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message.isBlank()?"Invalid request":message);
     }
 
@@ -53,6 +65,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiError> handleUnknown(Exception ex){
+        EnterpriseLog.error(log, "api.unhandled_exception", ex, "event.category", "http", "error.type", ex.getClass().getSimpleName(), "http.status_code", 500);
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Something went wrong. Reference the correlation ID for support.");
     }
 }

@@ -1,4 +1,4 @@
-# v2.0.3 — Enterprise Platform Operations Center
+# v2.0.5 — Enterprise Events + SRE Monitoring
 
 This release adds full-stack metrics/logs/traces, provisioned SRE dashboards, production alert rules, edge/backend correlation and a server-authoritative publication gate.
 
@@ -142,3 +142,12 @@ Use `docs/ENTERPRISE-RELEASE-QUALIFICATION.md`, `docs/ENTERPRISE-HA-DR-BLUEPRINT
 The edge terminates the Cloudflare tunnel, reuses upstream connections, compresses responses, and micro-caches only the public event catalogue. The backend uses a bounded Tomcat request-thread pool with high connection/accept capacity, while PostgreSQL and Redis remain protected by bounded pools. The HA Compose profile is the scale-out path for sustained write-heavy traffic.
 
 For a real “thousands of users” release gate, run `infra/loadtest/thousands.js` against staging and retain the k6 summary, CPU/memory, database, Redis and recovery-invariant evidence with the release SHA.
+
+
+## Operations diagnostics
+
+Enterprise structured logging and the secure Loki-backed Operations Center log viewer are documented in `docs/ENTERPRISE-LOGGING.md`.
+
+
+## Production Monitor
+The dedicated SRE surface is `https://monitor.neelastack.com/`, protected by Cloudflare Access plus platform ADMIN authorization.

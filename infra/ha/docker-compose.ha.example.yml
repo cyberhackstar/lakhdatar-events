@@ -4,6 +4,11 @@
 name: lakhdatar-events-ha
 services:
   backend:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-backend:${IMAGE_TAG}
     restart: unless-stopped
     ulimits:
@@ -18,12 +23,14 @@ services:
       APP_ENV: production
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-lakhdatar-events-backend}
       DEFAULT_PAYMENT_PROVIDER: ${DEFAULT_PAYMENT_PROVIDER:-CASHFREE}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.3,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.5,deployment.environment=production}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
       OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
       OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}
-      APP_VERSION: ${APP_VERSION:-2.0.3}
+      OPS_LOGS_ENABLED: ${OPS_LOGS_ENABLED:-true}
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+      APP_VERSION: ${APP_VERSION:-2.0.5}
       DB_URL: ${DB_URL:?DB_URL is required}
       DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
@@ -82,6 +89,11 @@ services:
       timeout: 5s
       retries: 12
   worker:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-backend:${IMAGE_TAG}
     restart: unless-stopped
     ulimits:
@@ -96,11 +108,13 @@ services:
       SPRING_MAIN_WEB_APPLICATION_TYPE: none
       APP_ENV: production
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME_WORKER:-lakhdatar-events-worker}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.3,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.5,deployment.environment=production}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
       OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
       OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}
+      OPS_LOGS_ENABLED: ${OPS_LOGS_ENABLED:-true}
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
 
       WORKER_ENABLED: "true"
       DB_URL: ${DB_URL:?DB_URL is required}
@@ -144,6 +158,11 @@ services:
       MAIL_DELIVERY_REPAIR_SWEEP: ${MAIL_DELIVERY_REPAIR_SWEEP:-30000}
 
   web:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-web:${IMAGE_TAG}
     restart: unless-stopped
     ulimits:
@@ -160,7 +179,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      APP_VERSION: ${APP_VERSION:-2.0.3}
+      APP_VERSION: ${APP_VERSION:-2.0.5}
       SSR_API_BASE_URL: ${SSR_API_BASE_URL:-http://backend:8080/api/v1}
       NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:?NG_ALLOWED_HOSTS is required}
       NG_TRUST_PROXY_HEADERS: X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO
@@ -173,6 +192,11 @@ services:
       timeout: 5s
       retries: 12
   edge:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-edge:${IMAGE_TAG}
     restart: unless-stopped
     ulimits:

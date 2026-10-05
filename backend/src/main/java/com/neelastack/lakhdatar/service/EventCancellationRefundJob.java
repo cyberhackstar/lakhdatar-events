@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.neelastack.lakhdatar.domain.Enums;
 import com.neelastack.lakhdatar.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,15 +34,19 @@ public class EventCancellationRefundJob {
         locks.withLock("job:event-cancellation-refunds", java.time.Duration.ofSeconds(55), this::sweepLocked);
     }
     private void sweepLocked() {
+        long started = System.nanoTime();
         var statuses = List.of(Enums.PaymentStatus.CAPTURED, Enums.PaymentStatus.COMPLETED, Enums.PaymentStatus.REFUND_PENDING);
         var candidates = payments.findByCancelledEventAndStatusWithoutRefund(
                 Enums.EventStatus.CANCELLED, statuses, PageRequest.of(0, 100));
+        EnterpriseLog.debug(log, "refund.event_cancellation.sweep.started", "event.category", "recovery", "batch.size", candidates.size());
+        int failed = 0;
         for (var payment : candidates) {
             try {
                 refunds.queueCapturedPaymentRefundOnly(payment.getId(), "Event cancellation");
             } catch (Exception ex) {
-                log.warn("Could not queue event-cancellation refund paymentId={}", payment.getId(), ex);
+                failed++; EnterpriseLog.warn(log, "refund.event_cancellation.queue_deferred", "event.category", "recovery", "payment.id", payment.getId(), "error.type", ex.getClass().getSimpleName());
             }
         }
+        EnterpriseLog.info(log, "refund.event_cancellation.sweep.completed", "event.category", "recovery", "batch.size", candidates.size(), "failed", failed, "duration.ms", (System.nanoTime()-started)/1_000_000L);
     }
 }

@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.neelastack.lakhdatar.config.AppProperties;
 import com.neelastack.lakhdatar.domain.RefreshToken;
 import com.neelastack.lakhdatar.domain.User;
@@ -11,6 +13,8 @@ import com.neelastack.lakhdatar.repository.UserRepository;
 import com.neelastack.lakhdatar.security.JwtService;
 import com.neelastack.lakhdatar.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,7 @@ import java.util.Base64;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private final UserRepository users;
     private final RefreshTokenRepository refreshTokens;
     private final UserInviteRepository invites;
@@ -41,16 +46,22 @@ public class AuthService {
     public record AuthResult(String accessToken,String refreshToken,String role,String fullName) {}
 
     public AuthResult login(String email,String password,String clientKey){
+        EnterpriseLog.debug(log, "auth.login.started", "event.category", "authentication");
         String normalizedEmail=email==null?"":email.trim().toLowerCase();
         java.time.Duration window=java.time.Duration.ofSeconds(props.rateLimit().windowSeconds());
         if(!rateLimits.allow("login-client:"+clientKey,props.rateLimit().loginPerWindow(),window)
-                || !rateLimits.allow("login-email:"+hash(normalizedEmail),Math.max(3,props.rateLimit().loginPerWindow()/2),window))
+                || !rateLimits.allow("login-email:"+hash(normalizedEmail),Math.max(3,props.rateLimit().loginPerWindow()/2),window)) {
+            EnterpriseLog.warn(log, "auth.login.rate_limited", "event.category", "authentication", "error.code", "RATE_LIMITED");
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","Too many login attempts");
+        }
         User u=users.findByEmailIgnoreCase(normalizedEmail).orElse(null);
         // Always run one BCrypt comparison so response time does not reveal whether the account exists.
         boolean passwordOk=encoder.matches(password==null?"":password,u==null?timingEqualizerHash():u.getPasswordHash());
-        if(u==null||!u.isEnabled()||!passwordOk)
+        if(u==null||!u.isEnabled()||!passwordOk){
+            EnterpriseLog.warn(log, "auth.login.failed", "event.category", "authentication", "error.code", "INVALID_CREDENTIALS");
             throw new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_CREDENTIALS","Invalid email or password");
+        }
+        EnterpriseLog.info(log, "auth.login.succeeded", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name());
         return issue(u);
     }
 
@@ -58,7 +69,8 @@ public class AuthService {
     // Without it the RuntimeException rolls the revocation back and reuse detection is a no-op.
     @Transactional(noRollbackFor = ApiException.class)
     public AuthResult refresh(String raw){
-        if(raw==null||raw.isBlank()) throw new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_REFRESH_TOKEN","Refresh token invalid");
+        EnterpriseLog.debug(log, "auth.refresh.started", "event.category", "authentication");
+        if(raw==null||raw.isBlank()){ EnterpriseLog.warn(log, "auth.refresh.rejected", "event.category", "authentication", "error.code", "INVALID_REFRESH_TOKEN"); throw new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_REFRESH_TOKEN","Refresh token invalid"); }
         RefreshToken current=refreshTokens.findByTokenHashForUpdate(hash(raw)).orElseThrow(()->new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_REFRESH_TOKEN","Refresh token invalid"));
         if(current.getRevokedAt()!=null || !current.getExpiresAt().isAfter(Instant.now())) {
             // A revoked token that was rotated is a reuse signal. Revoke every remaining active
@@ -66,16 +78,27 @@ public class AuthService {
             if (current.getRevokedAt() != null && current.getReplacedByTokenHash() != null) {
                 boolean withinGrace = refreshReuseGraceSeconds > 0
                         && !current.getRevokedAt().plusSeconds(refreshReuseGraceSeconds).isBefore(Instant.now());
-                if (!withinGrace) refreshTokens.revokeAllActiveByUserId(current.getUserId(), Instant.now());
+                EnterpriseLog.warn(log, "auth.refresh.reuse_detected", "event.category", "security", "user.id", current.getUserId(),
+                        "security.reason", withinGrace ? "ROTATED_TOKEN_REPLAY_WITHIN_GRACE" : "ROTATED_TOKEN_REPLAY");
+                if (!withinGrace) {
+                    refreshTokens.revokeAllActiveByUserId(current.getUserId(), Instant.now());
+                    EnterpriseLog.error(log, "auth.refresh.sessions_revoked", null, "event.category", "security",
+                            "user.id", current.getUserId(), "security.reason", "REFRESH_TOKEN_REUSE");
+                }
             }
+            EnterpriseLog.warn(log, "auth.refresh.rejected", "event.category", "authentication", "error.code", "INVALID_REFRESH_TOKEN", "security.reason", current.getRevokedAt()!=null ? "REVOKED" : "EXPIRED");
             throw new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_REFRESH_TOKEN","Refresh token expired or revoked");
         }
         User u=users.findById(current.getUserId()).orElseThrow(()->new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_REFRESH_TOKEN","User not found"));
-        if(!u.isEnabled()) throw new ApiException(HttpStatus.UNAUTHORIZED,"ACCOUNT_DISABLED","Account disabled");
+        if(!u.isEnabled()) {
+            EnterpriseLog.warn(log, "auth.refresh.rejected", "event.category", "authentication", "error.code", "ACCOUNT_DISABLED", "user.id", u.getId());
+            throw new ApiException(HttpStatus.UNAUTHORIZED,"ACCOUNT_DISABLED","Account disabled");
+        }
         AuthResult r=issue(u);
         current.setRevokedAt(Instant.now());
         current.setReplacedByTokenHash(hash(r.refreshToken()));
         refreshTokens.save(current);
+        EnterpriseLog.info(log, "auth.refresh.succeeded", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name());
         return r;
     }
 
@@ -100,6 +123,7 @@ public class AuthService {
         inv.setUsedAt(now);
         invites.save(inv);
         refreshTokens.revokeAllActiveByUserId(u.getId(),now);
+        EnterpriseLog.info(log, "auth.invite.accepted", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name());
         return issue(u);
     }
 
@@ -118,6 +142,7 @@ public class AuthService {
         u.setMustChangePassword(false);
         users.save(u);
         refreshTokens.revokeAllActiveByUserId(u.getId(),Instant.now());
+        EnterpriseLog.info(log, "auth.password.changed", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name());
         return issue(u);
     }
 
@@ -129,7 +154,7 @@ public class AuthService {
     @Transactional
     public void revoke(String raw){
         if(raw==null||raw.isBlank()) return;
-        refreshTokens.findByTokenHash(hash(raw)).ifPresent(token->{ token.setRevokedAt(Instant.now()); refreshTokens.save(token); });
+        refreshTokens.findByTokenHash(hash(raw)).ifPresent(token->{ token.setRevokedAt(Instant.now()); refreshTokens.save(token); EnterpriseLog.info(log, "auth.logout.succeeded", "event.category", "authentication", "user.id", token.getUserId()); });
     }
 
     private volatile String timingEqualizerHash;

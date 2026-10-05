@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.neelastack.lakhdatar.domain.Enums;
 import com.neelastack.lakhdatar.domain.Event;
 import com.neelastack.lakhdatar.domain.Order;
@@ -108,7 +110,8 @@ public class TicketMailService {
                 enqueue(orderId);
                 if (workerEnabled) submitOrder(orderId);
             } catch (Exception ex) {
-                log.warn("Ticket email outbox enqueue failed for order {} ({})", orderId, ex.getClass().getSimpleName());
+                EnterpriseLog.warn(log, "mail.outbox.enqueue_failed", "event.category", "email", "order.id", orderId,
+                        "error.type", ex.getClass().getSimpleName());
             }
         };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -149,7 +152,7 @@ public class TicketMailService {
             worker.submit(() -> processJob(job.getId()));
         } catch (RejectedExecutionException ex) {
             // Durable PENDING state remains in PostgreSQL. The scheduled sweep will retry submission.
-            log.warn("Ticket email worker queue is full; deferring mail jobId={}", job.getId());
+            EnterpriseLog.warn(log, "mail.delivery.queue_full", "event.category", "email", "mail.job_id", job.getId());
         }
     }
 
@@ -185,7 +188,8 @@ public class TicketMailService {
                     job.setStatus(TicketMailJob.Status.FAILED);
                     job.setLastError("SMTP_SEND_FAILED_AFTER_MAX_ATTEMPTS");
                     job.setNextAttemptAt(now);
-                    log.error("Ticket email job {} exhausted delivery attempts; buyer can still use the ticket page or /recover", jobId);
+                    EnterpriseLog.error(log, "mail.delivery.exhausted", null, "event.category", "email",
+                            "mail.job_id", jobId, "mail.delivery.max_attempts", MAX_ATTEMPTS);
                 } else {
                     long delay = Math.min(Duration.ofHours(1).toMillis(), 5_000L * (1L << Math.min(8, Math.max(0, attempts - 1))));
                     job.setStatus(TicketMailJob.Status.PENDING);
@@ -207,7 +211,8 @@ public class TicketMailService {
                 enqueue(order.getId());
                 submitOrder(order.getId());
             } catch (Exception ex) {
-                log.warn("Ticket email repair deferred for order {} ({})", order.getId(), ex.getClass().getSimpleName());
+                EnterpriseLog.warn(log, "mail.delivery.repair_deferred", "event.category", "email", "order.id", order.getId(),
+                        "error.type", ex.getClass().getSimpleName());
             }
         }
     }
@@ -219,7 +224,7 @@ public class TicketMailService {
         Instant cutoff = Instant.now().minus(Duration.ofDays(30));
         long deleted = mailJobs.deleteByStatusInAndUpdatedAtBefore(
                 List.of(TicketMailJob.Status.SENT, TicketMailJob.Status.SKIPPED, TicketMailJob.Status.FAILED), cutoff);
-        if (deleted > 0) log.info("Purged {} completed ticket email history rows", deleted);
+        if (deleted > 0) EnterpriseLog.info(log, "mail.history.cleaned", "event.category", "email", "mail.rows_deleted", deleted);
     }
 
     @Scheduled(fixedDelayString = "${app.mail-delivery-sweep:30000}")
@@ -242,11 +247,17 @@ public class TicketMailService {
         if (!isConfigured()) return NOT_CONFIGURED;
         try {
             Order o = orders.findById(orderId).orElse(null);
-            if (o == null || o.getCustomerEmail() == null || o.getCustomerEmail().isBlank()) return NO_TICKETS;
+            if (o == null || o.getCustomerEmail() == null || o.getCustomerEmail().isBlank()) {
+                EnterpriseLog.warn(log, "mail.delivery.skipped", "event.category", "email", "order.id", orderId, "mail.reason", "NO_RECIPIENT");
+                return NO_TICKETS;
+            }
             Event e = events.findById(o.getEventId()).orElse(null);
             List<Ticket> live = tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream()
                     .filter(t -> t.getStatus() == Enums.TicketStatus.ISSUED || t.getStatus() == Enums.TicketStatus.CHECKED_IN).toList();
-            if (e == null || live.isEmpty()) return NO_TICKETS;
+            if (e == null || live.isEmpty()) {
+                EnterpriseLog.warn(log, "mail.delivery.skipped", "event.category", "email", "order.id", orderId, "mail.reason", e == null ? "EVENT_NOT_FOUND" : "NO_LIVE_TICKETS");
+                return NO_TICKETS;
+            }
 
             JavaMailSender s = sender.getIfAvailable();
             MimeMessage msg = s.createMimeMessage();
@@ -276,9 +287,11 @@ public class TicketMailService {
             h.setText(html.toString(), true);
             for (int i = 0; i < images.size(); i++) h.addInline("qr" + i, new ByteArrayResource(images.get(i)), "image/png");
             s.send(msg);
+            EnterpriseLog.info(log, "mail.delivery.succeeded", "event.category", "email", "order.id", orderId, "ticket.count", live.size());
             return SENT;
         } catch (Exception ex) {
-            log.warn("Ticket email send failed for order {} ({})", orderId, ex.getClass().getSimpleName());
+            EnterpriseLog.warn(log, "mail.delivery.failed", "event.category", "email", "order.id", orderId,
+                    "error.type", ex.getClass().getSimpleName());
             return FAILED;
         }
     }

@@ -4,6 +4,11 @@ name: lakhdatar-events
 
 services:
   postgres:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: postgres:16-alpine
     container_name: lakhdatar-postgres
     restart: unless-stopped
@@ -29,6 +34,11 @@ services:
       timeout: 5s
       retries: 12
   redis:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: redis:7-alpine
     container_name: lakhdatar-redis
     restart: unless-stopped
@@ -79,6 +89,11 @@ services:
       retries: 12
       start_period: 5s
   backend:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-backend:${IMAGE_TAG}
     container_name: lakhdatar-backend
     restart: unless-stopped
@@ -99,11 +114,16 @@ services:
       APP_ENV: production
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-lakhdatar-events-backend}
       DEFAULT_PAYMENT_PROVIDER: ${DEFAULT_PAYMENT_PROVIDER:-CASHFREE}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.3,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.5,deployment.environment=production}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
       OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
       OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}
+      OPS_LOGS_ENABLED: ${OPS_LOGS_ENABLED:-true}
+      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+      LOG_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-INFO}
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+      LOG_LEVEL_SERVICE: ${LOG_LEVEL_SERVICE:-INFO}
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/lakhdatar}
       DB_USERNAME: ${DB_USERNAME:-lakhdatar}
@@ -196,6 +216,11 @@ services:
       retries: 24
       start_period: 90s
   web:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-web:${IMAGE_TAG}
     container_name: lakhdatar-web
     restart: unless-stopped
@@ -230,6 +255,11 @@ services:
       retries: 12
       start_period: 15s
   edge:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-edge:${IMAGE_TAG}
     container_name: lakhdatar-edge
     restart: unless-stopped

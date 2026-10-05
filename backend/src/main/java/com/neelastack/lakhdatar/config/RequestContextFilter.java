@@ -15,10 +15,10 @@ public class RequestContextFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         String ip = firstNonBlank(request.getHeader("CF-Connecting-IP"), request.getHeader("X-Real-IP"), request.getRemoteAddr());
-        String agent = request.getHeader("User-Agent");
         MDC.put("clientIp", limit(ip,64));
-        if(agent!=null) MDC.put("userAgent", limit(agent,256));
-        try { chain.doFilter(request,response); } finally { MDC.remove("clientIp"); MDC.remove("userAgent"); }
+        MDC.put("requestScheme", request.getScheme());
+        MDC.put("requestHost", limit(request.getHeader("Host"),160));
+        try { chain.doFilter(request,response); } finally { MDC.remove("clientIp"); MDC.remove("requestScheme"); MDC.remove("requestHost"); }
     }
     private String firstNonBlank(String... values){ for(String v:values) if(v!=null&&!v.isBlank()) return v.trim(); return "unknown"; }
     private String limit(String v,int n){ return v==null?null:(v.length()<=n?v:v.substring(0,n)); }

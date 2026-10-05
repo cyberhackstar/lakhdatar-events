@@ -46,3 +46,16 @@ export const roleGuard = (...allowed: string[]): CanActivateFn => () => {
   const router = inject(Router);
   return allowed.includes(auth.role() || '') ? true : router.createUrlTree(['/admin']);
 };
+
+
+/** Dedicated production monitor is restricted to platform administrators. */
+export const platformAdminGuard: CanActivateFn = (_route, state) => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  return auth.ensureSession().pipe(
+    map(ok => ok && auth.role() === 'ADMIN'
+      ? true
+      : router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } })),
+    catchError(() => of(router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } })))
+  );
+};

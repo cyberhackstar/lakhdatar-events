@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neelastack.lakhdatar.domain.Enums;
@@ -9,6 +11,8 @@ import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.PaymentRepository;
 import com.neelastack.lakhdatar.repository.PaymentWebhookEventRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -25,6 +29,7 @@ import java.util.HexFormat;
 @Service
 @RequiredArgsConstructor
 public class WebhookService {
+    private static final Logger log = LoggerFactory.getLogger(WebhookService.class);
     private final RazorpayService razorpay;
     private final DistributedLockService locks;
     private final PaymentGatewayRouter gateways;
@@ -39,7 +44,9 @@ public class WebhookService {
     private boolean workerEnabled;
 
     public void handle(String raw, String signature, String headerEventId) {
+        long started = System.nanoTime();
         if (signature == null || !razorpay.verifyWebhookSignature(raw, signature)) {
+            EnterpriseLog.warn(log, "webhook.signature.rejected", "event.category", "payment", "error.code", "INVALID_WEBHOOK");
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK", "Webhook signature invalid");
         }
         JsonNode n;
@@ -54,16 +61,20 @@ public class WebhookService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_WEBHOOK_ID", "Webhook event identifiers do not match");
         }
         final String providerEventId = headerId != null ? headerId : (payloadId != null ? payloadId : sha256(raw));
-        persistIfAbsent(providerEventId, n.path("event").asText("unknown"), raw, sha256(raw));
+        String eventType = n.path("event").asText("unknown");
+        persistIfAbsent(providerEventId, eventType, raw, sha256(raw));
+        EnterpriseLog.debug(log, "webhook.received", "event.category", "payment", "provider", "RAZORPAY", "webhook.event.id", providerEventId, "webhook.type", eventType);
         PaymentWebhookEvent stored = events.findByProviderEventId(providerEventId).orElseThrow(() ->
                 new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "WEBHOOK_PERSISTENCE_FAILED", "Webhook could not be persisted"));
-        if (stored.isProcessed()) return;
-        if (claim(providerEventId) == 0) return;
+        if (stored.isProcessed()) { EnterpriseLog.debug(log, "webhook.duplicate_ignored", "event.category", "payment", "webhook.event.id", providerEventId, "webhook.type", eventType); return; }
+        if (claim(providerEventId) == 0) { EnterpriseLog.debug(log, "webhook.concurrent_delivery_ignored", "event.category", "payment", "webhook.event.id", providerEventId); return; }
         try {
             process(stored.getPayload());
             tx.executeWithoutResult(s -> events.markProcessed(providerEventId, Instant.now()));
+            EnterpriseLog.info(log, "webhook.processed", "event.category", "payment", "webhook.event.id", providerEventId, "webhook.type", eventType, "duration.ms", (System.nanoTime()-started)/1_000_000L);
         } catch (RuntimeException ex) {
             tx.executeWithoutResult(s -> events.markFailed(providerEventId, safeError(ex)));
+            EnterpriseLog.error(log, "webhook.processing.failed", ex, "event.category", "payment", "webhook.event.id", providerEventId, "webhook.type", eventType, "error.type", ex.getClass().getSimpleName(), "duration.ms", (System.nanoTime()-started)/1_000_000L);
             throw ex;
         }
     }
@@ -180,8 +191,7 @@ public class WebhookService {
         locks.withLock("job:webhook-recovery", Duration.ofMinutes(2), () -> {
             int reset = events.resetStaleProcessing(Instant.now().minus(Duration.ofMinutes(10)));
             if (reset > 0) {
-                org.slf4j.LoggerFactory.getLogger(WebhookService.class)
-                        .warn("Reset {} stale webhook-processing claims", reset);
+                EnterpriseLog.warn(log, "webhook.stale_claims_reset", "event.category", "payment", "webhook.reset_count", reset);
             }
         });
     }

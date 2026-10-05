@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.neelastack.lakhdatar.domain.Enums;
 import com.neelastack.lakhdatar.domain.TicketReservation;
 import com.neelastack.lakhdatar.domain.TicketType;
@@ -8,6 +10,8 @@ import com.neelastack.lakhdatar.repository.OrderRepository;
 import com.neelastack.lakhdatar.repository.TicketReservationRepository;
 import com.neelastack.lakhdatar.repository.TicketTypeRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +22,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class TicketReservationService {
+    private static final Logger log = LoggerFactory.getLogger(TicketReservationService.class);
     private final TicketTypeRepository ticketTypeRepository;
     private final TicketReservationRepository reservationRepository;
     private final OrderRepository orderRepository;
@@ -30,6 +35,7 @@ public class TicketReservationService {
         if (t.availableQuantity() < qty)
             throw new ApiException(HttpStatus.CONFLICT, "SOLD_OUT", "Not enough tickets available");
         t.setReservedQuantity(t.getReservedQuantity() + qty);
+        EnterpriseLog.debug(log, "inventory.reservation.held", "event.category", "inventory", "ticket_type.id", id, "quantity", qty, "reserved.quantity", t.getReservedQuantity(), "available.quantity", t.availableQuantity());
         return t;
     }
 
@@ -41,6 +47,7 @@ public class TicketReservationService {
             throw new ApiException(HttpStatus.CONFLICT, "INVENTORY_INCONSISTENT", "Reservation exceeds held inventory");
         t.setReservedQuantity(t.getReservedQuantity() - qty);
         t.setSoldQuantity(t.getSoldQuantity() + qty);
+        EnterpriseLog.debug(log, "inventory.sale.confirmed", "event.category", "inventory", "ticket_type.id", id, "quantity", qty, "sold.quantity", t.getSoldQuantity(), "reserved.quantity", t.getReservedQuantity());
     }
 
     @Transactional
@@ -57,6 +64,7 @@ public class TicketReservationService {
             if (r.getStatus() != Enums.ReservationStatus.HELD) return;
             releaseReservation(r.getTicketTypeId(), r.getQuantity());
             r.setStatus(Enums.ReservationStatus.EXPIRED);
+            EnterpriseLog.info(log, "inventory.reservation.expired", "event.category", "inventory", "reservation.id", reservationId, "ticket_type.id", r.getTicketTypeId(), "quantity", r.getQuantity(), "order.id", r.getOrderId());
         });
     }
 
@@ -71,7 +79,7 @@ public class TicketReservationService {
             r.setStatus(Enums.ReservationStatus.EXPIRED);
             if (r.getOrderId() != null) {
                 orderRepository.findById(r.getOrderId()).ifPresent(o -> {
-                    if (o.getStatus() == Enums.OrderStatus.CREATED || o.getStatus() == Enums.OrderStatus.AWAITING_PAYMENT) o.setStatus(Enums.OrderStatus.EXPIRED);
+                    if (o.getStatus() == Enums.OrderStatus.CREATED || o.getStatus() == Enums.OrderStatus.AWAITING_PAYMENT) { o.setStatus(Enums.OrderStatus.EXPIRED); EnterpriseLog.info(log, "order.expired_after_reservation", "event.category", "order", "order.id", o.getId(), "order.number", o.getOrderNumber(), "reservation.id", reservationId); }
                 });
             }
         });
@@ -84,6 +92,7 @@ public class TicketReservationService {
                 if (r.getStatus() == Enums.ReservationStatus.HELD) {
                     releaseReservation(r.getTicketTypeId(), r.getQuantity());
                     r.setStatus(Enums.ReservationStatus.RELEASED);
+                    EnterpriseLog.debug(log, "inventory.reservation.released", "event.category", "inventory", "reservation.id", r.getId(), "order.id", orderId, "ticket_type.id", r.getTicketTypeId(), "quantity", r.getQuantity());
                 }
             }
         });

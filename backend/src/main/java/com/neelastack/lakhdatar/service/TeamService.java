@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.neelastack.lakhdatar.domain.*;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.*;
@@ -348,7 +350,8 @@ public class TeamService {
             return "INVITE_SENT";
         } catch (Exception e) {
             // Never log the link or token. The member exists; the organizer can use "Resend invite".
-            log.warn("Invite email could not be sent for user {} ({})", u.getPublicId(), e.getClass().getSimpleName());
+            EnterpriseLog.warn(log, "team.invite.email_deferred", "event.category", "email",
+                    "user.public_id", u.getPublicId(), "error.type", e.getClass().getSimpleName());
             return "INVITE_FAILED";
         }
     }

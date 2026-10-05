@@ -1,9 +1,13 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neelastack.lakhdatar.config.AppProperties;
 import com.neelastack.lakhdatar.exception.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +24,7 @@ import java.util.*;
 
 @Service
 public class RazorpayService {
+    private static final Logger log = LoggerFactory.getLogger(RazorpayService.class);
     private final HttpClient http;
     private final ObjectMapper objectMapper;
     private final AppProperties.Razorpay props;
@@ -111,16 +116,27 @@ public class RazorpayService {
     private JsonNode get(String path) {
         try { return send("GET", path, null, Map.of()); }
         catch (ApiException e) { throw e; }
-        catch (Exception e) { throw providerException(e); }
+        catch (Exception e) {
+            EnterpriseLog.warn(log, "payment.provider.http.unavailable", "event.category", "payment", "provider", "RAZORPAY",
+                    "http.method", "GET", "provider.path", path, "error.type", e.getClass().getSimpleName());
+            throw providerException(e);
+        }
     }
 
     private JsonNode post(String path, Object body) { return post(path, body, Map.of()); }
 
     private JsonNode post(String path, Object body, Map<String,String> headers) {
-        try { return send("POST", path, objectMapper.writeValueAsString(body), headers); } catch (Exception e) { throw providerException(e); }
+        try { return send("POST", path, objectMapper.writeValueAsString(body), headers); }
+        catch (Exception e) {
+            EnterpriseLog.warn(log, "payment.provider.http.unavailable", "event.category", "payment", "provider", "RAZORPAY",
+                    "http.method", "POST", "provider.path", path, "error.type", e.getClass().getSimpleName());
+            throw providerException(e);
+        }
     }
 
     private JsonNode send(String method, String path, String body, Map<String,String> headers) throws Exception {
+        long started = System.nanoTime();
+        EnterpriseLog.debug(log, "payment.provider.http.started", "event.category", "payment", "provider", "RAZORPAY", "http.method", method, "provider.path", path);
         String auth = Base64.getEncoder().encodeToString((props.keyId() + ":" + props.keySecret()).getBytes(StandardCharsets.UTF_8));
         HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(props.baseUrl() + path))
                 .timeout(Duration.ofMillis(Math.max(2000, props.httpReadTimeoutMs())))
@@ -128,8 +144,16 @@ public class RazorpayService {
         headers.forEach(builder::header);
         HttpRequest request = "GET".equals(method) ? builder.GET().build() : builder.method(method, HttpRequest.BodyPublishers.ofString(body == null ? "" : body)).build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 404) throw new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_PROVIDER_NOT_FOUND", "Razorpay resource was not found");
-        if (response.statusCode() < 200 || response.statusCode() >= 300) throw new IllegalStateException("Razorpay HTTP " + response.statusCode());
+        long durationMs = (System.nanoTime() - started) / 1_000_000L;
+        if (response.statusCode() == 404) {
+            EnterpriseLog.warn(log, "payment.provider.http.not_found", "event.category", "payment", "provider", "RAZORPAY", "http.method", method, "provider.path", path, "http.status_code", 404, "duration.ms", durationMs);
+            throw new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_PROVIDER_NOT_FOUND", "Razorpay resource was not found");
+        }
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            EnterpriseLog.warn(log, "payment.provider.http.failed", "event.category", "payment", "provider", "RAZORPAY", "http.method", method, "provider.path", path, "http.status_code", response.statusCode(), "duration.ms", durationMs);
+            throw new IllegalStateException("Razorpay HTTP " + response.statusCode());
+        }
+        EnterpriseLog.debug(log, "payment.provider.http.succeeded", "event.category", "payment", "provider", "RAZORPAY", "http.method", method, "provider.path", path, "http.status_code", response.statusCode(), "duration.ms", durationMs);
         return objectMapper.readTree(response.body());
     }
 

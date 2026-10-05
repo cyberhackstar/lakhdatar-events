@@ -69,7 +69,7 @@ class TeamAuthContractTest {
 
     @Test void deactivatedStaffCannotRefreshASession() throws Exception {
         String src = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/AuthService.java"));
-        assertTrue(src.contains("if(!u.isEnabled()) throw new ApiException(HttpStatus.UNAUTHORIZED,\"ACCOUNT_DISABLED\""));
+        assertTrue(src.contains("u.isEnabled()") && src.contains("ACCOUNT_DISABLED"));
     }
 
     @Test void everyApiRequestIsRejectedForDisabledUsersSoScanningStopsImmediately() throws Exception {

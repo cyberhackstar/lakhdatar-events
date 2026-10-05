@@ -9,6 +9,7 @@ map $http_cf_connecting_ip $client_rate_key {
 }
 map $http_x_forwarded_proto $public_proto { default $scheme; https https; http http; }
 map $host $monitor_root_redirect { default 0; monitor.neelastack.com 1; }
+map $host $is_monitor_host { default 0; monitor.neelastack.com 1; }
 map $http_x_correlation_id $edge_correlation_id {
     "~^[A-Za-z0-9._-]{8,80}$" $http_x_correlation_id;
     default $request_id;
@@ -72,7 +73,24 @@ server {
     location = /edge-health { access_log off; default_type text/plain; return 200 "ok\n"; }
 
     location = / {
-        if ($monitor_root_redirect) { return 302 https://monitor.neelastack.com/admin/operations$is_args$args; }
+        if ($monitor_root_redirect) { return 302 /monitor$is_args$args; }
+        proxy_pass http://web_pool;
+        proxy_read_timeout 20s;
+    }
+
+
+    # Dedicated SRE console. The same private edge serves both hostnames, but the monitor
+    # route is only exposed when the Host header is monitor.neelastack.com.
+    location = /monitor {
+        if ($is_monitor_host = 0) { return 404; }
+        proxy_pass http://web_pool;
+        proxy_read_timeout 20s;
+    }
+
+    # Keep business admin pages on the Events hostname. The monitor hostname exposes only the SRE console
+    # plus the authenticated API paths it needs.
+    location ^~ /admin {
+        if ($is_monitor_host = 1) { return 404; }
         proxy_pass http://web_pool;
         proxy_read_timeout 20s;
     }

@@ -16,7 +16,7 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   application:
     name: lakhdatar-events-backend
-    version: ${APP_VERSION:2.0.3}
+    version: ${APP_VERSION:2.0.5}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}
@@ -131,6 +131,11 @@ management:
         http.server.requests: 100ms,300ms,1s,3s
 
 app:
+  observability:
+    logs:
+      enabled: ${OPS_LOGS_ENABLED:true}
+    loki-url: ${LOKI_URL:http://loki:3100}
+    log-query-timeout-ms: ${LOKI_QUERY_TIMEOUT_MS:4000}
   monitoring:
     business-refresh-ms: ${BUSINESS_METRICS_REFRESH_MS:30000}
   worker:
@@ -243,5 +248,6 @@ logging:
   pattern:
     level: "%5p [%X{correlationId:-}] [ip=%X{clientIp:-}]"
   level:
-    root: INFO
-    com.neelastack.lakhdatar: INFO
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.neelastack.lakhdatar: ${LOG_LEVEL_APP:INFO}
+    com.neelastack.lakhdatar.service: ${LOG_LEVEL_SERVICE:INFO}

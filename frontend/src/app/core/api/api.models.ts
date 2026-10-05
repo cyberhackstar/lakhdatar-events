@@ -276,6 +276,9 @@ export interface FinancePage<T> { items: T[]; page: number; size: number; total:
 
 export interface OperationsDashboard { health: OperationsHealth; kpis: { grossCaptured24hMinor: number; refunds24hMinor: number; orders24h: number; successfulPayments24h: number; failedPayments24h: number; ticketsIssued24h: number; checkIns24h: number; activeEvents: number; upcomingEvents: number }; generatedAt: string; }
 
+export interface OperationsLogEntry { timestamp: string; service: string; level: string; action: string; message: string; correlationId?: string | null; container: string; }
+export interface OperationsLogPage { items: OperationsLogEntry[]; generatedAt: string; limit: number; sinceMinutes: number; available: boolean; }
+
 export interface OperationsHealth { application: string; version: string; checkedAt: string; database: { status: string; latencyMs: number; detail: string }; redis: { status: string; latencyMs: number; detail: string }; queues: { pendingPayments: number; stalePayments: number; providerOrderRecoveryPending: number; pendingRefunds: number; webhookBacklog: number; webhookStuck: number; heldReservations: number; expiredReservations: number; mailPending: number; mailFailed: number }; publishedEvents: number; organizers: number; workerEnabled: boolean; }
 
 export interface AdminEventCursorPage { items: Dashboard['events']; nextCursor?: string | null; hasNext: boolean; size: number; total: number; }

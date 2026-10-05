@@ -1,9 +1,13 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.neelastack.lakhdatar.domain.*;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,6 +21,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class RefundService {
+    private static final Logger log = LoggerFactory.getLogger(RefundService.class);
     private final PaymentRepository payments;
     private final RefundRepository refunds;
     private final OrderRepository orders;
@@ -32,6 +37,8 @@ public class RefundService {
     private final PaymentStateMachine paymentStateMachine;
 
     public RefundResult refund(UUID paymentPublicId, String reason, Long actorId, String role) {
+        long started = System.nanoTime();
+        EnterpriseLog.info(log, "refund.requested", "event.category", "payment", "payment.public_id", paymentPublicId, "actor.user_id", actorId, "actor.role", role);
         PreparedRefund prepared = tx.execute(status -> prepareRefund(paymentPublicId, reason, actorId, role, false));
         if (prepared == null) throw new ApiException(HttpStatus.CONFLICT, "REFUND_FAILED", "Refund could not be prepared");
         if (prepared.alreadyQueued()) {
@@ -39,6 +46,7 @@ public class RefundService {
         }
         processRefund(prepared.refundId());
         Refund r = refunds.findById(prepared.refundId()).orElseThrow();
+        EnterpriseLog.info(log, "refund.completed_or_queued", "event.category", "payment", "payment.public_id", prepared.paymentPublicId(), "refund.id", r.getPublicId(), "refund.amount_minor", r.getAmountMinor(), "refund.status", r.getStatus().name(), "duration.ms", (System.nanoTime()-started)/1_000_000L);
         return new RefundResult(prepared.paymentPublicId(),
                 r.getProviderRefundId() != null ? r.getProviderRefundId() : r.getPublicId().toString(),
                 r.getAmountMinor(), r.getStatus().name());
@@ -130,6 +138,7 @@ public class RefundService {
                 .forEach(t -> { if (t.getStatus() != Enums.TicketStatus.CHECKED_IN) t.setStatus(Enums.TicketStatus.CANCELLED); });
         reservationService.releaseOrder(o.getId());
         audit.log(actorId, "REFUND_QUEUED", "PAYMENT", p.getPublicId().toString(), null);
+        EnterpriseLog.info(log, "refund.queued", "event.category", "payment", "payment.id", p.getId(), "payment.public_id", p.getPublicId(), "refund.id", r.getPublicId(), "refund.amount_minor", r.getAmountMinor(), "refund.reason_provided", rr != null && !rr.isBlank(), "refund.reason_length", rr == null ? 0 : rr.length());
         return new PreparedRefund(p.getPublicId(), r.getId(), r.getPublicId(), r.getAmountMinor(), false);
     }
 
@@ -138,6 +147,7 @@ public class RefundService {
     }
 
     public void reconcileProviderRefund(Long paymentId, String providerRefundId, String providerStatus, long amountMinor, String providerReceipt) {
+        EnterpriseLog.debug(log, "refund.provider_reconciliation.started", "event.category", "payment", "payment.id", paymentId, "provider.refund.id", providerRefundId, "provider.status", providerStatus, "refund.amount_minor", amountMinor);
         if (amountMinor <= 0) throw new ApiException(HttpStatus.BAD_REQUEST, "REFUND_AMOUNT_INVALID", "Provider refund amount must be positive");
         if (providerRefundId == null || providerRefundId.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "REFUND_PROVIDER_ID_REQUIRED", "Provider refund identifier is required");
@@ -289,7 +299,10 @@ public class RefundService {
         if (payment == null || payment.getProviderOrderId() == null) return;
         var lock = locks.tryAcquire("refund:" + payment.getId(), java.time.Duration.ofSeconds(90));
         if (!lock.acquired()) return;
-        try { finalizeFromProvider(pending.getId(), payment); } finally { lock.close(); }
+        try {
+            EnterpriseLog.debug(log, "refund.processing.started", "event.category", "payment", "refund.id", pending.getPublicId(), "payment.id", payment.getId(), "refund.amount_minor", pending.getAmountMinor());
+            finalizeFromProvider(pending.getId(), payment);
+        } finally { lock.close(); }
     }
 
     private void finalizeFromProvider(Long refundId, Payment payment) {
@@ -365,9 +378,11 @@ public class RefundService {
                     r.setAttemptCount(r.getAttemptCount() + 1);
                 }));
             } else {
+                EnterpriseLog.info(log, "refund.provider_requested", "event.category", "payment", "refund.id", refundId, "payment.id", payment.getId(), "provider", payment.getProvider().name(), "provider.refund.id", result.id(), "refund.amount_minor", result.amount(), "provider.status", result.status());
                 reconcileProviderRefund(payment.getId(), result.id(), result.status(), result.amount(), result.receipt());
             }
         } catch (Exception ex) {
+            EnterpriseLog.error(log, "refund.processing.failed", ex, "event.category", "payment", "refund.id", refundId, "payment.id", payment.getId(), "error.type", ex.getClass().getSimpleName());
             tx.executeWithoutResult(s -> refunds.findById(refundId).ifPresent(r -> {
                 r.setLastError(safeError(ex));
                 r.setLastAttemptAt(Instant.now());

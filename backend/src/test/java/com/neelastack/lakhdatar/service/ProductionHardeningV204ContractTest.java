@@ -7,8 +7,8 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Release-contract guards for the v2.0.3 production qualification fixes. */
-class ProductionHardeningV203ContractTest {
+/** Release-contract guards for the v2.0.5 dedicated SRE monitor and production qualification fixes. */
+class ProductionHardeningV204ContractTest {
     @Test
     void teamAuthTestUsesBehavioralFilterCoverage() throws Exception {
         String source = Files.readString(Path.of("src/test/java/com/neelastack/lakhdatar/service/TeamAuthContractTest.java"));
@@ -40,10 +40,10 @@ class ProductionHardeningV203ContractTest {
         String version = Files.readString(Path.of("../VERSION")).trim();
         String pom = Files.readString(Path.of("pom.xml"));
         String pkg = Files.readString(Path.of("../frontend/package.json"));
-        assertEquals("2.0.3", version);
+        assertEquals("2.0.5", version);
         assertTrue(pom.contains("<artifactId>lakhdatar-events</artifactId>"));
-        assertTrue(pom.contains("<version>2.0.3</version>"));
-        assertTrue(pkg.contains("\"version\": \"2.0.3\""));
+        assertTrue(pom.contains("<version>2.0.5</version>"));
+        assertTrue(pkg.contains("\"version\": \"2.0.5\""));
     }
     @Test
     void concurrencyAndObservabilityGuardsArePresent() throws Exception {
@@ -53,13 +53,17 @@ class ProductionHardeningV203ContractTest {
         assertTrue(config.contains("max: ${SERVER_TOMCAT_MAX_THREADS:200}"));
         assertTrue(config.contains("keep-alive-timeout: ${SERVER_TOMCAT_KEEP_ALIVE_TIMEOUT:30s}"));
         assertTrue(config.contains("enabled: ${OTEL_METRICS_EXPORT_ENABLED:false}"));
+        assertTrue(config.contains("OPS_LOGS_ENABLED"));
+        assertTrue(config.contains("LOKI_URL"));
     }
 
     @Test
     void edgeAndLockfileProductionContractsArePresent() throws Exception {
         String edge = Files.readString(Path.of("../edge/nginx.conf"));
         String lock = Files.readString(Path.of("../frontend/package-lock.json"));
-        assertTrue(edge.contains("return 302 https://monitor.neelastack.com/admin/operations$is_args$args;"));
+        assertTrue(edge.contains("return 302 /monitor$is_args$args;"));
+        assertTrue(edge.contains("location = /monitor"));
+        assertTrue(edge.contains("if ($is_monitor_host = 0) { return 404; }"));
         assertTrue(edge.contains("proxy_cache_path /var/cache/nginx/public-cache"));
         assertTrue(edge.contains("keepalive 64;"));
         assertTrue(edge.contains("gzip on;"));
@@ -71,6 +75,9 @@ class ProductionHardeningV203ContractTest {
         assertTrue(lock.contains("\"node_modules/http-errors\": {\n      \"version\": \"2.0.1\""));
         assertFalse(lock.contains("void-elements-2.0.2.tgz"));
         assertFalse(lock.contains("http-errors-2.0.2.tgz"));
+        String manifest = Files.readString(Path.of("../RELEASE-MANIFEST.txt"));
+        assertTrue(manifest.contains("Release: 2.0.5"));
+        assertTrue(Files.isRegularFile(Path.of("src/main/java/com/neelastack/lakhdatar/service/OperationsLogService.java")));
     }
 
 }
