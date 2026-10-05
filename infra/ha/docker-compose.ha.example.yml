@@ -14,11 +14,11 @@ services:
       APP_ENV: production
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-lakhdatar-events-backend}
       DEFAULT_PAYMENT_PROVIDER: ${DEFAULT_PAYMENT_PROVIDER:-CASHFREE}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.0,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.2,deployment.environment=production}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
       OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
-      APP_VERSION: ${APP_VERSION:-2.0.0}
+      APP_VERSION: ${APP_VERSION:-2.0.2}
       DB_URL: ${DB_URL:?DB_URL is required}
       DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
@@ -80,7 +80,7 @@ services:
       SPRING_MAIN_WEB_APPLICATION_TYPE: none
       APP_ENV: production
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME_WORKER:-lakhdatar-events-worker}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.0,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.2,deployment.environment=production}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
       OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
@@ -133,7 +133,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      APP_VERSION: ${APP_VERSION:-2.0.0}
+      APP_VERSION: ${APP_VERSION:-2.0.2}
       SSR_API_BASE_URL: ${SSR_API_BASE_URL:-http://backend:8080/api/v1}
       NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:?NG_ALLOWED_HOSTS is required}
       NG_TRUST_PROXY_HEADERS: X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO

@@ -40,9 +40,9 @@ class ProductionHardeningV2ContractTest {
         String version = Files.readString(Path.of("../VERSION")).trim();
         String pom = Files.readString(Path.of("pom.xml"));
         String pkg = Files.readString(Path.of("../frontend/package.json"));
-        assertEquals("2.0.0", version);
+        assertEquals("2.0.2", version);
         assertTrue(pom.contains("<artifactId>lakhdatar-events</artifactId>"));
-        assertTrue(pom.contains("<version>2.0.0</version>"));
-        assertTrue(pkg.contains("\"version\": \"2.0.0\""));
+        assertTrue(pom.contains("<version>2.0.2</version>"));
+        assertTrue(pkg.contains("\"version\": \"2.0.2\""));
     }
 }

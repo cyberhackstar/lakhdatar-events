@@ -1,5 +1,5 @@
-NEELASTACK EVENTS v2.0.1 PRODUCTION RELEASE MANIFEST
-Release: 2.0.1
-Changes: CHANGES-2.0.1.md
-Validation: VALIDATION-2.0.1.md
+NEELASTACK EVENTS v2.0.2 PRODUCTION RELEASE MANIFEST
+Release: 2.0.2
+Changes: CHANGES-2.0.2.md
+Validation: VALIDATION-2.0.2.md
 Monitoring host: monitor.neelastack.com

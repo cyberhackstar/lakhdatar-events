@@ -1,4 +1,4 @@
-# v2.0.0 — Enterprise Platform Operations Center
+# v2.0.2 — Enterprise Platform Operations Center
 
 This release adds full-stack metrics/logs/traces, provisioned SRE dashboards, production alert rules, edge/backend correlation and a server-authoritative publication gate.
 
@@ -126,7 +126,7 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 
 
 ## Current release
-See `CHANGES-2.0.0.md` and the v1.9.x validation history retained in this repository.
+See `CHANGES-2.0.0.md`, `CHANGES-2.0.1.md`, and the v1.9.x validation history retained in this repository.
 
 
 ### Deployment dotenv safety

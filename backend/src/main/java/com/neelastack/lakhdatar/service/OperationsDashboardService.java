@@ -8,7 +8,7 @@ import java.time.Instant;
 
 /**
  * Read-only, low-cardinality operator snapshot for the platform operations center.
- * No customer PII, payment secrets, provider tokens or raw webhook payloads are exposed.
+ * No customer PII, payment secrets, provider tokens or raw webhook bodies are exposed.
  * Queries are aggregate-only so the console remains safe to poll from multiple operator sessions.
  */
 @Service

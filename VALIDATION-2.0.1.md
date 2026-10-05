@@ -27,3 +27,8 @@ Must be performed after deployment:
 5. Verify an operator without the application `ADMIN` role cannot access the Operations API.
 6. Verify Prometheus/Grafana/Loki/Tempo remain unreachable from the public Internet.
 7. Verify direct VM edge access is loopback-only.
+
+
+## Release qualification
+
+The first v2.0.1 CI run compiled 123 production and 56 test sources. It exposed two release-contract defects; this package contains the corresponding fixes. The full Maven `clean verify` must be rerun in CI and must finish with zero test failures before production deployment.
