@@ -7,6 +7,10 @@ services:
     image: postgres:16-alpine
     container_name: lakhdatar-postgres
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     security_opt:
       - no-new-privileges:true
     pids_limit: 256
@@ -28,6 +32,10 @@ services:
     image: redis:7-alpine
     container_name: lakhdatar-redis
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
 
     # Redis 7 Alpine creates the redis account as UID 999 / GID 1000.
     # Start directly as that account so the image entrypoint does not need a
@@ -74,6 +82,10 @@ services:
     image: ${IMAGE_NAMESPACE}/lakhdatar-backend:${IMAGE_TAG}
     container_name: lakhdatar-backend
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     init: true
     security_opt:
       - no-new-privileges:true
@@ -87,10 +99,11 @@ services:
       APP_ENV: production
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-lakhdatar-events-backend}
       DEFAULT_PAYMENT_PROVIDER: ${DEFAULT_PAYMENT_PROVIDER:-CASHFREE}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.2,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.3,deployment.environment=production}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
       OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
+      OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/lakhdatar}
       DB_USERNAME: ${DB_USERNAME:-lakhdatar}
@@ -111,6 +124,13 @@ services:
       DB_CONNECTION_TIMEOUT_MS: ${DB_CONNECTION_TIMEOUT_MS:-5000}
       DB_VALIDATION_TIMEOUT_MS: ${DB_VALIDATION_TIMEOUT_MS:-2000}
       DB_MAX_LIFETIME_MS: ${DB_MAX_LIFETIME_MS:-1800000}
+      SERVER_TOMCAT_MAX_THREADS: ${SERVER_TOMCAT_MAX_THREADS:-200}
+      SERVER_TOMCAT_MIN_SPARE_THREADS: ${SERVER_TOMCAT_MIN_SPARE_THREADS:-20}
+      SERVER_TOMCAT_MAX_CONNECTIONS: ${SERVER_TOMCAT_MAX_CONNECTIONS:-10000}
+      SERVER_TOMCAT_ACCEPT_COUNT: ${SERVER_TOMCAT_ACCEPT_COUNT:-1000}
+      SERVER_TOMCAT_CONNECTION_TIMEOUT: ${SERVER_TOMCAT_CONNECTION_TIMEOUT:-5s}
+      SERVER_TOMCAT_KEEP_ALIVE_TIMEOUT: ${SERVER_TOMCAT_KEEP_ALIVE_TIMEOUT:-30s}
+      SERVER_TOMCAT_MAX_KEEP_ALIVE_REQUESTS: ${SERVER_TOMCAT_MAX_KEEP_ALIVE_REQUESTS:-100}
       RESERVATION_HOLD: ${RESERVATION_HOLD:-12m}
       RESERVATION_SWEEP: ${RESERVATION_SWEEP:-30s}
       PAYMENT_ORDER_RECOVERY_SWEEP: ${PAYMENT_ORDER_RECOVERY_SWEEP:-30000}
@@ -179,6 +199,10 @@ services:
     image: ${IMAGE_NAMESPACE}/lakhdatar-web:${IMAGE_TAG}
     container_name: lakhdatar-web
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     init: true
     security_opt:
       - no-new-privileges:true
@@ -194,6 +218,9 @@ services:
       SSR_API_BASE_URL: http://backend:8080/api/v1
       NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-events.neelastack.com,monitor.neelastack.com}
       NG_TRUST_PROXY_HEADERS: ${NG_TRUST_PROXY_HEADERS:-X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO}
+      KEEP_ALIVE_TIMEOUT_MS: ${KEEP_ALIVE_TIMEOUT_MS:-60000}
+      HEADERS_TIMEOUT_MS: ${HEADERS_TIMEOUT_MS:-65000}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-30000}
     depends_on: {backend: {condition: service_healthy}}
     networks: [lakhdatar_net]
     healthcheck:
@@ -206,6 +233,10 @@ services:
     image: ${IMAGE_NAMESPACE}/lakhdatar-edge:${IMAGE_TAG}
     container_name: lakhdatar-edge
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     init: true
     security_opt:
       - no-new-privileges:true

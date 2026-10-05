@@ -6,6 +6,7 @@ These tests are intended for a staging environment or a dedicated load-test even
 
 - `catalog.js`: public discovery and optional ticket/admin read paths.
 - `public-event.js`: high-volume single-event public detail reads.
+- `thousands.js`: controlled 1,000-concurrent-user public-read qualification profile; staging/dedicated load-test only.
 - `checkout.js`: provider-order provisioning under controlled, disposable inventory.
 - `checkout-idempotency.js`: repeated concurrent requests using the same idempotency key; validates deterministic duplicate handling.
 - `checkin.js`: concurrent gate-scan pressure with issued QR credentials.
@@ -22,8 +23,9 @@ These tests are intended for a staging environment or a dedicated load-test even
 5. Scanner: start at 2 scans/sec (below the default 240/minute per-client application limiter), then repeat with multiple source clients or a dedicated staging rate-limit profile for 10 → 25 → 50 scans/sec.
 6. Idempotency: concurrent duplicate requests against one dedicated key; 5xx is a hard failure and at least one request must successfully create/return the shared checkout.
 7. Ticket PDF: exercise authenticated PDF generation separately because PDF rendering is CPU-bound.
-8. Operations: exercise cursor-paginated tickets/orders, dashboard/health and finance views.
-9. Recovery: inject provider timeout/5xx, then verify no duplicate orders and that reconciliation converges.
+8. Thousands-user qualification: run `thousands.js` only against staging/a dedicated public event; it models approximately one public read/second per active virtual user, validates concurrency/latency, and does not create payment/orders.
+9. Operations: exercise cursor-paginated tickets/orders, dashboard/health and finance views.
+10. Recovery: inject provider timeout/5xx, then verify no duplicate orders and that reconciliation converges.
 
 During the runs, record NGINX request saturation, p50/p95/p99 latency, HTTP 5xx, PostgreSQL active connections/lock waits, Redis memory/latency, JVM heap/GC, reservation backlog, provider recovery backlog, mail backlog, and CPU/memory.
 

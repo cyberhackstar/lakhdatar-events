@@ -6,6 +6,7 @@ RUN apk upgrade --no-cache \
     && sed -i -E \
        -e '/^[[:space:]]*user[[:space:]]+nginx;[[:space:]]*$/d' \
        -e 's|^[[:space:]]*pid[[:space:]]+[^;]+;|pid /tmp/nginx.pid;|' \
+       -e 's|worker_connections[[:space:]]+[0-9]+;|worker_connections 4096;|' \
        /etc/nginx/nginx.conf \
     && mkdir -p /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp \
         /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp \

@@ -205,17 +205,28 @@ jobs:
             --add-host web:127.0.0.1 \
             -p 127.0.0.1:18082:8080 \
             "$EDGE_IMAGE" >/dev/null
+          ready=0
           for i in $(seq 1 20); do
             if curl -fsS --max-time 3 http://127.0.0.1:18082/edge-health >/dev/null; then
+              ready=1
               echo "Edge container startup regression test passed."
-              exit 0
+              break
             fi
             sleep 1
           done
-          docker inspect "$container" || true
-          docker logs "$container" || true
-          echo "::error::Edge image failed startup/readiness regression test"
-          exit 1
+          if [ "$ready" -ne 1 ]; then
+            docker inspect "$container" || true
+            docker logs "$container" || true
+            echo "::error::Edge image failed startup/readiness regression test"
+            exit 1
+          fi
+          location=$(curl -fsSI --max-time 3 -H 'Host: monitor.neelastack.com' http://127.0.0.1:18082/ | awk -F': ' 'tolower($1)=="location" {gsub("\r", "", $2); print $2; exit}')
+          test "$location" = "https://monitor.neelastack.com/admin/operations" || {
+            echo "::error::Monitor canonical redirect mismatch: $location"
+            docker logs "$container" || true
+            exit 1
+          }
+          echo "Monitor canonical redirect regression test passed."
 
       - name: Scan backend image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

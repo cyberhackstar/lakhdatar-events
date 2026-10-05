@@ -12,8 +12,10 @@ const angular = JSON.parse(read('frontend/angular.json'));
 const styles = read('frontend/src/styles.css');
 const index = read('frontend/src/index.html');
 const dockerfile = read('frontend/Dockerfile');
+const frontendServer = read('frontend/src/server.ts');
 const backendDockerfile = read('backend/Dockerfile');
 const edgeDockerfile = read('edge/Dockerfile');
+const edgeEntrypoint = read('edge/edge-entrypoint.sh');
 const ci = read('.github/workflows/ci.yml');
 const deploy = read('infra/deploy/deploy.sh');
 const prodCompose = read('infra/docker-compose.prod.yml');
@@ -60,6 +62,7 @@ if (!edgeDockerfile.includes('pid /tmp/nginx.pid;')) problems.push('edge Docker 
 if (edgeDockerfile.includes('daemon off; pid /tmp/nginx.pid;')) problems.push('edge Docker must not pass a duplicate pid directive through nginx -g');
 if (!edgeDockerfile.includes('COPY edge-entrypoint.sh /usr/local/bin/edge-entrypoint.sh')) problems.push('edge startup validation entrypoint missing');
 if (!edgeDockerfile.includes('ENTRYPOINT ["/usr/local/bin/edge-entrypoint.sh"]')) problems.push('edge Docker entrypoint contract mismatch');
+if (!edgeEntrypoint.includes('mkdir -p /var/cache/nginx/public-cache')) problems.push('public-cache startup directory guard missing');
 if (!edgeDockerfile.includes("grep -Fq 'pid /tmp/nginx.pid;'")) problems.push('edge Docker build-time pid regression guard missing');
 if (!ci.includes('npm audit --omit=dev --audit-level=high')) problems.push('CI production dependency audit mismatch');
 if (!ci.includes('npm ci --omit=dev --ignore-scripts --no-audit --no-fund')) problems.push('CI production dependency install mismatch');
@@ -73,6 +76,7 @@ if (!ci.includes('gh attestation verify')) problems.push('GitHub artifact proven
 if (!ci.includes('Regression-test edge container startup')) problems.push('edge container startup regression test missing');
 if (!ci.includes('--add-host backend:127.0.0.1') || !ci.includes('--add-host web:127.0.0.1')) problems.push('edge CI DNS-isolated startup regression test missing Compose-style host aliases');
 if (!ci.includes('127.0.0.1:18082/edge-health')) problems.push('edge CI health regression endpoint missing');
+if (!ci.includes('https://monitor.neelastack.com/admin/operations')) problems.push('CI monitor canonical redirect regression check missing');
 if (ci.includes('cosign verify-attestation')) problems.push('Legacy Cosign provenance verification must not be used for BuildKit attestations');
 if (!backendDockerfile.includes('/actuator/health/readiness')) problems.push('backend Docker healthcheck readiness contract missing');
 if (!prodCompose.includes('/actuator/health/readiness')) problems.push('production Compose backend readiness contract missing');
@@ -141,6 +145,38 @@ while (stack.length) {
     }
   }
 }
+if (!backendAppConfig.includes('max-connections: ${SERVER_TOMCAT_MAX_CONNECTIONS:10000}')) problems.push('Tomcat max-connections capacity guard missing');
+if (!backendAppConfig.includes('accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:1000}')) problems.push('Tomcat accept-count capacity guard missing');
+if (!backendAppConfig.includes('threads:\n      max: ${SERVER_TOMCAT_MAX_THREADS:200}')) problems.push('Tomcat bounded request-thread pool guard missing');
+if (!backendAppConfig.includes('keep-alive-timeout: ${SERVER_TOMCAT_KEEP_ALIVE_TIMEOUT:30s}')) problems.push('Tomcat keep-alive timeout guard missing');
+if (!backendAppConfig.includes('OTEL_METRICS_EXPORT_ENABLED:false')) problems.push('OTLP metrics exporter must be disabled by default when Prometheus scraping is enabled');
+if (!edgeNginx.includes('keepalive 64;') || !edgeNginx.includes('keepalive 32;')) problems.push('NGINX upstream keepalive pools missing');
+if (!edgeNginx.includes('proxy_cache_path /var/cache/nginx/public-cache')) problems.push('public event micro-cache missing');
+if (!edgeNginx.includes('proxy_cache_valid 200 5s')) problems.push('public event micro-cache TTL missing');
+if (!edgeNginx.includes('$cookie_lk_refresh') || !edgeNginx.includes('$cookie_ld_checkout')) problems.push('public cache cookie bypass missing');
+if (!edgeNginx.includes('return 302 https://monitor.neelastack.com/admin/operations$is_args$args;')) problems.push('canonical monitor HTTPS redirect missing');
+if (!edgeNginx.includes('limit_conn per_ip 1000;')) problems.push('edge connection ceiling baseline mismatch');
+if (!edgeNginx.includes('zone=public_catalog_api:10m rate=1200r/s')) problems.push('public catalog burst-rate budget missing');
+if (!edgeNginx.includes('gzip on;')) problems.push('edge response compression baseline missing');
+if (!frontendServer.includes('server.keepAliveTimeout') || !frontendServer.includes('server.headersTimeout') || !frontendServer.includes('server.requestTimeout')) problems.push('SSR timeout tuning source missing');
+if (!prodCompose.includes('nofile:') || !prodCompose.includes('soft: 65536') || !prodCompose.includes('hard: 65536')) problems.push('production file-descriptor ceiling missing');
+if (!prodCompose.includes('OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}')) problems.push('production OTLP metrics toggle missing');
+const haCompose = read('infra/ha/docker-compose.ha.example.yml');
+const haEdgeNginx = read('infra/ha/nginx-ha.conf.example');
+if (!haCompose.includes('SERVER_TOMCAT_MAX_THREADS: ${SERVER_TOMCAT_MAX_THREADS:-200}')) problems.push('HA Tomcat capacity baseline missing');
+if (!haCompose.includes('KEEP_ALIVE_TIMEOUT_MS: ${KEEP_ALIVE_TIMEOUT_MS:-60000}')) problems.push('HA SSR keep-alive baseline missing');
+if (!haEdgeNginx.includes('return 302 https://monitor.neelastack.com/admin/operations$is_args$args;')) problems.push('HA NGINX monitor routing baseline missing');
+if (!haEdgeNginx.includes('proxy_cache_path /var/cache/nginx/public-cache')) problems.push('HA public event micro-cache missing');
+if (!haEdgeNginx.includes('keepalive 64;') || !haEdgeNginx.includes('keepalive 32;')) problems.push('HA NGINX upstream keepalive pools missing');
+if (!haCompose.includes('security_opt: [no-new-privileges:true]') || !haCompose.includes('cap_drop: [ALL]')) problems.push('HA web/edge hardening missing');
+if (!fs.existsSync(path.join(root, 'infra/loadtest/thousands.js'))) problems.push('thousands-user staging load profile missing');
+const loadtestWorkflow = read('.github/workflows/load-test.yml');
+if (!loadtestWorkflow.includes('thousands.js')) problems.push('load-test workflow must expose the thousands-user profile');
+if (!loadtestWorkflow.includes('thousands.js must never run against the live events.neelastack.com site')) problems.push('thousands-user workflow production guard missing');
+const lockText = read('frontend/package-lock.json');
+if (!lockText.includes('"node_modules/void-elements": {\n      "version": "2.0.1"')) problems.push('frontend lockfile void-elements must resolve to 2.0.1');
+if (!lockText.includes('"node_modules/http-errors": {\n      "version": "2.0.1"')) problems.push('frontend lockfile http-errors must resolve to 2.0.1');
+if (lockText.includes('void-elements-2.0.2.tgz') || lockText.includes('http-errors-2.0.2.tgz')) problems.push('stale invalid frontend lockfile tarball versions remain');
 if (!edgeNginx.includes('https://static.cloudflareinsights.com')) problems.push('Cloudflare Web Analytics CSP script source missing');
 if (!edgeNginx.includes('https://api.cashfree.com;') && !edgeNginx.includes('https://api.cashfree.com https://sdk.cashfree.com')) problems.push('Cashfree API frame/form action host missing from edge CSP');
 if (!edgeNginx.includes("form-action 'self' https://api.cashfree.com")) problems.push('Cashfree API form-action CSP host missing');

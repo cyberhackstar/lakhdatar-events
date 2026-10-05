@@ -12,7 +12,7 @@ on:
         required: true
         default: catalog.js
         type: choice
-        options: [suite, catalog.js, burst.js, public-event.js, checkout.js, checkout-idempotency.js, checkin.js, ticket-pdf.js, operations.js, seo.js]
+        options: [suite, catalog.js, burst.js, public-event.js, thousands.js, checkout.js, checkout-idempotency.js, checkin.js, ticket-pdf.js, operations.js, seo.js]
 
 permissions:
   contents: read
@@ -23,6 +23,18 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v7
+      - name: Guard the 1,000-user profile to staging only
+        if: inputs.test == 'thousands.js'
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -euo pipefail
+          case "$BASE_URL" in
+            https://events.neelastack.com|https://events.neelastack.com/*|http://events.neelastack.com|http://events.neelastack.com/*)
+              echo "::error::thousands.js must never run against the live events.neelastack.com site"
+              exit 1
+              ;;
+          esac
       - name: Run pinned k6 test
         env:
           BASE_URL: ${{ inputs.base_url }}
@@ -45,6 +57,9 @@ jobs:
           BURST_RATE_1: ${{ secrets.LOADTEST_BURST_RATE_1 || '100' }}
           BURST_RATE_2: ${{ secrets.LOADTEST_BURST_RATE_2 || '200' }}
           BURST_RATE_3: ${{ secrets.LOADTEST_BURST_RATE_3 || '250' }}
+          THOUSANDS_MAX_VUS: ${{ vars.LOADTEST_THOUSANDS_MAX_VUS || '1000' }}
+          THOUSANDS_RAMP: ${{ vars.LOADTEST_THOUSANDS_RAMP || '2m' }}
+          THOUSANDS_HOLD: ${{ vars.LOADTEST_THOUSANDS_HOLD || '3m' }}
         run: ./infra/loadtest/run.sh '${{ inputs.test }}'
       - name: Upload k6 summaries
         if: always()

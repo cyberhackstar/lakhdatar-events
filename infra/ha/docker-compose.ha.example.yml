@@ -6,6 +6,10 @@ services:
   backend:
     image: ${IMAGE_NAMESPACE}/lakhdatar-backend:${IMAGE_TAG}
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     init: true
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
@@ -14,11 +18,12 @@ services:
       APP_ENV: production
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-lakhdatar-events-backend}
       DEFAULT_PAYMENT_PROVIDER: ${DEFAULT_PAYMENT_PROVIDER:-CASHFREE}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.2,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.3,deployment.environment=production}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
       OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
-      APP_VERSION: ${APP_VERSION:-2.0.2}
+      OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}
+      APP_VERSION: ${APP_VERSION:-2.0.3}
       DB_URL: ${DB_URL:?DB_URL is required}
       DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
@@ -36,6 +41,13 @@ services:
       NEELASTACK_PUBLIC_URL: ${NEELASTACK_PUBLIC_URL:?NEELASTACK_PUBLIC_URL is required}
       DB_POOL_MAX: ${API_DB_POOL_MAX:-16}
       DB_POOL_MIN: ${API_DB_POOL_MIN:-4}
+      SERVER_TOMCAT_MAX_THREADS: ${SERVER_TOMCAT_MAX_THREADS:-200}
+      SERVER_TOMCAT_MIN_SPARE_THREADS: ${SERVER_TOMCAT_MIN_SPARE_THREADS:-20}
+      SERVER_TOMCAT_MAX_CONNECTIONS: ${SERVER_TOMCAT_MAX_CONNECTIONS:-10000}
+      SERVER_TOMCAT_ACCEPT_COUNT: ${SERVER_TOMCAT_ACCEPT_COUNT:-1000}
+      SERVER_TOMCAT_CONNECTION_TIMEOUT: ${SERVER_TOMCAT_CONNECTION_TIMEOUT:-5s}
+      SERVER_TOMCAT_KEEP_ALIVE_TIMEOUT: ${SERVER_TOMCAT_KEEP_ALIVE_TIMEOUT:-30s}
+      SERVER_TOMCAT_MAX_KEEP_ALIVE_REQUESTS: ${SERVER_TOMCAT_MAX_KEEP_ALIVE_REQUESTS:-100}
       PAYMENT_RECONCILIATION_AGE_MS: ${PAYMENT_RECONCILIATION_AGE_MS:-120000}
       PAYMENT_RECONCILIATION_SWEEP: ${PAYMENT_RECONCILIATION_SWEEP:-30000}
       PAYMENT_ORDER_RECOVERY_SWEEP: ${PAYMENT_ORDER_RECOVERY_SWEEP:-30000}
@@ -72,6 +84,10 @@ services:
   worker:
     image: ${IMAGE_NAMESPACE}/lakhdatar-backend:${IMAGE_TAG}
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     init: true
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
@@ -80,10 +96,11 @@ services:
       SPRING_MAIN_WEB_APPLICATION_TYPE: none
       APP_ENV: production
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME_WORKER:-lakhdatar-events-worker}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.2,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.3,deployment.environment=production}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
       OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
+      OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}
 
       WORKER_ENABLED: "true"
       DB_URL: ${DB_URL:?DB_URL is required}
@@ -129,14 +146,27 @@ services:
   web:
     image: ${IMAGE_NAMESPACE}/lakhdatar-web:${IMAGE_TAG}
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     init: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
     environment:
       NODE_ENV: production
       PORT: "3000"
-      APP_VERSION: ${APP_VERSION:-2.0.2}
+      APP_VERSION: ${APP_VERSION:-2.0.3}
       SSR_API_BASE_URL: ${SSR_API_BASE_URL:-http://backend:8080/api/v1}
       NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:?NG_ALLOWED_HOSTS is required}
       NG_TRUST_PROXY_HEADERS: X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO
+      KEEP_ALIVE_TIMEOUT_MS: ${KEEP_ALIVE_TIMEOUT_MS:-60000}
+      HEADERS_TIMEOUT_MS: ${HEADERS_TIMEOUT_MS:-65000}
+      REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-30000}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/healthz >/dev/null"]
       interval: 15s
@@ -145,6 +175,14 @@ services:
   edge:
     image: ${IMAGE_NAMESPACE}/lakhdatar-edge:${IMAGE_TAG}
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    init: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 128
     ports: ["127.0.0.1:4002:8080"]
     volumes:
       - ./nginx-ha.conf.example:/etc/nginx/conf.d/default.conf:ro

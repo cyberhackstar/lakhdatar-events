@@ -42,6 +42,8 @@ The user then signs in to the Neelastack platform if an application session is n
 
 ## Origin security
 
+The public application URL is **`https://monitor.neelastack.com` with no `:8080` port**. Port `8080` is the private Spring/edge origin port and must never appear in a browser URL. The edge canonicalizes the monitor root to `https://monitor.neelastack.com/admin/operations`.
+
 The edge listens on `127.0.0.1:4002` only. Do not bind the edge to `0.0.0.0`. Do not publish backend port 8080, PostgreSQL 5432, Redis 6379, Prometheus, Grafana, Loki or Tempo publicly.
 
 ## Validation

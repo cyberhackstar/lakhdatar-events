@@ -16,7 +16,7 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   application:
     name: lakhdatar-events-backend
-    version: ${APP_VERSION:2.0.2}
+    version: ${APP_VERSION:2.0.3}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}
@@ -62,6 +62,17 @@ server:
   port: ${SERVER_PORT:8080}
   forward-headers-strategy: framework
   shutdown: graceful
+  tomcat:
+    # Keep connection capacity high while protecting the JVM with a bounded request-thread pool.
+    # Public read bursts should be absorbed by NGINX/Cloudflare; dynamic/payment paths remain bounded.
+    threads:
+      max: ${SERVER_TOMCAT_MAX_THREADS:200}
+      min-spare: ${SERVER_TOMCAT_MIN_SPARE_THREADS:20}
+    max-connections: ${SERVER_TOMCAT_MAX_CONNECTIONS:10000}
+    accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:1000}
+    connection-timeout: ${SERVER_TOMCAT_CONNECTION_TIMEOUT:5s}
+    keep-alive-timeout: ${SERVER_TOMCAT_KEEP_ALIVE_TIMEOUT:30s}
+    max-keep-alive-requests: ${SERVER_TOMCAT_MAX_KEEP_ALIVE_REQUESTS:100}
   compression:
     enabled: true
     mime-types: application/json,text/plain,text/css,application/javascript,text/javascript,image/svg+xml
@@ -101,6 +112,13 @@ management:
           include: livenessState
         readiness:
           include: readinessState,db,redis
+  # Prometheus scrapes /actuator/prometheus. Disable Micrometer's separate OTLP push exporter
+  # by default so an absent localhost:4318 collector cannot create recurring connection errors or waste threads.
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTEL_METRICS_EXPORT_ENABLED:false}
+        step: ${OTEL_METRICS_EXPORT_STEP:60s}
   metrics:
     tags:
       application: ${spring.application.name}

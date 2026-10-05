@@ -57,6 +57,10 @@ app.use((err: unknown, _req: express.Request, res: express.Response, _next: expr
 if (isMainModule(import.meta.url) || process.env['pm_id']) {
   const port = Number(process.env['PORT'] || 3000);
   const server = app.listen(port, '0.0.0.0', () => console.log(`SSR server listening on :${port}`));
+  // Keep Node's upstream socket behavior predictable under SSR bursts. NGINX owns public connection reuse.
+  server.keepAliveTimeout = Number(process.env['KEEP_ALIVE_TIMEOUT_MS'] || 60000);
+  server.headersTimeout = Number(process.env['HEADERS_TIMEOUT_MS'] || 65000);
+  server.requestTimeout = Number(process.env['REQUEST_TIMEOUT_MS'] || 30000);
   let shuttingDown = false;
   const shutdown = (signal: string) => {
     if (shuttingDown) return;
