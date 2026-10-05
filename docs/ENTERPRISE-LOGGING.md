@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The backend emits structured ECS-style operational events and the edge already emits request logs with correlation IDs. v2.0.6 includes a secure, read-only Production Monitor log viewer backed by Loki so an administrator can diagnose failures without shell access.
+The backend emits structured ECS-style operational events and the edge already emits request logs with correlation IDs. v2.0.7 includes a secure, read-only Production Monitor log viewer backed by Loki so an administrator can diagnose failures without shell access.
 
 ## Event taxonomy
 
