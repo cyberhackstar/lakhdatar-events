@@ -1,5 +1,5 @@
 # Hardened NGINX edge image: non-root runtime, read-only compatible.
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 # Apply current Alpine security updates before switching to the non-root runtime user.
 RUN apk upgrade --no-cache \
