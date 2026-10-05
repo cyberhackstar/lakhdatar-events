@@ -51,6 +51,8 @@ server {
     access_log /dev/stdout edge_json;
     error_log /dev/stderr warn;
     server_tokens off;
+    # Preserve relative Location headers so Cloudflare/Tunnel never leaks the private origin port.
+    absolute_redirect off;
     client_max_body_size 6m;
     limit_conn per_ip 1000;
 

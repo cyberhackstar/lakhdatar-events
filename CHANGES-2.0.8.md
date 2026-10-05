@@ -15,3 +15,8 @@ CI v2.0.7 passed the custom dependency verifier but `npm ci` still attempted to 
 ## Evidence
 - npm currently publishes `hasown` 2.0.4; 2.0.5 is not a published release.
 - npm documents root `package.json` as the authoritative location for `overrides`, while `package-lock.json` records the exact resolved tree.
+
+## CI regression hardening (post-release maintenance)
+- The frontend stability baseline now explicitly supports the controlled Express 5.2.1 / `@types/express` 5.0.6 Dependabot upgrade while retaining the existing Express 4.22.x baseline.
+- The edge and HA NGINX configs disable `absolute_redirect`, preventing NGINX from rewriting the relative monitor redirect to an internal `http://monitor.neelastack.com:8080/...` URL.
+- The existing CI regression remains strict: the monitor hostname root must return a relative `/monitor` location.

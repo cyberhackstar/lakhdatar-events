@@ -10,3 +10,8 @@
 - Application backend/frontend version synchronized to 2.0.8.
 
 Runtime CI gates such as full Maven tests and complete networked npm install remain CI-authoritative.
+
+### CI failure fixes
+- Dependabot PR #19 was failing in `verify:baseline` because the PR intentionally upgrades `express` from the controlled `^4.22.2` baseline to `^5.2.1` and `@types/express` to the Express 5 type line. The validator now allows only those two explicitly approved Express baselines.
+- Main Docker CI was failing its edge regression because NGINX converted the relative `Location: /monitor` into an absolute origin URL containing the internal `:8080` port. `absolute_redirect off;` is now enforced in both the primary and HA edge configurations.
+- No broad test relaxation was added: the remaining frontend build/tests and the edge regression still run after these baseline gates.
