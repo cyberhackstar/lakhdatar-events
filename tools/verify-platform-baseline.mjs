@@ -100,9 +100,9 @@ if (prodCompose.includes('REDIS_URL:')) problems.push('production Redis URL must
 if (deploy.includes('/actuator/health >/dev/null')) problems.push('legacy aggregate backend health gate must not be used');
 if (!prodCompose.includes('start_period: 90s')) problems.push('production backend healthcheck startup period mismatch');
 if (read('.nvmrc').trim() !== '24') problems.push('Node runtime baseline mismatch');
-if (!prodCompose.includes('NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-events.neelastack.com}')) problems.push('Angular SSR allowed-host baseline missing');
+if (!prodCompose.includes('NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-events.neelastack.com,monitor.neelastack.com}')) problems.push('Angular SSR allowed-host baseline missing');
 if (!prodCompose.includes('NG_TRUST_PROXY_HEADERS: ${NG_TRUST_PROXY_HEADERS:-X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO}')) problems.push('Angular SSR trusted-proxy baseline missing');
-if (!ci.includes('NG_ALLOWED_HOSTS=127.0.0.1,localhost,events.neelastack.com')) problems.push('CI SSR test host allowlist baseline missing');
+if (!ci.includes('NG_ALLOWED_HOSTS=127.0.0.1,localhost,events.neelastack.com,monitor.neelastack.com')) problems.push('CI SSR test host allowlist baseline missing');
 const edgeNginx = read('edge/nginx.conf');
 const checkoutSource = read('frontend/src/app/features/checkout/checkout.component.ts');
 const scannerSource = read('frontend/src/app/features/scanner/scanner.component.ts');

@@ -20,7 +20,7 @@ import { AdminStore } from './admin-store.service';
           @if (canViewEventOperations()) { <a routerLink="/admin/events" routerLinkActive="on"><i>◈</i><span>Events</span></a> }
           @if (canViewTickets()) { <a routerLink="/admin/tickets" routerLinkActive="on"><i>▤</i><span>Issued tickets</span></a> }
           @if (canViewFinance()) { <a routerLink="/admin/finance" routerLinkActive="on"><i>¤</i><span>Finance</span></a> }
-          @if (canViewOperationsHealth()) { <a routerLink="/admin/operations" routerLinkActive="on"><i>♥</i><span>Ops health</span></a> }
+          @if (canViewOperationsHealth()) { <a routerLink="/admin/operations" routerLinkActive="on"><i>♥</i><span>Operations Center</span></a> }
           @if (canAdminister()) { <a routerLink="/admin/events/new" routerLinkActive="on"><i>＋</i><span>Create event</span></a> }
           @if (isAdmin()) { <a routerLink="/admin/organizers" routerLinkActive="on"><i>▣</i><span>Organizers</span></a> }
           @if (canAdminister()) { <a routerLink="/admin/team" routerLinkActive="on"><i>◉</i><span>{{ isAdmin() ? 'Teams' : 'Team' }}</span></a> }

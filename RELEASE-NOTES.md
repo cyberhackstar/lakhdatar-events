@@ -1,7 +1,5 @@
-# Neelastack Event Platform — v1.9.56
+# Neelastack Events v2.0.0
 
-v1.9.56 is the corrected release qualification build following the v1.9.55 CI result. Production Java compilation had already succeeded; the remaining CI failure was a single release-contract assertion that looked for a test-only payment provider in the wrong source file.
+Neelastack Events v2 introduces the enterprise Platform Operations Center while preserving the production payment, ticketing, QR check-in, security, recovery and deployment architecture from the v1.9.x line.
 
-The corrected contract validates the dedicated integration payment gateway fixture and the integration test import independently. No production payment/business logic was weakened or bypassed.
-
-See `CHANGES-1.9.56.md` and `VALIDATION-1.9.56.md`.
+See `CHANGES-2.0.0.md` for the release scope and validation requirements.

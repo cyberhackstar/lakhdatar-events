@@ -27,7 +27,7 @@ export const routes: Routes = [
       { path: 'events/new', title: 'Create event · Console', canActivate: [roleGuard('ADMIN', 'ORGANIZER')], loadComponent: () => import('./features/admin/event-create.component').then(m => m.EventCreateComponent) },
       { path: 'events/:eventId/operations', title: 'Event operations · Console', canActivate: [roleGuard('ADMIN', 'ORGANIZER', 'EVENT_MANAGER')], loadComponent: () => import('./features/admin/event-operations.component').then(m => m.EventOperationsComponent) },
       { path: 'finance', title: 'Finance · Console', canActivate: [roleGuard('ADMIN', 'ORGANIZER', 'FINANCE')], loadComponent: () => import('./features/admin/finance.component').then(m => m.FinanceComponent) },
-      { path: 'operations', title: 'Operations health · Console', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./features/admin/operations-health.component').then(m => m.OperationsHealthComponent) },
+      { path: 'operations', title: 'Operations health · Console', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./features/admin/operations-center.component').then(m => m.OperationsCenterComponent) },
       { path: 'events/:eventId', title: 'Edit event · Console', canActivate: [roleGuard('ADMIN', 'ORGANIZER')], loadComponent: () => import('./features/admin/event-editor.component').then(m => m.EventEditorComponent) },
       { path: 'organizers', title: 'Organizers · Console', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./features/admin/organizers.component').then(m => m.OrganizersComponent) },
       { path: 'team', title: 'Team · Console', canActivate: [roleGuard('ADMIN', 'ORGANIZER')], loadComponent: () => import('./features/admin/team.component').then(m => m.TeamComponent) },

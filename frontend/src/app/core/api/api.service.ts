@@ -158,7 +158,8 @@ export class ApiService {
   }
   staffEvents() { return this.http.get<StaffEvent[]>(`${this.base}/staff/events`); }
 
-  operationsHealth() { return this.http.get<import('./api.models').OperationsHealth>(`${this.base}/admin/ops/health`); }
+  operationsHealth() { return this.http.get<import('./api.models').OperationsHealth>(`${this.base}/admin/ops/health`, { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }); }
+  operationsDashboard() { return this.http.get<import('./api.models').OperationsDashboard>(`${this.base}/admin/ops/dashboard`, { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }); }
   financeRefundsCursor(params: { q?: string; status?: string; cursor?: string; size?: number } = {}) { return this.http.get<CursorPage<import('./api.models').FinanceRefund>>(`${this.base}/finance/refunds/cursor`, { params: this.queryParams(params) }); }
   financeLedgerCursor(params: { q?: string; entryType?: string; cursor?: string; size?: number } = {}) { return this.http.get<CursorPage<import('./api.models').FinanceLedgerRow>>(`${this.base}/finance/ledger/cursor`, { params: this.queryParams(params) }); }
   financeOverview() { return this.http.get<import('./api.models').FinanceOverview>(`${this.base}/finance/overview`); }

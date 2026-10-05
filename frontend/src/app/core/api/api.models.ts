@@ -274,6 +274,8 @@ export interface FinanceRefund { refundId: string; paymentId: string; orderNumbe
 export interface FinanceLedgerRow { entryId: string; entryType: 'SALE' | 'REFUND'; paymentId?: string | null; refundId?: string | null; orderNumber?: string | null; eventName?: string | null; organizerName?: string | null; amountMinor: number; currency: string; createdAt: string; }
 export interface FinancePage<T> { items: T[]; page: number; size: number; total: number; totalPages: number; }
 
+export interface OperationsDashboard { health: OperationsHealth; kpis: { grossCaptured24hMinor: number; refunds24hMinor: number; orders24h: number; successfulPayments24h: number; failedPayments24h: number; ticketsIssued24h: number; checkIns24h: number; activeEvents: number; upcomingEvents: number }; generatedAt: string; }
+
 export interface OperationsHealth { application: string; version: string; checkedAt: string; database: { status: string; latencyMs: number; detail: string }; redis: { status: string; latencyMs: number; detail: string }; queues: { pendingPayments: number; stalePayments: number; providerOrderRecoveryPending: number; pendingRefunds: number; webhookBacklog: number; webhookStuck: number; heldReservations: number; expiredReservations: number; mailPending: number; mailFailed: number }; publishedEvents: number; organizers: number; workerEnabled: boolean; }
 
 export interface AdminEventCursorPage { items: Dashboard['events']; nextCursor?: string | null; hasNext: boolean; size: number; total: number; }

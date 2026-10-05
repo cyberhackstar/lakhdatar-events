@@ -1,4 +1,4 @@
-# v1.9.56 — Enterprise CI qualification and release hardening
+# v2.0.0 — Enterprise Platform Operations Center
 
 This release adds full-stack metrics/logs/traces, provisioned SRE dashboards, production alert rules, edge/backend correlation and a server-authoritative publication gate.
 
@@ -126,7 +126,7 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 
 
 ## Current release
-See `CHANGES-1.9.56.md` and `VALIDATION-1.9.56.md`.
+See `CHANGES-2.0.0.md` and the v1.9.x validation history retained in this repository.
 
 
 ### Deployment dotenv safety
