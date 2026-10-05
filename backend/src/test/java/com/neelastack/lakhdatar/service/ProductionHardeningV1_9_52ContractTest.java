@@ -46,11 +46,15 @@ class ProductionHardeningV1_9_52ContractTest {
     @Test
     void allWorkerOnlyScheduledJobsHaveConditionalRuntimeGuards() throws Exception {
         String base = "src/main/java/com/neelastack/lakhdatar/service/";
-        for (String name : new String[]{"EventCancellationRefundJob.java","RefundRecoveryJob.java","RefreshTokenCleanupJob.java","ReservationExpiryJob.java","TicketMailService.java","WebhookService.java"}) {
+        for (String name : new String[]{"EventCancellationRefundJob.java","RefundRecoveryJob.java","RefreshTokenCleanupJob.java","ReservationExpiryJob.java","TicketMailService.java"}) {
             String source = Files.readString(Path.of(base + name));
             assertTrue(source.contains("@ConditionalOnProperty(") && source.contains("app.worker"), name + " must be worker-conditional");
             assertTrue(source.contains("workerEnabled") && source.contains("if (!workerEnabled"), name + " must have a runtime worker guard");
         }
+        String webhook = Files.readString(Path.of(base + "WebhookService.java"));
+        // WebhookService is required on API nodes to acknowledge and queue provider webhooks; only its recovery scheduler is worker-gated.
+        assertTrue(webhook.contains("workerEnabled") && webhook.contains("if (!workerEnabled) return"));
+        assertTrue(webhook.contains("@Scheduled"));
     }
 
     @Test

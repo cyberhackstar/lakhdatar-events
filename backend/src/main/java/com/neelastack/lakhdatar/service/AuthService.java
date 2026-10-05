@@ -9,6 +9,7 @@ import com.neelastack.lakhdatar.domain.UserInvite;
 import com.neelastack.lakhdatar.repository.UserInviteRepository;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.RefreshTokenRepository;
+import com.neelastack.lakhdatar.repository.PasswordResetTokenRepository;
 import com.neelastack.lakhdatar.repository.UserRepository;
 import com.neelastack.lakhdatar.security.JwtService;
 import com.neelastack.lakhdatar.security.UserPrincipal;
@@ -33,17 +34,19 @@ public class AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private final UserRepository users;
     private final RefreshTokenRepository refreshTokens;
+    private final PasswordResetTokenRepository passwordResetTokens;
     private final UserInviteRepository invites;
     private final PasswordEncoder encoder;
     private final JwtService jwt;
     private final RateLimitService rateLimits;
     private final AppProperties props;
+    private final MfaService mfa;
     private final SecureRandom random = new SecureRandom();
     // A rotated refresh token that is presented again within this window is treated as a lost
     // response (flaky network), not theft: the request is rejected but other sessions survive.
     @org.springframework.beans.factory.annotation.Value("${app.security.refresh-reuse-grace-seconds:30}") private long refreshReuseGraceSeconds = 30;
 
-    public record AuthResult(String accessToken,String refreshToken,String role,String fullName) {}
+    public record AuthResult(String accessToken,String refreshToken,String role,String fullName,boolean mfaRequired,boolean mfaSetupRequired,String mfaChallengeToken) {}
 
     public AuthResult login(String email,String password,String clientKey){
         EnterpriseLog.debug(log, "auth.login.started", "event.category", "authentication");
@@ -61,7 +64,11 @@ public class AuthService {
             EnterpriseLog.warn(log, "auth.login.failed", "event.category", "authentication", "error.code", "INVALID_CREDENTIALS");
             throw new ApiException(HttpStatus.UNAUTHORIZED,"INVALID_CREDENTIALS","Invalid email or password");
         }
-        EnterpriseLog.info(log, "auth.login.succeeded", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name());
+        EnterpriseLog.info(log, "auth.login.succeeded", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name(), "security.mfa_required", mfa.requiredFor(u.getRole()));
+        if (mfa.requiredFor(u.getRole())) {
+            var challenge = u.isMfaEnabled() ? mfa.createLoginChallenge(u) : mfa.createEnrollmentChallenge(u);
+            return new AuthResult("", "", u.getRole().name(), u.getFullName(), true, !u.isMfaEnabled(), challenge.token());
+        }
         return issue(u);
     }
 
@@ -123,7 +130,12 @@ public class AuthService {
         inv.setUsedAt(now);
         invites.save(inv);
         refreshTokens.revokeAllActiveByUserId(u.getId(),now);
-        EnterpriseLog.info(log, "auth.invite.accepted", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name());
+        passwordResetTokens.invalidateUnusedByUserId(u.getId(), now);
+        EnterpriseLog.info(log, "auth.invite.accepted", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name(), "security.mfa_required", mfa.requiredFor(u.getRole()));
+        if (mfa.requiredFor(u.getRole())) {
+            var challenge = u.isMfaEnabled() ? mfa.createLoginChallenge(u) : mfa.createEnrollmentChallenge(u);
+            return new AuthResult("", "", u.getRole().name(), u.getFullName(), true, !u.isMfaEnabled(), challenge.token());
+        }
         return issue(u);
     }
 
@@ -141,7 +153,9 @@ public class AuthService {
         u.setPasswordHash(encoder.encode(next));
         u.setMustChangePassword(false);
         users.save(u);
-        refreshTokens.revokeAllActiveByUserId(u.getId(),Instant.now());
+        Instant changedAt = Instant.now();
+        refreshTokens.revokeAllActiveByUserId(u.getId(), changedAt);
+        passwordResetTokens.invalidateUnusedByUserId(u.getId(), changedAt);
         EnterpriseLog.info(log, "auth.password.changed", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name());
         return issue(u);
     }
@@ -170,8 +184,14 @@ public class AuthService {
         String raw=Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes(48));
         RefreshToken rt=new RefreshToken(); rt.setUserId(u.getId()); rt.setTokenHash(hash(raw)); rt.setExpiresAt(Instant.now().plus(props.jwt().refreshToken()));
         refreshTokens.save(rt);
-        return new AuthResult(access,raw,u.getRole().name(),u.getFullName());
+        return new AuthResult(access,raw,u.getRole().name(),u.getFullName(),false,false,null);
     }
+    public AuthResult issueAfterMfa(Long userId) {
+        User u = users.findById(userId).filter(User::isEnabled).orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Authentication required"));
+        if (!u.isMfaEnabled() || !mfa.requiredFor(u.getRole())) throw new ApiException(HttpStatus.UNAUTHORIZED, "MFA_REQUIRED", "MFA verification required");
+        return issue(u);
+    }
+
     private byte[] randomBytes(int n){byte[] b=new byte[n];random.nextBytes(b);return b;}
     private String hash(String value){try{return hex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}
     private String hex(byte[] b){StringBuilder s=new StringBuilder(b.length*2);for(byte x:b)s.append(String.format("%02x",x));return s.toString();}

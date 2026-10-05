@@ -98,6 +98,15 @@ public class TicketReservationService {
         });
     }
 
+
+    @Transactional
+    public int releaseHeldForEvent(Long eventId) {
+        if (eventId == null) return 0;
+        int changed = reservationRepository.releaseHeldForEventAndAdjustInventory(eventId);
+        if (changed > 0) EnterpriseLog.info(log, "inventory.event_reservations.released", "event.category", "inventory", "event.id", eventId, "ticket_types.adjusted", changed);
+        return changed;
+    }
+
     public List<TicketReservation> forOrder(Long orderId) {
         return reservationRepository.findByOrderIdOrderByIdAsc(orderId);
     }

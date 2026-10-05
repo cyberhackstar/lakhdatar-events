@@ -33,6 +33,8 @@ public class BusinessMetricsService {
     private final AtomicLong pendingRefunds = new AtomicLong();
     private final AtomicLong webhookBacklog = new AtomicLong();
     private final AtomicLong webhookStuck = new AtomicLong();
+    private final AtomicLong webhookDeadLetters = new AtomicLong();
+    private final AtomicLong refundManualReview = new AtomicLong();
     private final AtomicLong heldReservations = new AtomicLong();
     private final AtomicLong expiredReservations = new AtomicLong();
     private final AtomicLong mailPending = new AtomicLong();
@@ -67,6 +69,8 @@ public class BusinessMetricsService {
         gauge("lakhdatar.refunds.pending", pendingRefunds, "Pending or processing refunds");
         gauge("lakhdatar.webhooks.backlog", webhookBacklog, "Unprocessed webhook backlog older than two minutes");
         gauge("lakhdatar.webhooks.stuck", webhookStuck, "Webhook jobs stuck in processing for more than five minutes");
+        gauge("lakhdatar.webhooks.dead_letters", webhookDeadLetters, "Webhook jobs that exhausted retry limits");
+        gauge("lakhdatar.refunds.manual_review", refundManualReview, "Refunds requiring operator review");
         gauge("lakhdatar.reservations.held", heldReservations, "Currently held ticket reservations");
         gauge("lakhdatar.reservations.expired", expiredReservations, "Expired HELD reservations awaiting cleanup");
         gauge("lakhdatar.mail.pending", mailPending, "Pending/processing ticket mail jobs");
@@ -101,6 +105,8 @@ public class BusinessMetricsService {
             pendingRefunds.set(q.pendingRefunds());
             webhookBacklog.set(q.webhookBacklog());
             webhookStuck.set(q.webhookStuck());
+            webhookDeadLetters.set(q.webhookDeadLetters());
+            refundManualReview.set(q.refundManualReview());
             heldReservations.set(q.heldReservations());
             expiredReservations.set(q.expiredReservations());
             mailPending.set(q.mailPending());

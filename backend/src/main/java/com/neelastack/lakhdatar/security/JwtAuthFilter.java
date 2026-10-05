@@ -10,6 +10,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.List;
 @Component @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
  private final JwtService jwtService; private final UserRepository users;
+ @Value("${app.mfa.required-for-privileged:false}") private boolean mfaRequiredForPrivileged;
  @Override protected void doFilterInternal(HttpServletRequest req,HttpServletResponse res,FilterChain chain)throws ServletException,IOException{
   String h=req.getHeader("Authorization");
   if(h!=null&&h.startsWith("Bearer ")){
@@ -33,11 +35,23 @@ public class JwtAuthFilter extends OncePerRequestFilter {
       res.getWriter().write("{\"status\":403,\"code\":\"PASSWORD_CHANGE_REQUIRED\",\"message\":\"You must change your password before continuing\"}");
       return;
      }
-     String role=user.getRole().name();UserPrincipal current=new UserPrincipal(user.getId(),user.getEmail(),role);var auth=new UsernamePasswordAuthenticationToken(current,null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));SecurityContextHolder.getContext().setAuthentication(auth);
+     String role=user.getRole().name();
+     if (mfaRequiredForPrivileged && isPrivileged(role) && !user.isMfaEnabled() && !isAllowedDuringMfaSetup(req.getRequestURI())) {
+      res.setStatus(403);res.setContentType("application/json");
+      res.getWriter().write("{\"status\":403,\"code\":\"MFA_SETUP_REQUIRED\",\"message\":\"Multi-factor authentication must be configured before continuing\"}");
+      return;
+     }UserPrincipal current=new UserPrincipal(user.getId(),user.getEmail(),role);var auth=new UsernamePasswordAuthenticationToken(current,null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));SecurityContextHolder.getContext().setAuthentication(auth);
     }
    }
   }
   chain.doFilter(req,res);
+ }
+ private boolean isPrivileged(String role) {
+  return "ADMIN".equals(role) || "ORGANIZER".equals(role) || "EVENT_MANAGER".equals(role) || "FINANCE".equals(role);
+ }
+ private boolean isAllowedDuringMfaSetup(String uri){
+  if(uri==null) return false;
+  return uri.startsWith("/api/v1/auth/mfa/") || uri.startsWith("/api/v1/auth/") || uri.equals("/actuator/health") || uri.startsWith("/actuator/health/");
  }
  private boolean isAllowedDuringPasswordChange(String uri){
   if(uri==null) return false;

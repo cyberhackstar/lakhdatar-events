@@ -1,0 +1,12 @@
+{
+  "name": "neelastack-events-e2e",
+  "version": "2.0.12",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

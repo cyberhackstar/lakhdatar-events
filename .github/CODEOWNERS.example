@@ -1,0 +1,7 @@
+# Replace @REPLACE_WITH_REAL_REVIEW_TEAM with the repository's actual maintained team before enabling enforcement.
+.github/workflows/ @REPLACE_WITH_REAL_REVIEW_TEAM
+backend/src/main/java/com/neelastack/lakhdatar/config/ @REPLACE_WITH_REAL_REVIEW_TEAM
+backend/src/main/java/com/neelastack/lakhdatar/security/ @REPLACE_WITH_REAL_REVIEW_TEAM
+backend/src/main/java/com/neelastack/lakhdatar/service/ @REPLACE_WITH_REAL_REVIEW_TEAM
+backend/src/main/resources/db/migration/ @REPLACE_WITH_REAL_REVIEW_TEAM
+infra/ @REPLACE_WITH_REAL_REVIEW_TEAM

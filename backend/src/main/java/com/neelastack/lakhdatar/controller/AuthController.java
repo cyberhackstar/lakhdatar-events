@@ -32,23 +32,24 @@ public class AuthController {
     public record AcceptInviteBody(@NotBlank @Size(max=256) String token, @NotBlank @Size(min=12,max=128) String password) {}
     public record ChangePasswordBody(@NotBlank @Size(max=128) String currentPassword, @NotBlank @Size(min=12,max=128) String newPassword) {}
     public record PasswordStatus(boolean mustChangePassword) {}
-    public record Response(String accessToken, String refreshToken, String tokenType, String role, String fullName) {}
+    public record Response(String accessToken, String refreshToken, String tokenType, String role, String fullName,
+                           boolean mfaRequired, boolean mfaSetupRequired, String mfaChallengeToken) {
+        public Response(String accessToken, String refreshToken, String tokenType, String role, String fullName) {
+            this(accessToken, refreshToken, tokenType, role, fullName, false, false, null);
+        }
+    }
 
     @PostMapping("/login")
     ResponseEntity<Response> login(@Valid @RequestBody LoginBody b, HttpServletRequest req) {
         var r = auth.login(b.email(), b.password(), clientAddress.resolve(req));
-        return baseResponse()
-                .header("Set-Cookie", refreshCookie(r.refreshToken(), req))
-                .body(new Response(r.accessToken(), "", "Bearer", r.role(), r.fullName()));
+        return authResponse(r, req).body(toResponse(r));
     }
 
     /** Completes an emailed invite: sets the password, consumes the one-time token and signs the user in. */
     @PostMapping("/accept-invite")
     ResponseEntity<Response> acceptInvite(@Valid @RequestBody AcceptInviteBody b, HttpServletRequest req) {
         var r = auth.acceptInvite(b.token(), b.password(), clientAddress.resolve(req));
-        return baseResponse()
-                .header("Set-Cookie", refreshCookie(r.refreshToken(), req))
-                .body(new Response(r.accessToken(), "", "Bearer", r.role(), r.fullName()));
+        return authResponse(r, req).body(toResponse(r));
     }
 
     /** Authenticated. Required before any other API call while must_change_password is set (enforced in JwtAuthFilter). */
@@ -56,9 +57,7 @@ public class AuthController {
     ResponseEntity<Response> changePassword(@Valid @RequestBody ChangePasswordBody b, Authentication a, HttpServletRequest req) {
         UserPrincipal u = (UserPrincipal) a.getPrincipal();
         var r = auth.changePassword(u.userId(), b.currentPassword(), b.newPassword());
-        return baseResponse()
-                .header("Set-Cookie", refreshCookie(r.refreshToken(), req))
-                .body(new Response(r.accessToken(), "", "Bearer", r.role(), r.fullName()));
+        return authResponse(r, req).body(toResponse(r));
     }
 
     @GetMapping("/password-status")
@@ -72,9 +71,7 @@ public class AuthController {
         String raw = cookieValue(req, REFRESH_COOKIE);
         if (raw == null || raw.isBlank()) raw = b == null ? null : b.refreshToken();
         var r = auth.refresh(raw);
-        return baseResponse()
-                .header("Set-Cookie", refreshCookie(r.refreshToken(), req))
-                .body(new Response(r.accessToken(), "", "Bearer", r.role(), r.fullName()));
+        return authResponse(r, req).body(toResponse(r));
     }
 
     @PostMapping("/logout")
@@ -85,6 +82,22 @@ public class AuthController {
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore())
                 .header("Set-Cookie", expiredRefreshCookie(req))
                 .build();
+    }
+
+    private ResponseEntity.BodyBuilder authResponse(AuthService.AuthResult r, HttpServletRequest req) {
+        var builder = baseResponse();
+        if (r.refreshToken() != null && !r.refreshToken().isBlank()) {
+            builder.header("Set-Cookie", refreshCookie(r.refreshToken(), req));
+        } else if (r.mfaRequired()) {
+            // A pre-existing browser session must not survive a fresh privileged login challenge.
+            // Clear the old refresh cookie while the one-time MFA challenge is completed.
+            builder.header("Set-Cookie", expiredRefreshCookie(req));
+        }
+        return builder;
+    }
+
+    private Response toResponse(AuthService.AuthResult r) {
+        return new Response(r.accessToken(), "", "Bearer", r.role(), r.fullName(), r.mfaRequired(), r.mfaSetupRequired(), r.mfaChallengeToken());
     }
 
     private ResponseEntity.BodyBuilder baseResponse() {

@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -35,6 +36,9 @@ public class RefundService {
     private final DistributedLockService locks;
     private final EventAccessService eventAccess;
     private final PaymentStateMachine paymentStateMachine;
+    @org.springframework.beans.factory.annotation.Value("${app.refund.max-attempts:8}") private int maxAttempts = 8;
+    @org.springframework.beans.factory.annotation.Value("${app.refund.retry-base-delay:30s}") private Duration retryBaseDelay = Duration.ofSeconds(30);
+    @org.springframework.beans.factory.annotation.Value("${app.refund.retry-max-delay:6h}") private Duration retryMaxDelay = Duration.ofHours(6);
 
     public RefundResult refund(UUID paymentPublicId, String reason, Long actorId, String role) {
         long started = System.nanoTime();
@@ -116,7 +120,7 @@ public class RefundService {
 
         long remainingMinor = p.getAmountMinor() - completedMinor;
         if (remainingMinor <= 0) throw new ApiException(HttpStatus.CONFLICT, "REFUND_EXISTS", "The payment has already been fully refunded");
-        if (tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream().anyMatch(t -> t.getStatus() == Enums.TicketStatus.CHECKED_IN)) {
+        if (!allowSystem && tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream().anyMatch(t -> t.getStatus() == Enums.TicketStatus.CHECKED_IN)) {
             throw new ApiException(HttpStatus.CONFLICT, "REFUND_NOT_ALLOWED", "A ticket has already been checked in");
         }
 
@@ -130,12 +134,12 @@ public class RefundService {
         r.setStatus(Enums.RefundStatus.PROCESSING);
         r.setAttemptCount(0);
         r.setLastError(null);
+        r.setNextAttemptAt(Instant.now());
         if (r.getId() == null) refunds.saveAndFlush(r);
 
         paymentStateMachine.transition(p, Enums.PaymentStatus.REFUND_PENDING);
         o.setStatus(Enums.OrderStatus.CANCELLED);
-        tickets.findByOrderIdOrderByTicketNumberAsc(o.getId())
-                .forEach(t -> { if (t.getStatus() != Enums.TicketStatus.CHECKED_IN) t.setStatus(Enums.TicketStatus.CANCELLED); });
+        tickets.cancelNonCheckedInForOrder(o.getId());
         reservationService.releaseOrder(o.getId());
         audit.log(actorId, "REFUND_QUEUED", "PAYMENT", p.getPublicId().toString(), null);
         EnterpriseLog.info(log, "refund.queued", "event.category", "payment", "payment.id", p.getId(), "payment.public_id", p.getPublicId(), "refund.id", r.getPublicId(), "refund.amount_minor", r.getAmountMinor(), "refund.reason_provided", rr != null && !rr.isBlank(), "refund.reason_length", rr == null ? 0 : rr.length());
@@ -236,6 +240,14 @@ public class RefundService {
         r.setLastAttemptAt(Instant.now());
         r.setAttemptCount(r.getAttemptCount() + 1);
         r.setStatus(done ? Enums.RefundStatus.COMPLETED : (failed ? Enums.RefundStatus.FAILED : Enums.RefundStatus.PROCESSING));
+        if (done) {
+            r.setNextAttemptAt(Instant.now());
+        } else if (failed) {
+            r.setNextAttemptAt(nextRetryAt(Math.max(1, r.getAttemptCount())));
+        } else {
+            // Provider is still processing; this is a state poll, not a new refund attempt.
+            r.setNextAttemptAt(Instant.now().plus(Duration.ofMinutes(2)));
+        }
         if (r.getId() == null) refunds.saveAndFlush(r);
 
         long totalCompleted = existing.stream()
@@ -292,6 +304,18 @@ public class RefundService {
         }
     }
 
+    public void markManualReviewRequired(Long refundId, String reason) {
+        tx.executeWithoutResult(status -> refunds.findById(refundId).ifPresent(r -> {
+            if (r.getStatus() == Enums.RefundStatus.COMPLETED) return;
+            r.setStatus(Enums.RefundStatus.FAILED);
+            r.setManualReviewRequired(true);
+            r.setLastError(reason == null || reason.isBlank() ? "Manual review required" : safeError(new IllegalStateException(reason)));
+            r.setNextAttemptAt(Instant.now());
+            audit.log(null, "REFUND_MANUAL_REVIEW_REQUIRED", "REFUND", r.getPublicId().toString(), null);
+            EnterpriseLog.error(log, "refund.manual_review_required", null, "event.category", "recovery", "refund.id", r.getPublicId(), "refund.attempt_count", r.getAttemptCount());
+        }));
+    }
+
     public void processRefund(Long refundId) {
         Refund pending = refunds.findById(refundId).orElse(null);
         if (pending == null || pending.getStatus() == Enums.RefundStatus.COMPLETED) return;
@@ -344,6 +368,7 @@ public class RefundService {
                 tx.executeWithoutResult(status -> refunds.findById(refundId).ifPresent(r -> {
                     r.setProviderStatus("REFUND_PROCESSING");
                     r.setLastAttemptAt(Instant.now());
+                    r.setNextAttemptAt(Instant.now().plus(Duration.ofMinutes(2)));
                     r.setStatus(Enums.RefundStatus.PROCESSING);
                 }));
                 return;
@@ -376,6 +401,7 @@ public class RefundService {
                     r.setStatus(Enums.RefundStatus.PROCESSING);
                     r.setLastAttemptAt(Instant.now());
                     r.setAttemptCount(r.getAttemptCount() + 1);
+                    r.setNextAttemptAt(nextRetryAt(r.getAttemptCount()));
                 }));
             } else {
                 EnterpriseLog.info(log, "refund.provider_requested", "event.category", "payment", "refund.id", refundId, "payment.id", payment.getId(), "provider", payment.getProvider().name(), "provider.refund.id", result.id(), "refund.amount_minor", result.amount(), "provider.status", result.status());
@@ -391,10 +417,27 @@ public class RefundService {
                         "REFUND_PROVIDER_ID_REUSED".equals(api.code())
                                 || "REFUND_PROVIDER_ID_MISMATCH".equals(api.code())
                                 || "REFUND_EVENT_MISMATCH".equals(api.code())
-                                || "REFUND_TOTAL_EXCEEDS_PAYMENT".equals(api.code()));
-                r.setStatus(nonRetryable ? Enums.RefundStatus.FAILED : Enums.RefundStatus.PROCESSING);
+                                || "REFUND_TOTAL_EXCEEDS_PAYMENT".equals(api.code());
+                if (nonRetryable || r.getAttemptCount() >= Math.max(1, maxAttempts)) {
+                    r.setStatus(Enums.RefundStatus.FAILED);
+                    r.setNextAttemptAt(Instant.now());
+                } else {
+                    r.setStatus(Enums.RefundStatus.PROCESSING);
+                    r.setNextAttemptAt(nextRetryAt(r.getAttemptCount()));
+                }
             }));
         }
+    }
+
+    private Instant nextRetryAt(int attempt) {
+        int exponent = Math.min(Math.max(0, attempt - 1), 10);
+        long baseSeconds = Math.max(1L, retryBaseDelay.toSeconds());
+        long maxSeconds = Math.max(baseSeconds, retryMaxDelay.toSeconds());
+        long delay;
+        try { delay = Math.min(maxSeconds, Math.multiplyExact(baseSeconds, 1L << exponent)); }
+        catch (ArithmeticException ex) { delay = maxSeconds; }
+        long jitter = Math.min(30L, Math.max(0L, delay / 10L));
+        return Instant.now().plusSeconds(Math.min(maxSeconds, delay + jitter));
     }
 
     private PaymentGatewayProvider.ProviderPayment selectCapturedProviderPayment(Payment payment, List<PaymentGatewayProvider.ProviderPayment> candidates) {

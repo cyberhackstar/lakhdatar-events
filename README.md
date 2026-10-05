@@ -1,6 +1,12 @@
-# v2.0.8 — Enterprise Events + SRE Monitoring
+# v2.0.12 — Enterprise Financial Recovery + Security + Resilience
 
-This release adds full-stack metrics/logs/traces, provisioned SRE dashboards, production alert rules, edge/backend correlation and a server-authoritative publication gate.
+This release continues the enterprise hardening program with financial recovery correctness, event/check-in concurrency protection, durable payment webhook processing, privileged MFA, password recovery, backup/DR controls, deployment safety and release qualification gates.
+
+## Enterprise production status
+
+v2.0.12 is the **enterprise-production certification-gated release**. Production HA promotion is fail-closed on the protected certified Git SHA, signed image provenance, HA topology, privileged MFA, external database/Redis, and protected certification evidence.
+
+The repository must never self-declare a runtime/HA/DR/security certification result that has not actually been executed and reviewed in the target environment. See `docs/ENTERPRISE-PRODUCTION-CERTIFICATION.md`.
 
 ---
 
@@ -126,7 +132,7 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 
 
 ## Current release
-See `CHANGES-2.0.0.md`, `CHANGES-2.0.1.md`, and the v1.9.x validation history retained in this repository.
+**v2.0.12** is the current release. See `CHANGES-2.0.12.md`, `VALIDATION-2.0.12.md`, and `RELEASE-MANIFEST.txt`. Historical v1.9.x and v2.0.x validation records are retained for traceability.
 
 
 ### Deployment dotenv safety
@@ -135,7 +141,7 @@ See `CHANGES-2.0.0.md`, `CHANGES-2.0.1.md`, and the v1.9.x validation history re
 
 ## Enterprise qualification
 
-Use `docs/ENTERPRISE-RELEASE-QUALIFICATION.md`, `docs/ENTERPRISE-HA-DR-BLUEPRINT.md`, `docs/ENTERPRISE-PAYMENT-CHAOS.md`, and `infra/loadtest/run-suite.sh` as the release gates. A literal BookMyShow-equivalent SLA requires independent HA infrastructure, provider contracts, observability and executed load/DR evidence outside this source package.
+Use `docs/ENTERPRISE-RELEASE-QUALIFICATION.md`, `docs/HA-FAILOVER-DRILL.md`, `docs/PAYMENT-CHAOS-QUALIFICATION.md`, and `.github/workflows/enterprise-release-qualification.yml` as the release gates. A literal BookMyShow-equivalent SLA requires independent HA infrastructure, provider contracts, observability and executed load/DR evidence outside this source package.
 
 ## High-concurrency production profile
 

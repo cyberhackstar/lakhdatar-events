@@ -1,5 +1,7 @@
 package com.neelastack.lakhdatar.service;
 
+import com.neelastack.lakhdatar.config.EnterpriseLog;
+
 import com.neelastack.lakhdatar.config.AppProperties;
 import com.neelastack.lakhdatar.domain.*;
 import com.neelastack.lakhdatar.exception.ApiException;
@@ -23,6 +25,7 @@ public class EventManagementService {
     private final EventManagerAssignmentRepository managerAssignments;
     private final EventAccessService eventAccess;
     private final TicketRepository tickets;
+    private final TicketReservationService reservations;
     private final VenueRepository venues;
     private final BrandConfigurationRepository brands;
     private final TicketTypeRepository ticketTypes;
@@ -262,9 +265,14 @@ public class EventManagementService {
                 require(from == Enums.EventStatus.DRAFT || from == Enums.EventStatus.PUBLISHED || from == Enums.EventStatus.UNPUBLISHED, "This event can no longer be cancelled");
                 to = Enums.EventStatus.CANCELLED;
                 // Customer-facing ticket state must immediately reflect event cancellation.
-                tickets.findByEventIdOrderByTicketNumberAsc(e.getId()).forEach(ticket -> {
-                    if (ticket.getStatus() == Enums.TicketStatus.ISSUED) ticket.setStatus(Enums.TicketStatus.CANCELLED);
-                });
+                // The event row is already locked, so this bulk update cannot race checkout/inventory
+                // mutations and avoids loading tens of thousands of tickets into Hibernate.
+                int cancelledTickets = tickets.cancelIssuedForEvent(e.getId());
+                int releasedReservations = reservations.releaseHeldForEvent(e.getId());
+                EnterpriseLog.info(log, "event.cancellation.tickets_closed",
+                        "event.category", "event", "event.id", e.getPublicId(),
+                        "tickets.cancelled", cancelledTickets,
+                        "reservations.released", releasedReservations);
             }
             case COMPLETE -> {
                 Instant now = Instant.now();

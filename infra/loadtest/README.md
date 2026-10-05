@@ -46,3 +46,10 @@ After checkout/load/recovery scenarios finish, run the invariant verifier agains
 The verifier fails on capacity violations, ticket/order mismatches, ticket orphans/event mismatches, expired held reservations left behind, duplicate provider-order references, or captured payments without issued tickets. Never run it against an active production event.
 
 The GitHub Actions load-test workflow stores the k6 summary JSON files as a CI artifact. Preserve them together with the commit SHA, environment sizing and test-event identifier as release evidence.
+
+## Enterprise staging gate
+
+Run `infra/loadtest/enterprise-gate.sh` for release qualification. It fails closed unless checkout,
+check-in, ticket PDF, operations, database invariant checks and the 1,000-user public-read profile
+all have the required staging credentials. Never point this gate at the live site or enable production
+checkout load.

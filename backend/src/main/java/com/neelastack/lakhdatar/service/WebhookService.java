@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -25,6 +24,12 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +47,22 @@ public class WebhookService {
 
     @Value("${app.worker.enabled:true}")
     private boolean workerEnabled;
+    @Value("${app.webhook.max-attempts:12}")
+    private int maxAttempts;
+    @Value("${app.webhook.retry-base-delay:2s}")
+    private Duration retryBaseDelay;
+    @Value("${app.webhook.retry-max-delay:15m}")
+    private Duration retryMaxDelay;
+
+    /**
+     * Webhook HTTP handlers only authenticate + durably persist. Business processing is handed to a
+     * bounded executor so a slow payment provider/database never consumes the provider's retry window
+     * or unbounded application memory. Worker nodes recover anything left pending after a restart.
+     */
+    private final ExecutorService processingExecutor = new ThreadPoolExecutor(
+            4, 12, 60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(500),
+            Thread.ofPlatform().daemon().name("payment-webhook-", 0).factory(),
+            new ThreadPoolExecutor.AbortPolicy());
 
     public void handle(String raw, String signature, String headerEventId) {
         long started = System.nanoTime();
@@ -63,20 +84,15 @@ public class WebhookService {
         final String providerEventId = headerId != null ? headerId : (payloadId != null ? payloadId : sha256(raw));
         String eventType = n.path("event").asText("unknown");
         persistIfAbsent(providerEventId, eventType, raw, sha256(raw));
-        EnterpriseLog.debug(log, "webhook.received", "event.category", "payment", "provider", "RAZORPAY", "webhook.event.id", providerEventId, "webhook.type", eventType);
         PaymentWebhookEvent stored = events.findByProviderEventId(providerEventId).orElseThrow(() ->
                 new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "WEBHOOK_PERSISTENCE_FAILED", "Webhook could not be persisted"));
-        if (stored.isProcessed()) { EnterpriseLog.debug(log, "webhook.duplicate_ignored", "event.category", "payment", "webhook.event.id", providerEventId, "webhook.type", eventType); return; }
-        if (claim(providerEventId) == 0) { EnterpriseLog.debug(log, "webhook.concurrent_delivery_ignored", "event.category", "payment", "webhook.event.id", providerEventId); return; }
-        try {
-            process(stored.getPayload());
-            tx.executeWithoutResult(s -> events.markProcessed(providerEventId, Instant.now()));
-            EnterpriseLog.info(log, "webhook.processed", "event.category", "payment", "webhook.event.id", providerEventId, "webhook.type", eventType, "duration.ms", (System.nanoTime()-started)/1_000_000L);
-        } catch (RuntimeException ex) {
-            tx.executeWithoutResult(s -> events.markFailed(providerEventId, safeError(ex)));
-            EnterpriseLog.error(log, "webhook.processing.failed", ex, "event.category", "payment", "webhook.event.id", providerEventId, "webhook.type", eventType, "error.type", ex.getClass().getSimpleName(), "duration.ms", (System.nanoTime()-started)/1_000_000L);
-            throw ex;
+        if (stored.isProcessed()) {
+            EnterpriseLog.debug(log, "webhook.duplicate_ignored", "event.category", "payment", "webhook.event.id", providerEventId, "webhook.type", eventType);
+            return;
         }
+        dispatch(providerEventId);
+        EnterpriseLog.info(log, "webhook.acknowledged", "event.category", "payment", "webhook.event.id", providerEventId,
+                "webhook.type", eventType, "duration.ms", (System.nanoTime()-started)/1_000_000L);
     }
 
     private void persistIfAbsent(String eventId, String type, String raw, String hash) {
@@ -84,7 +100,7 @@ public class WebhookService {
             tx.executeWithoutResult(s -> {
                 if (events.findByProviderEventId(eventId).isEmpty()) {
                     PaymentWebhookEvent e = new PaymentWebhookEvent();
-                    e.setProviderEventId(eventId);
+                    e.setProvider("RAZORPAY"); e.setProviderEventId(eventId);
                     e.setEventType(type);
                     e.setPayload(raw);
                     e.setPayloadHash(hash);
@@ -96,9 +112,55 @@ public class WebhookService {
         }
     }
 
+    private void dispatch(String providerEventId) {
+        if (claim(providerEventId) == 0) return;
+        try {
+            processingExecutor.submit(() -> processClaimed(providerEventId));
+        } catch (RejectedExecutionException ex) {
+            fail(providerEventId, ex);
+            EnterpriseLog.warn(log, "webhook.processing.queue_full", "event.category", "payment", "webhook.event.id", providerEventId);
+        }
+    }
+
     private int claim(String id) {
-        Integer result = tx.execute(s -> events.claimForProcessing(id, Instant.now()));
+        Instant now = Instant.now();
+        Integer result = tx.execute(s -> events.claimForProcessing(id, now, maxAttempts));
         return result == null ? 0 : result;
+    }
+
+    private void processClaimed(String providerEventId) {
+        try {
+            PaymentWebhookEvent stored = events.findByProviderEventId(providerEventId).orElseThrow(() ->
+                    new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "WEBHOOK_PERSISTENCE_FAILED", "Stored webhook disappeared"));
+            process(stored.getPayload());
+            tx.executeWithoutResult(s -> events.markProcessed(providerEventId, Instant.now()));
+            EnterpriseLog.info(log, "webhook.processed", "event.category", "payment", "webhook.event.id", providerEventId,
+                    "webhook.type", stored.getEventType(), "attempt", stored.getAttemptCount());
+        } catch (RuntimeException ex) {
+            fail(providerEventId, ex);
+        }
+    }
+
+    private void fail(String providerEventId, RuntimeException ex) {
+        PaymentWebhookEvent current = events.findByProviderEventId(providerEventId).orElse(null);
+        int attempt = current == null ? 1 : Math.max(1, current.getAttemptCount());
+        boolean deadLetter = attempt >= maxAttempts;
+        Instant next = deadLetter ? null : Instant.now().plus(retryDelay(attempt));
+        tx.executeWithoutResult(s -> events.markFailed(providerEventId, safeError(ex), next, deadLetter));
+        EnterpriseLog.error(log, "webhook.processing.failed", ex, "event.category", "payment", "webhook.event.id", providerEventId,
+                "webhook.attempt", attempt, "webhook.dead_letter", deadLetter, "webhook.next_attempt_at", next);
+    }
+
+    private Duration retryDelay(int attempt) {
+        long base = Math.max(1L, retryBaseDelay.toMillis());
+        long max = Math.max(base, retryMaxDelay.toMillis());
+        int exponent = Math.min(20, Math.max(0, attempt - 1));
+        long raw;
+        try { raw = Math.multiplyExact(base, 1L << exponent); } catch (ArithmeticException ex) { raw = max; }
+        long bounded = Math.min(raw, max);
+        long jitter = Math.max(1L, bounded / 5);
+        long offset = java.util.concurrent.ThreadLocalRandom.current().nextLong(-jitter, jitter + 1);
+        return Duration.ofMillis(Math.max(1000L, Math.min(max, bounded + offset)));
     }
 
     private void process(String payload) {
@@ -184,16 +246,29 @@ public class WebhookService {
         refunds.reconcileProviderRefund(payment.getId(), providerRefundId, status, amountMinor, receipt);
     }
 
-    @ConditionalOnProperty(prefix = "app.worker", name = "enabled", havingValue = "true", matchIfMissing = true)
-    @Scheduled(fixedDelayString = "${app.razorpay.webhook-recovery-sweep:60000}")
-    void recoverStaleProcessing() {
+    @Scheduled(fixedDelayString = "${app.webhook.recovery-sweep:15000}")
+    void recoverPending() {
         if (!workerEnabled) return;
-        locks.withLock("job:webhook-recovery", Duration.ofMinutes(2), () -> {
-            int reset = events.resetStaleProcessing(Instant.now().minus(Duration.ofMinutes(10)));
+        locks.withLock("job:webhook-recovery:razorpay", Duration.ofMinutes(2), () -> {
+            Instant now = Instant.now();
+            int reset = events.resetStaleProcessing("RAZORPAY", now.minus(Duration.ofMinutes(10)), now, maxAttempts);
             if (reset > 0) {
                 EnterpriseLog.warn(log, "webhook.stale_claims_reset", "event.category", "payment", "webhook.reset_count", reset);
             }
+            List<PaymentWebhookEvent> due = events.findDueForProcessing("RAZORPAY", now);
+            for (PaymentWebhookEvent e : due) dispatch(e.getProviderEventId());
         });
+    }
+
+    @jakarta.annotation.PreDestroy
+    public void shutdownProcessingExecutor() {
+        processingExecutor.shutdown();
+        try {
+            if (!processingExecutor.awaitTermination(15, TimeUnit.SECONDS)) processingExecutor.shutdownNow();
+        } catch (InterruptedException ex) {
+            processingExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     private String normalizeEventId(String value) {

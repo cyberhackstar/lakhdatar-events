@@ -1,18 +1,36 @@
 # Production checklist
 
+## Enterprise certification
+
+- [ ] Exact release SHA passed `enterprise-release-qualification.yml`
+- [ ] `ENTERPRISE_CERTIFIED_SHA` is set only after reviewing all CI/staging evidence
+- [ ] DAST report reviewed and findings retested
+- [ ] Independent penetration test completed for the production-equivalent release
+- [ ] HA failover drill evidence attached
+- [ ] PITR/restore drill evidence attached
+- [ ] RPO/RTO and SLO targets approved
+- [ ] Real Alertmanager paging destination configured and tested
+
 ## Application
 
-- [ ] v1.9.31 enterprise release qualification checklist completed
+- [ ] v2.0.12 enterprise release qualification checklist completed
+- [ ] Phase 1 financial correctness, event cancellation/check-in race and refund recovery regression tests pass
 - [ ] Operations Health console shows DB/Redis/recovery queues as expected
 - [ ] Prometheus endpoint is reachable only through the private monitoring network
 
-- [ ] CI passes backend `mvn verify`
+- [ ] CI passes backend `mvn clean verify`
+- [ ] Cancellation refund retry test passes after a failed provider refund
+- [ ] Cancellation/check-in race test passes
+- [ ] Large-event cancellation test proves set-based execution remains bounded
 - [ ] Frontend lockfile is regenerated and production build runs on the pinned Node/Angular baseline
 - [ ] CI passes frontend `npm run build`
+- [ ] Browser E2E enterprise qualification covers public security, ticket/PDF, admin/staff authorization, checkout idempotency, QR single-use, plus mobile browser coverage; privileged MFA/payment chaos remain mandatory environment tests
 - [ ] ARM64 Docker images built successfully
 - [ ] no secrets committed
 - [ ] production `.env` created securely
 - [ ] bootstrap disabled after setup
+- [ ] `ALLOW_SINGLE_NODE_PRODUCTION` is explicitly acknowledged only when single-node downtime is an accepted business risk
+- [ ] Privileged accounts have MFA enabled
 
 ## Razorpay
 
@@ -41,6 +59,9 @@
 
 - [ ] PostgreSQL backup configured
 - [ ] secondary backup configured off-host
+- [ ] remote backup upload + `head-object` verification passes
+- [ ] backup encryption policy explicitly uses AES256 or KMS
+- [ ] restore drill evidence stored with RPO/RTO
 - [ ] restore test completed
 - [ ] application audit logs retained
 - [ ] disk-space monitoring enabled
@@ -59,6 +80,8 @@
 - [ ] Dedicated staging checkout load test passed
 - [ ] Check-in concurrency load test passed
 - [ ] Payment-provider chaos scenarios passed without duplicate orders/tickets/refunds
+- [ ] Enterprise staging gate ran with checkout/check-in credentials (not skipped)
+- [ ] 1,000-user k6 profile completed with no integrity defects
 
 ## Deployment
 

@@ -1,13 +1,13 @@
-# Enterprise release qualification — v1.9.33
+# Enterprise release qualification — v2.0.12
 
 This release is **enterprise-scale ready at the application architecture level**, but “BookMyShow-class” production availability is an infrastructure and operational claim that must be verified in the target environment.
 
 ## Application gates
 
 - Maven `clean verify` must pass with the complete integration-test profile.
-- Angular production build and browser tests must pass.
-- All Flyway migrations V1–V28 must validate on a fresh database and an upgraded production-like database.
-- Payment provider contract tests must cover Razorpay and Cashfree.
+- Angular production build, unit tests, and browser E2E must pass; no release may certify with checkout/check-in E2E omitted.
+- All Flyway migrations V1–V37 must validate on a fresh database and an upgraded production-like database; the certification workflow executes both paths and retains the evidence artifact.
+- Payment provider contract tests must cover Razorpay and Cashfree, including delayed/duplicate webhook recovery and failed-refund retry.
 - Ticket issuance and check-in concurrency tests must pass.
 - Public ticket PDF access must reject missing/invalid credentials.
 
@@ -25,12 +25,16 @@ At least two application VMs, health-checked ingress, external/managed PostgreSQ
 
 ## DR gates
 
-Enable continuous PostgreSQL WAL archival to off-host immutable storage, perform a monthly restore drill, and record measured RPO/RTO. A logical dump alone does not prove PITR.
+Enable continuous PostgreSQL WAL archival to off-host immutable storage, perform a monthly restore drill, and record measured RPO/RTO. A logical dump alone does not prove PITR. The backup pipeline must also prove remote object upload, encryption, integrity verification and an executed restore drill.
 
 ## Chaos gates
 
 Execute the scenarios in `infra/chaos/payment-provider-resilience.md`: provider timeout, provider 5xx, duplicate webhook, webhook delayed after payment, Redis unavailable, and backend restart during checkout. The required outcome is no duplicate provider order, no duplicate ticket, correct recovery state, and no financial loss.
 
+
+## Database qualification configuration
+
+The CI database gate requires digest-pinned `POSTGRES_CERTIFICATION_IMAGE` and `FLYWAY_CERTIFICATION_IMAGE` variables. These images must be reviewed and changed under repository governance; the gate refuses mutable image tags.
 
 ## Evidence required before a release is certified
 
@@ -52,3 +56,11 @@ Attach the CI run URL/commit, Maven test report, Angular build/test report, Dock
 ## Load-test result collection
 
 The k6 suite writes one JSON summary per scenario under `loadtest-results/` when run with `infra/loadtest/run-suite.sh`. Preserve these files with the release CI artifact and record the target VM/DB/Redis sizing, commit SHA, timestamp, scenario settings and test-event identifier. Never attach customer or payment credentials to the artifact.
+
+## v2.0.12 go-live blockers
+
+The following are mandatory, not advisory: no failed refund may become permanently unqueryable for recovery; event cancellation/check-in must be concurrency-safe; large event cancellation must use bounded set-based database operations; webhook retry must be bounded and provider-scoped; privileged MFA must be enabled; and single-node production requires explicit risk acknowledgement.
+
+## Production smoke invariant
+
+When `SMOKE_ENTERPRISE=true`, `production-smoke.sh` fails closed unless a dedicated issued ticket ID and ticket token are supplied. Ticket and PDF checks remain read-only and never perform admission or payment mutations.

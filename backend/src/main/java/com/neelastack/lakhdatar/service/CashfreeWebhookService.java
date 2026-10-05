@@ -3,26 +3,41 @@ package com.neelastack.lakhdatar.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neelastack.lakhdatar.config.AppProperties;
+import com.neelastack.lakhdatar.config.EnterpriseLog;
 import com.neelastack.lakhdatar.domain.Enums;
 import com.neelastack.lakhdatar.domain.Payment;
 import com.neelastack.lakhdatar.domain.PaymentWebhookEvent;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.PaymentRepository;
 import com.neelastack.lakhdatar.repository.PaymentWebhookEventRepository;
-import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import jakarta.annotation.PreDestroy;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class CashfreeWebhookService {
+    private static final Logger log = LoggerFactory.getLogger(CashfreeWebhookService.class);
     private final PaymentGatewayRouter gateways;
+    private final DistributedLockService locks;
     private final PaymentRepository payments;
     private final PaymentWebhookEventRepository events;
     private final OrderService orders;
@@ -31,12 +46,23 @@ public class CashfreeWebhookService {
     private final ObjectMapper mapper;
     private final AppProperties props;
 
-    public CashfreeWebhookService(PaymentGatewayRouter gateways, PaymentRepository payments, PaymentWebhookEventRepository events,
+    @Value("${app.worker.enabled:true}") private boolean workerEnabled;
+    @Value("${app.webhook.max-attempts:12}") private int maxAttempts;
+    @Value("${app.webhook.retry-base-delay:2s}") private Duration retryBaseDelay;
+    @Value("${app.webhook.retry-max-delay:15m}") private Duration retryMaxDelay;
+
+    private final ExecutorService processingExecutor = new ThreadPoolExecutor(
+            4, 12, 60L, TimeUnit.SECONDS, new ArrayBlockingQueue<>(500),
+            Thread.ofPlatform().daemon().name("cashfree-webhook-", 0).factory(),
+            new ThreadPoolExecutor.AbortPolicy());
+
+    public CashfreeWebhookService(PaymentGatewayRouter gateways, DistributedLockService locks, PaymentRepository payments, PaymentWebhookEventRepository events,
                                   OrderService orders, RefundService refundService, TransactionTemplate tx, ObjectMapper mapper, AppProperties props) {
-        this.gateways = gateways; this.payments = payments; this.events = events; this.orders = orders; this.refundService = refundService;
+        this.gateways = gateways; this.locks = locks; this.payments = payments; this.events = events; this.orders = orders; this.refundService = refundService;
         this.tx = tx; this.mapper = mapper; this.props = props;
     }
 
+    /** Verify + durably persist, then acknowledge. Business fulfillment is asynchronous and recoverable. */
     public void handle(String raw, String signature, String timestamp) {
         if (!validTimestamp(timestamp)) throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_WEBHOOK_TIMESTAMP", "Webhook timestamp is invalid or expired");
         if (!gateways.forProvider(Enums.PaymentProvider.CASHFREE).verifyWebhookSignature(raw, signature, timestamp))
@@ -44,21 +70,14 @@ public class CashfreeWebhookService {
         JsonNode n;
         try { n = mapper.readTree(raw); } catch (Exception e) { throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_WEBHOOK_BODY", "Webhook payload is invalid"); }
 
-        // The signature authenticates the exact raw body. Use its hash as the primary idempotency identity so
-        // two distinct provider events cannot collapse onto the same composite field tuple.
+        // The signature authenticates the exact raw body. The body hash is the idempotency key because
+        // Cashfree does not provide a stable event id on every payment/refund notification shape.
         String eventId = "cashfree:" + sha256(raw);
         persistIfAbsent(eventId, n.path("type").asText("unknown"), raw, sha256(raw));
         PaymentWebhookEvent stored = events.findByProviderEventId(eventId).orElseThrow(() ->
                 new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "WEBHOOK_PERSISTENCE_FAILED", "Webhook could not be persisted"));
         if (stored.isProcessed()) return;
-        if (claim(eventId) == 0) return;
-        try {
-            process(n);
-            tx.executeWithoutResult(s -> events.markProcessed(eventId, Instant.now()));
-        } catch (RuntimeException ex) {
-            tx.executeWithoutResult(s -> events.markFailed(eventId, safe(ex)));
-            throw ex;
-        }
+        dispatch(eventId);
     }
 
     private boolean validTimestamp(String value) {
@@ -76,13 +95,65 @@ public class CashfreeWebhookService {
             tx.executeWithoutResult(s -> {
                 if (events.findByProviderEventId(eventId).isEmpty()) {
                     PaymentWebhookEvent e = new PaymentWebhookEvent();
-                    e.setProviderEventId(eventId); e.setEventType(type); e.setPayload(raw); e.setPayloadHash(hash); events.saveAndFlush(e);
+                    e.setProvider("CASHFREE"); e.setProviderEventId(eventId); e.setEventType(type); e.setPayload(raw); e.setPayloadHash(hash); events.saveAndFlush(e);
                 }
             });
         } catch (DataIntegrityViolationException ignored) { /* concurrent delivery won the unique key */ }
     }
 
-    private int claim(String id) { Integer result = tx.execute(s -> events.claimForProcessing(id, Instant.now())); return result == null ? 0 : result; }
+    private void dispatch(String id) {
+        if (claim(id) == 0) return;
+        try {
+            processingExecutor.submit(() -> processClaimed(id));
+        } catch (RejectedExecutionException ex) {
+            fail(id, ex);
+            EnterpriseLog.warn(log, "cashfree.webhook.processing.queue_full", "event.category", "payment", "webhook.event.id", id);
+        }
+    }
+
+    private int claim(String id) {
+        Instant now = Instant.now();
+        Integer result = tx.execute(s -> events.claimForProcessing(id, now, maxAttempts));
+        return result == null ? 0 : result;
+    }
+
+    private void processClaimed(String id) {
+        try {
+            PaymentWebhookEvent stored = events.findByProviderEventId(id).orElseThrow(() ->
+                    new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "WEBHOOK_PERSISTENCE_FAILED", "Stored webhook disappeared"));
+            JsonNode payload;
+            try { payload = mapper.readTree(stored.getPayload()); }
+            catch (Exception ex) { throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_WEBHOOK_BODY", "Stored webhook payload is invalid"); }
+            process(payload);
+            tx.executeWithoutResult(s -> events.markProcessed(id, Instant.now()));
+            EnterpriseLog.info(log, "cashfree.webhook.processed", "event.category", "payment", "webhook.event.id", id,
+                    "webhook.type", stored.getEventType(), "webhook.attempt", stored.getAttemptCount());
+        } catch (RuntimeException ex) {
+            fail(id, ex);
+        }
+    }
+
+    private void fail(String id, RuntimeException ex) {
+        PaymentWebhookEvent current = events.findByProviderEventId(id).orElse(null);
+        int attempt = current == null ? 1 : Math.max(1, current.getAttemptCount());
+        boolean deadLetter = attempt >= maxAttempts;
+        Instant next = deadLetter ? null : Instant.now().plus(retryDelay(attempt));
+        tx.executeWithoutResult(s -> events.markFailed(id, safe(ex), next, deadLetter));
+        EnterpriseLog.error(log, "cashfree.webhook.processing.failed", ex, "event.category", "payment", "webhook.event.id", id,
+                "webhook.attempt", attempt, "webhook.dead_letter", deadLetter, "webhook.next_attempt_at", next);
+    }
+
+    private Duration retryDelay(int attempt) {
+        long base = Math.max(1L, retryBaseDelay.toMillis());
+        long max = Math.max(base, retryMaxDelay.toMillis());
+        int exponent = Math.min(20, Math.max(0, attempt - 1));
+        long raw;
+        try { raw = Math.multiplyExact(base, 1L << exponent); } catch (ArithmeticException ex) { raw = max; }
+        long bounded = Math.min(raw, max);
+        long jitter = Math.max(1L, bounded / 5);
+        long offset = java.util.concurrent.ThreadLocalRandom.current().nextLong(-jitter, jitter + 1);
+        return Duration.ofMillis(Math.max(1000L, Math.min(max, bounded + offset)));
+    }
 
     private void process(JsonNode n) {
         String type = n.path("type").asText(""); JsonNode data = n.path("data"); JsonNode order = data.path("order"); JsonNode pay = data.path("payment"); JsonNode refund = data.path("refund");
@@ -128,6 +199,31 @@ public class CashfreeWebhookService {
         catch (ArithmeticException | NumberFormatException e) { throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_WEBHOOK_BODY", "Webhook monetary amount is invalid"); }
     }
 
-    private String safe(Throwable e) { String x = e.getMessage(); if (x == null || x.isBlank()) x = e.getClass().getSimpleName(); x = x.replaceAll("[\r\n\t]", " "); return x.length() > 500 ? x.substring(0, 500) : x; }
+    @Scheduled(fixedDelayString = "${app.webhook.recovery-sweep:15000}")
+    void recoverPending() {
+        if (!workerEnabled) return;
+        locks.withLock("job:webhook-recovery:cashfree", Duration.ofMinutes(2), () -> {
+            Instant now = Instant.now();
+            int reset = events.resetStaleProcessing("CASHFREE", now.minus(Duration.ofMinutes(10)), now, maxAttempts);
+            if (reset > 0) {
+                EnterpriseLog.warn(log, "cashfree.webhook.stale_claims_reset", "event.category", "payment", "webhook.reset_count", reset);
+            }
+            List<PaymentWebhookEvent> due = events.findDueForProcessing("CASHFREE", now);
+            for (PaymentWebhookEvent e : due) dispatch(e.getProviderEventId());
+        });
+    }
+
+    @PreDestroy
+    void shutdownExecutor() {
+        processingExecutor.shutdown();
+        try {
+            if (!processingExecutor.awaitTermination(15, TimeUnit.SECONDS)) processingExecutor.shutdownNow();
+        } catch (InterruptedException ex) {
+            processingExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private String safe(Throwable e) { String x = e.getMessage(); if (x == null || x.isBlank()) x = e.getClass().getSimpleName(); x = x.replaceAll("[\\r\\n\\t]", " "); return x.length() > 500 ? x.substring(0, 500) : x; }
     private String sha256(String s) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8))); } catch (Exception e) { throw new IllegalStateException(e); } }
 }

@@ -12,6 +12,7 @@ import java.time.Instant;
 @Getter @Setter
 public class PaymentWebhookEvent {
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) private Long id;
+ @Column(name="provider",nullable=false,length=20) private String provider;
  @Column(name="provider_event_id",nullable=false,unique=true,length=150) private String providerEventId;
  @Column(name="event_type",nullable=false,length=80) private String eventType;
  @JdbcTypeCode(SqlTypes.JSON) @Column(columnDefinition="jsonb",nullable=false) private String payload;
@@ -22,5 +23,7 @@ public class PaymentWebhookEvent {
  @Column(name="processing_started_at") private Instant processingStartedAt;
  @Column(name="processed_at") private Instant processedAt;
  @Column(name="last_error",length=500) private String lastError;
+ @Column(name="next_attempt_at") private Instant nextAttemptAt;
+ @Column(name="dead_letter",nullable=false) private boolean deadLetter=false;
  @Column(name="payload_hash",length=64) private String payloadHash;
 }

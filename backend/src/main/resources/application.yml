@@ -16,7 +16,7 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   application:
     name: lakhdatar-events-backend
-    version: ${APP_VERSION:2.0.8}
+    version: ${APP_VERSION:2.0.12}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}
@@ -140,6 +140,14 @@ app:
     business-refresh-ms: ${BUSINESS_METRICS_REFRESH_MS:30000}
   worker:
     enabled: ${WORKER_ENABLED:true}
+  webhook:
+    max-attempts: ${WEBHOOK_MAX_ATTEMPTS:12}
+    retry-base-delay: ${WEBHOOK_RETRY_BASE_DELAY:2s}
+    retry-max-delay: ${WEBHOOK_RETRY_MAX_DELAY:15m}
+    recovery-sweep: ${WEBHOOK_RECOVERY_SWEEP:15000}
+    retention-days: ${WEBHOOK_RETENTION_DAYS:365}
+    retention-batch-size: ${WEBHOOK_RETENTION_BATCH_SIZE:500}
+    retention-sweep: ${WEBHOOK_RETENTION_SWEEP:21600000}
   mail:
     # Ticket emails and team invites are enabled only when MAIL_HOST and MAIL_FROM are both set.
     from: ${MAIL_FROM:}
@@ -164,6 +172,11 @@ app:
     sweep: ${RESERVATION_SWEEP:30s}
   refund:
     recovery-sweep: ${REFUND_RECOVERY_SWEEP:30s}
+    cancellation-sweep: ${REFUND_CANCELLATION_SWEEP:30s}
+    max-attempts: ${REFUND_MAX_ATTEMPTS:8}
+    retry-base-delay: ${REFUND_RETRY_BASE_DELAY:30s}
+    retry-max-delay: ${REFUND_RETRY_MAX_DELAY:6h}
+    processing-timeout: ${REFUND_PROCESSING_TIMEOUT:24h}
   razorpay:
     base-url: ${RAZORPAY_BASE_URL:https://api.razorpay.com/v1}
     key-id: ${RAZORPAY_KEY_ID:}
@@ -222,6 +235,12 @@ app:
     promo-cta: ${NEELASTACK_PROMO_CTA:Explore Neelastack}
   auth:
     cleanup-sweep: ${REFRESH_TOKEN_CLEANUP_SWEEP:3600000}
+    password-reset-cleanup-sweep: ${PASSWORD_RESET_CLEANUP_SWEEP:21600000}
+    mfa-cleanup-sweep: ${MFA_CLEANUP_SWEEP:21600000}
+  mfa:
+    required-for-privileged: ${MFA_REQUIRED_FOR_PRIVILEGED:false}
+    encryption-key: ${MFA_ENCRYPTION_KEY:}
+    issuer: ${MFA_ISSUER:Neelastack Events}
   # Canonical public origin used for sitemap/robots. Never derived from request headers.
   public-base-url: ${PUBLIC_BASE_URL:https://events.neelastack.com}
   bootstrap:

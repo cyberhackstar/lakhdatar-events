@@ -6,8 +6,9 @@ const lock = JSON.parse(fs.readFileSync(new URL('package-lock.json', root), 'utf
 const rootPkg = lock.packages?.[''];
 const failures = [];
 
-if (pkg.version !== '2.0.8') failures.push(`frontend/package.json version ${pkg.version} != 2.0.8`);
-if (lock.version !== '2.0.8' || rootPkg?.version !== '2.0.8') failures.push('package-lock root version is not 2.0.8');
+const expectedVersion = fs.readFileSync(new URL('../VERSION', import.meta.url), 'utf8').trim();
+if (pkg.version !== expectedVersion) failures.push(`frontend/package.json version ${pkg.version} != ${expectedVersion}`);
+if (lock.version !== expectedVersion || rootPkg?.version !== expectedVersion) failures.push(`package-lock root version is not ${expectedVersion}`);
 if (pkg.dependencies?.['@angular/animations']) failures.push('@angular/animations must not be a direct dependency');
 if (pkg.dependencies?.['@angular/platform-browser-dynamic']) failures.push('@angular/platform-browser-dynamic must not be a direct dependency');
 if (lock.packages?.['node_modules/@angular/animations']) failures.push('lockfile still installs @angular/animations');

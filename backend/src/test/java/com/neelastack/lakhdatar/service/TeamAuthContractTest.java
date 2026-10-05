@@ -6,6 +6,7 @@ import com.neelastack.lakhdatar.domain.User;
 import com.neelastack.lakhdatar.domain.UserInvite;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.RefreshTokenRepository;
+import com.neelastack.lakhdatar.repository.PasswordResetTokenRepository;
 import com.neelastack.lakhdatar.repository.UserInviteRepository;
 import com.neelastack.lakhdatar.repository.UserRepository;
 import com.neelastack.lakhdatar.security.JwtAuthFilter;
@@ -40,6 +41,7 @@ import static org.mockito.Mockito.*;
 class TeamAuthContractTest {
     @Mock UserRepository users;
     @Mock RefreshTokenRepository refreshTokens;
+    @Mock PasswordResetTokenRepository passwordResetTokens;
     @Mock UserInviteRepository invites;
     @Mock JwtService jwt;
     @Mock RateLimitService rateLimits;
@@ -48,7 +50,7 @@ class TeamAuthContractTest {
     AuthService auth;
 
     @BeforeEach void setUp() {
-        auth = new AuthService(users, refreshTokens, invites, encoder, jwt, rateLimits, props);
+        auth = new AuthService(users, refreshTokens, passwordResetTokens, invites, encoder, jwt, rateLimits, props, mock(MfaService.class));
         when(rateLimits.allow(anyString(), anyInt(), any())).thenReturn(true);
         when(props.rateLimit().windowSeconds()).thenReturn(60);
         when(props.rateLimit().loginPerWindow()).thenReturn(10);

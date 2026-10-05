@@ -16,5 +16,7 @@ public class Refund {
  @Column(name="attempt_count",nullable=false) private int attemptCount=0;
  @Column(name="last_error") private String lastError;
  @Column(name="last_attempt_at") private Instant lastAttemptAt;
+ @Column(name="next_attempt_at",nullable=false) private Instant nextAttemptAt=Instant.now();
+ @Column(name="manual_review_required",nullable=false) private boolean manualReviewRequired=false;
  @Column(name="created_at",updatable=false) private Instant createdAt=Instant.now();
 }

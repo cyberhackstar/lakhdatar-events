@@ -69,6 +69,7 @@ export class AcceptInviteComponent implements OnInit {
     this.auth.acceptInvite(this.token, v.password).subscribe({
       next: r => {
         this.busy.set(false);
+        if (r.mfaRequired && r.mfaChallengeToken) { const params = new URLSearchParams({ challenge: r.mfaChallengeToken, setup: r.mfaSetupRequired ? '1' : '0' }); this.router.navigate(['/mfa'], { fragment: params.toString(), replaceUrl: true }); return; }
         this.router.navigateByUrl(r.role === 'STAFF' ? '/staff' : ['ADMIN', 'ORGANIZER', 'EVENT_MANAGER', 'FINANCE'].includes(r.role) ? '/admin' : '/', { replaceUrl: true });
       },
       error: e => { this.busy.set(false); this.error.set(e?.error?.message || 'This invite link is invalid or has expired. Ask your organizer to resend it.'); }

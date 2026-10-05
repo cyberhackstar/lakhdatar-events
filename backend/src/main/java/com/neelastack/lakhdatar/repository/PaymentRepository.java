@@ -25,5 +25,43 @@ public interface PaymentRepository extends JpaRepository<Payment,Long>{
  List<Payment> findTop100ByRazorpayOrderIdIsNullAndStatusInOrderByCreatedAtAsc(Collection<Enums.PaymentStatus> statuses);
  List<Payment> findTop100ByProviderOrderIdIsNullAndStatusInOrderByCreatedAtAsc(Collection<Enums.PaymentStatus> statuses);
  @Query("select coalesce(sum(p.amountMinor),0) from Payment p, Order o where o.id=p.orderId and o.eventId=:eventId and p.status in :statuses") long sumSuccessfulByEventId(Long eventId,java.util.Collection<Enums.PaymentStatus> statuses);
- @Query("select p from Payment p, Order o, Event e where o.id=p.orderId and e.id=o.eventId and e.status=:eventStatus and p.status in :statuses and not exists (select r.id from Refund r where r.paymentId=p.id) order by p.createdAt asc") List<Payment> findByCancelledEventAndStatusWithoutRefund(@org.springframework.data.repository.query.Param("eventStatus") Enums.EventStatus eventStatus, @org.springframework.data.repository.query.Param("statuses") java.util.Collection<Enums.PaymentStatus> statuses, org.springframework.data.domain.Pageable pageable);
+ @Query(value="""
+     select p.*
+       from payments p
+       join orders o on o.id = p.order_id
+       join events e on e.id = o.event_id
+      where e.status = :eventStatus
+        and p.status in (:statuses)
+        and p.amount_minor > coalesce((
+              select sum(r.amount_minor)
+                from refunds r
+               where r.payment_id = p.id
+                 and r.status = 'COMPLETED'
+            ), 0)
+        and not exists (
+              select 1 from refunds r
+               where r.payment_id = p.id
+                 and r.status = 'PROCESSING'
+            )
+        and not exists (
+              select 1 from refunds r
+               where r.payment_id = p.id
+                 and r.status = 'FAILED'
+                 and r.reason = 'Event cancellation'
+                 and not r.manual_review_required
+                 and coalesce(r.next_attempt_at, now()) > now()
+            )
+        and coalesce((
+              select sum(greatest(r.attempt_count, 1))
+                from refunds r
+               where r.payment_id = p.id
+                 and r.reason = 'Event cancellation'
+                 and not r.manual_review_required
+            ), 0) < :maxAttempts
+      order by p.created_at asc
+     """, nativeQuery=true)
+ List<Payment> findCancelledEventRefundCandidates(@org.springframework.data.repository.query.Param("eventStatus") String eventStatus,
+                                                  @org.springframework.data.repository.query.Param("statuses") java.util.Collection<String> statuses,
+                                                  @org.springframework.data.repository.query.Param("maxAttempts") int maxAttempts,
+                                                  org.springframework.data.domain.Pageable pageable);
 }

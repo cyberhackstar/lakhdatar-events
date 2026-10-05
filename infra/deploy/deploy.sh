@@ -33,6 +33,18 @@ PUBLIC_HOST="${PUBLIC_HOST:-$(dotenv_get PUBLIC_HOST)}"
 PUBLIC_HOST="${PUBLIC_HOST:-events.neelastack.com}"
 [[ "$PUBLIC_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "PUBLIC_HOST must be a hostname without scheme/path" >&2; exit 2; }
 [[ "$PUBLIC_HOST" != .* && "$PUBLIC_HOST" != *..* && "$PUBLIC_HOST" != *.- && "$PUBLIC_HOST" != *-. ]] || { echo "PUBLIC_HOST has invalid hostname syntax" >&2; exit 2; }
+PRODUCTION_TOPOLOGY="${PRODUCTION_TOPOLOGY:-$(dotenv_get PRODUCTION_TOPOLOGY)}"
+PRODUCTION_TOPOLOGY="${PRODUCTION_TOPOLOGY:-single-node}"
+ALLOW_SINGLE_NODE_PRODUCTION="${ALLOW_SINGLE_NODE_PRODUCTION:-$(dotenv_get ALLOW_SINGLE_NODE_PRODUCTION)}"
+if [[ "$PRODUCTION_TOPOLOGY" == "enterprise-ha" ]]; then
+  echo "Refusing the single-node deploy script for PRODUCTION_TOPOLOGY=enterprise-ha. Deploy infra/ha/docker-compose.ha.example.yml on at least two VMs behind health-checked ingress." >&2
+  exit 2
+fi
+if [[ "$ALLOW_SINGLE_NODE_PRODUCTION" != "true" ]]; then
+  echo "Single-node production requires explicit ALLOW_SINGLE_NODE_PRODUCTION=true. For enterprise HA use the HA deployment profile instead." >&2
+  exit 2
+fi
+
 BACKEND_READINESS_TIMEOUT_SECONDS="${BACKEND_READINESS_TIMEOUT_SECONDS:-$(dotenv_get BACKEND_READINESS_TIMEOUT_SECONDS)}"
 BACKEND_READINESS_TIMEOUT_SECONDS="${BACKEND_READINESS_TIMEOUT_SECONDS:-300}"
 BACKEND_READINESS_INTERVAL_SECONDS="${BACKEND_READINESS_INTERVAL_SECONDS:-$(dotenv_get BACKEND_READINESS_INTERVAL_SECONDS)}"
@@ -176,6 +188,13 @@ wait_for_edge_readiness() {
 }
 
 echo "[1/7] Pre-deployment database backup"
+BACKUP_REMOTE_REQUIRED="$(dotenv_get BACKUP_REMOTE_REQUIRED)"
+BACKUP_REMOTE_REQUIRED="${BACKUP_REMOTE_REQUIRED:-true}"
+BACKUP_REMOTE_URI="$(dotenv_get BACKUP_REMOTE_URI)"
+BACKUP_S3_ENDPOINT_URL="$(dotenv_get BACKUP_S3_ENDPOINT_URL)"
+BACKUP_S3_SSE="$(dotenv_get BACKUP_S3_SSE)"
+BACKUP_S3_KMS_KEY_ID="$(dotenv_get BACKUP_S3_KMS_KEY_ID)"
+export BACKUP_REMOTE_REQUIRED BACKUP_REMOTE_URI BACKUP_S3_ENDPOINT_URL BACKUP_S3_SSE BACKUP_S3_KMS_KEY_ID
 POSTGRES_VOLUME_EXISTS="$(docker volume inspect lakhdatar_pg_data >/dev/null 2>&1 && echo 1 || echo 0)"
 if [[ -n "$PREVIOUS_TAG" || "$POSTGRES_VOLUME_EXISTS" == "1" ]]; then
   if [[ -n "$PREVIOUS_TAG" ]]; then
@@ -210,35 +229,15 @@ IMAGE_TAG="$TAG" "${COMPOSE[@]}" up -d web edge
 wait_for_edge_readiness
 
 echo "[6/7] Post-deployment smoke tests on $LOCAL_URL as $PUBLIC_HOST"
-smoke() {
-  local url="$1"
-  local body headers status
-  body="$(mktemp)"
-  headers="$(mktemp)"
-  status="$(curl -sS --max-time 15 -D "$headers" -o "$body" -w '%{http_code}' \
-    -H "Host: $PUBLIC_HOST" \
-    -H 'X-Forwarded-Proto: https' \
-    "$url" || true)"
-  case "$status" in
-    2??)
-      rm -f "$body" "$headers"
-      ;;
-    *)
-      echo "Smoke test failed: $url (Host: $PUBLIC_HOST, HTTP ${status:-unknown})" >&2
-      echo "--- response headers ---" >&2
-      cat "$headers" >&2 || true
-      echo "--- response body (first 2000 bytes) ---" >&2
-      head -c 2000 "$body" >&2 || true
-      rm -f "$body" "$headers"
-      return 1
-      ;;
-  esac
-}
-smoke "$LOCAL_URL/edge-health"
-smoke "$LOCAL_URL/"                                   # SSR home under the canonical public host
-smoke "$LOCAL_URL/api/v1/public/events/upcoming"      # catalogue API through the edge
-smoke "$LOCAL_URL/robots.txt"
-smoke "$LOCAL_URL/sitemap.xml"
+BASE_URL="$LOCAL_URL" PUBLIC_HOST="$PUBLIC_HOST" \
+  SMOKE_EMAIL="$(dotenv_get SMOKE_EMAIL)" \
+  SMOKE_PASSWORD="$(dotenv_get SMOKE_PASSWORD)" \
+  SMOKE_ROLE_ENDPOINT="$(dotenv_get SMOKE_ROLE_ENDPOINT)" \
+  SMOKE_TICKET_ID="$(dotenv_get SMOKE_TICKET_ID)" \
+  SMOKE_TICKET_TOKEN="$(dotenv_get SMOKE_TICKET_TOKEN)" \
+  SMOKE_TICKET_PDF="$(dotenv_get SMOKE_TICKET_PDF)" \
+  SMOKE_ENTERPRISE="$(dotenv_get SMOKE_ENTERPRISE)" \
+  "$ROOT/infra/smoke/production-smoke.sh"
 
 if [[ -n "$PREVIOUS_TAG" && "$PREVIOUS_TAG" != "$TAG" ]]; then echo "$PREVIOUS_TAG" > "$PREVIOUS"; fi
 echo "$TAG" > "$CURRENT"

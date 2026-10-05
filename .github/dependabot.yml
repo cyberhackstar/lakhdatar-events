@@ -1,29 +1,22 @@
 version: 2
 updates:
-  - package-ecosystem: maven
-    directory: /backend
-    schedule: {interval: weekly}
-    open-pull-requests-limit: 10
   - package-ecosystem: npm
     directory: /frontend
-    schedule: {interval: weekly}
+    schedule:
+      interval: weekly
     open-pull-requests-limit: 10
-    versioning-strategy: increase
-    # Angular 20.x is the supported release baseline until a planned major migration.
-    # Keep patch/minor updates flowing, but do not open uncoordinated Angular-major PRs.
-    ignore:
-      - dependency-name: "@angular/*"
-        update-types:
-          - version-update:semver-major
-  - package-ecosystem: docker
+  - package-ecosystem: npm
+    directory: /e2e
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: maven
     directory: /backend
-    schedule: {interval: weekly}
-  - package-ecosystem: docker
-    directory: /frontend
-    schedule: {interval: weekly}
-  - package-ecosystem: docker
-    directory: /edge
-    schedule: {interval: weekly}
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
   - package-ecosystem: github-actions
     directory: /
-    schedule: {interval: weekly}
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10

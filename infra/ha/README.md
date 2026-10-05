@@ -1,6 +1,6 @@
 # Enterprise HA reference architecture
 
-v1.9.50 is stateless at the HTTP/application tier and can run multiple backend and SSR instances. True high availability cannot be created by running more containers on the same Oracle VM; the VM remains a single failure domain.
+v2.0.12 is stateless at the HTTP/application tier and can run multiple backend and SSR instances. True high availability cannot be created by running more containers on the same Oracle VM; the VM remains a single failure domain.
 
 ## Recommended production topology
 
@@ -36,3 +36,7 @@ Docker Compose does not apply Swarm's `deploy.replicas` semantics. The reference
 - Run at least two Cloudflare Tunnel connectors in separate failure domains when tunnels are the ingress path.
 
 The existing single-VM Compose stack remains supported as a lower-complexity deployment. For same-VM load distribution, Docker Compose can run multiple stateless replicas with `docker compose -f docker-compose.ha.example.yml up -d --scale backend=2 --scale web=2`; this improves process-level capacity but is still one failure domain. True HA requires the stack on at least two VMs plus independent ingress/load balancing and durable external data services. This HA reference profile is the architecture target for higher availability, not a claim that one VM is highly available.
+
+## Preflight
+
+Run `verify-enterprise-ha.sh` before an HA deployment. It refuses a single-node topology and local DB/Redis endpoints. It is a preflight only; HA status is certified only after the failover drill in `docs/HA-FAILOVER-DRILL.md`.

@@ -1,10 +1,6 @@
 name: Production
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       operation:
@@ -16,13 +12,18 @@ on:
           - deploy
           - rollback
       release_sha:
-        description: 40-character Git SHA for manual deployment (blank uses the selected ref SHA)
+        description: 40-character Git SHA for manual operation
+        required: false
+        type: string
+      confirm_single_node:
+        description: Type SINGLE-NODE-BREAK-GLASS to explicitly accept single-node production risk
         required: false
         type: string
 
 permissions:
   contents: read
   packages: read
+  attestations: read
 
 concurrency:
   group: lakhdatar-events-production
@@ -34,12 +35,7 @@ env:
 
 jobs:
   deploy:
-    if: >-
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'main') ||
-      (github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy')
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy'
     environment: production
     runs-on: ubuntu-latest
     steps:
@@ -48,13 +44,10 @@ jobs:
         shell: bash
         env:
           MANUAL_SHA: ${{ inputs.release_sha }}
-          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$MANUAL_SHA" ]; then
             sha="$MANUAL_SHA"
-          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
-            sha="$WORKFLOW_SHA"
           else
             sha="$GITHUB_SHA"
           fi
@@ -65,6 +58,42 @@ jobs:
         with:
           ref: ${{ steps.release.outputs.sha }}
           fetch-depth: 1
+
+      - name: Require explicit single-node break-glass acknowledgement
+        env:
+          CONFIRM: ${{ inputs.confirm_single_node }}
+          TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+        run: |
+          set -euo pipefail
+          [[ "$TOPOLOGY" != "enterprise-ha" ]] || { echo 'Enterprise HA releases must use production-ha.yml'; exit 1; }
+          [[ "$CONFIRM" == "SINGLE-NODE-BREAK-GLASS" ]] || { echo 'Explicit SINGLE-NODE-BREAK-GLASS confirmation is required'; exit 1; }
+
+      - name: Require enterprise certification for this exact release SHA
+        env:
+          CERTIFIED_RELEASE_SHA: ${{ vars.ENTERPRISE_CERTIFIED_SHA }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$CERTIFIED_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Production deployment requires environment variable ENTERPRISE_CERTIFIED_SHA to be a 40-character immutable Git SHA that has passed release qualification."; exit 1; }
+          [[ "$CERTIFIED_RELEASE_SHA" == "$RELEASE_SHA" ]] || { echo "::error::Release SHA $RELEASE_SHA is not the certified SHA $CERTIFIED_RELEASE_SHA. Run enterprise release qualification first."; exit 1; }
+
+      - name: Install Cosign for immutable image verification
+        uses: sigstore/cosign-installer@v4.1.2
+      - name: Verify signed container images and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          identity="^https://github.com/${REPOSITORY}/.github/workflows/ci.yml@refs/heads/main$"
+          for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
+            ref="ghcr.io/${OWNER}/${image}:${RELEASE_SHA}"
+            cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
+            gh attestation verify "oci://$ref" -R "$REPOSITORY"
+          done
 
       - name: Verify deployment secrets
         shell: bash
@@ -130,21 +159,23 @@ jobs:
               "$DEPLOY_HOST" \
               "mkdir -p '$APP_DIR' && tar -xzf - -C '$APP_DIR' && chmod +x '$APP_DIR'/infra/deploy/*.sh '$APP_DIR'/infra/backup/*.sh && IMAGE_NAMESPACE=$(printf '%s' '$IMAGE_NAMESPACE' | tr '[:upper:]' '[:lower:]') '$APP_DIR'/infra/deploy/deploy.sh '$RELEASE_SHA'"
 
-      - name: Public smoke test through Cloudflare
+      - name: Production safe smoke test through Cloudflare
         shell: bash
         run: |
           set -euo pipefail
           for i in $(seq 1 20); do
-            if curl -fsS --max-time 15 "$PUBLIC_URL/" >/dev/null && \
-               curl -fsS --max-time 15 "$PUBLIC_URL/api/v1/public/events/upcoming" >/dev/null && \
-               curl -fsS --max-time 15 "$PUBLIC_URL/sitemap.xml" >/dev/null && \
-               curl -fsS --max-time 15 "$PUBLIC_URL/sitemap-1.xml" >/dev/null; then
-              echo "Public smoke tests passed."
+            if BASE_URL="$PUBLIC_URL" PUBLIC_HOST="events.neelastack.com" \
+             SMOKE_TICKET_ID="${{ secrets.SMOKE_TICKET_ID }}" \
+             SMOKE_TICKET_TOKEN="${{ secrets.SMOKE_TICKET_TOKEN }}" \
+             SMOKE_TICKET_PDF="${{ vars.SMOKE_TICKET_PDF || 'false' }}" \
+             SMOKE_ENTERPRISE="true" \
+             infra/smoke/production-smoke.sh; then
+              echo "Production safe smoke tests passed."
               exit 0
             fi
             sleep 6
           done
-          echo "::error::Public smoke tests failed. Release remains deployed for diagnosis; automatic DB/schema rollback is intentionally disabled after Flyway." >&2
+          echo "::error::Production safe smoke tests failed. Release remains deployed for diagnosis; automatic DB/schema rollback is intentionally disabled after Flyway." >&2
           exit 1
 
       - name: Log out of GHCR and clean SSH material

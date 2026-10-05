@@ -7,6 +7,7 @@ import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,6 +24,7 @@ public class AdminController {
     private final RefundService refunds;
     private final OrganizerAdminService organizerAdmin;
     private final TeamService team;
+    private final MfaService mfa;
     private final AdminTicketQueryService ticketQueries;
 
     private UserPrincipal p(Authentication a) { return (UserPrincipal) a.getPrincipal(); }
@@ -42,6 +44,13 @@ public class AdminController {
                                                                           Authentication a) {
         UserPrincipal u = p(a);
         return ResponseEntity.status(201).body(organizerAdmin.create(name, slug, description, website, logo, u.userId(), u.role()));
+    }
+
+    @PostMapping("/security/users/{userId}/mfa/reset")
+    @PreAuthorize("hasRole('ADMIN')")
+    ResponseEntity<Void> resetUserMfa(@PathVariable UUID userId, Authentication a) {
+        mfa.resetForAdmin(userId, p(a).userId());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/dashboard") AdminService.Dashboard dashboard(Authentication a) { return admin.dashboard(p(a)); }

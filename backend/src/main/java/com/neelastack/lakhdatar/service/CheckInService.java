@@ -90,9 +90,25 @@ public class CheckInService {
             case REFUNDED -> record(Enums.CheckInResult.REFUNDED, "Ticket was refunded", t, r, e.getId(), ticketPosition, orderTicketCount);
             case CHECKED_IN -> record(Enums.CheckInResult.ALREADY_USED, "Ticket already checked in", t, r, e.getId(), ticketPosition, orderTicketCount);
             case ISSUED -> {
-                t.setStatus(Enums.TicketStatus.CHECKED_IN);
-                t.setCheckedInAt(Instant.now());
-                yield record(Enums.CheckInResult.ACCEPTED, "Entry accepted", t, r, e.getId(), ticketPosition, orderTicketCount);
+                Instant checkedInAt = Instant.now();
+                int changed = tickets.markCheckedInIfEventPublished(t.getId(), e.getId(), checkedInAt);
+                if (changed == 1) {
+                    // Keep the managed representation consistent after the native conditional update.
+                    t.setStatus(Enums.TicketStatus.CHECKED_IN);
+                    t.setCheckedInAt(checkedInAt);
+                    yield record(Enums.CheckInResult.ACCEPTED, "Entry accepted", t, r, e.getId(), ticketPosition, orderTicketCount);
+                }
+                // Event cancellation may have committed after the initial gate-open check.
+                // Re-read the authoritative state and never accept against a cancelled event.
+                Event latestEvent = events.findById(e.getId()).orElse(e);
+                Ticket latestTicket = tickets.findById(t.getId()).orElse(t);
+                if (latestEvent.getStatus() != Enums.EventStatus.PUBLISHED)
+                    yield record(Enums.CheckInResult.EVENT_CLOSED, "Event is not currently open for entry", null, r, e.getId(), 0, 0);
+                if (latestTicket.getStatus() == Enums.TicketStatus.CHECKED_IN)
+                    yield record(Enums.CheckInResult.ALREADY_USED, "Ticket already checked in", latestTicket, r, e.getId(), ticketPosition, orderTicketCount);
+                if (latestTicket.getStatus() == Enums.TicketStatus.CANCELLED)
+                    yield record(Enums.CheckInResult.CANCELLED, "Ticket was cancelled", latestTicket, r, e.getId(), ticketPosition, orderTicketCount);
+                yield record(Enums.CheckInResult.INVALID, "Ticket is no longer valid", null, r, e.getId(), 0, 0);
             }
         };
         EnterpriseLog.info(log, "checkin.completed", "event.category", "checkin", "result", result.result().name(), "ticket.id", t.getPublicId(), "event.id", r.eventId(), "staff.user_id", r.staffUserId(), "gate", r.gate(), "order.ticket_count", result.orderTicketCount(), "duration.ms", (System.nanoTime()-started)/1_000_000L);

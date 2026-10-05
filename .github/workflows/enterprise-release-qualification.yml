@@ -1,0 +1,281 @@
+name: Enterprise Release Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: 40-character Git SHA to qualify
+        required: true
+        type: string
+      staging_url:
+        description: HTTPS staging origin using disposable test data
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: enterprise-release-qualification
+  cancel-in-progress: false
+
+jobs:
+  source-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+      - name: Validate exact release SHA
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || true
+          [[ '${{ inputs.release_sha }}' =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a 40-character lowercase Git SHA'; exit 2; }
+          grep -qx '${{ inputs.release_sha }}' <(git rev-parse HEAD)
+      - name: Verify repository baselines
+        run: |
+          set -euo pipefail
+          node tools/verify-platform-baseline.mjs
+          node tools/verify-frontend-lock.mjs
+
+  database:
+    needs: source-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+      - name: Enterprise Flyway fresh-and-upgrade qualification
+        env:
+          POSTGRES_IMAGE: ${{ vars.POSTGRES_CERTIFICATION_IMAGE }}
+          FLYWAY_IMAGE: ${{ vars.FLYWAY_CERTIFICATION_IMAGE }}
+          EXPECTED_LATEST_MIGRATION: '37'
+          UPGRADE_BASELINE_MIGRATION: '31'
+        run: ./infra/certification/flyway-qualification.sh
+      - name: Upload database evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: enterprise-database-${{ inputs.release_sha }}
+          path: certification-evidence/database/
+          if-no-files-found: ignore
+
+  backend:
+    needs: source-validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Backend full verification
+        working-directory: backend
+        run: mvn -B -ntp clean verify
+
+  frontend:
+    needs: source-validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Frontend dependency install
+        working-directory: frontend
+        run: npm ci
+      - name: Frontend production build
+        working-directory: frontend
+        run: npm run build
+      - name: Frontend unit suite
+        working-directory: frontend
+        run: npm test -- --watch=false --browsers=ChromeHeadless
+
+  browser-e2e:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+      - name: Validate staging target
+        env:
+          E2E_BASE_URL: ${{ inputs.staging_url }}
+        run: |
+          set -euo pipefail
+          case "$E2E_BASE_URL" in
+            https://events.neelastack.com|https://events.neelastack.com/) echo 'Refusing live production origin'; exit 2;;
+            https://*) ;;
+            *) echo 'staging_url must use HTTPS'; exit 2;;
+          esac
+      - name: Run browser qualification
+        working-directory: e2e
+        env:
+          CI: 'true'
+          E2E_BASE_URL: ${{ inputs.staging_url }}
+          E2E_ADMIN_BEARER: ${{ secrets.E2E_ADMIN_BEARER }}
+          E2E_STAFF_BEARER: ${{ secrets.E2E_STAFF_BEARER }}
+          E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+          E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
+          E2E_EVENT_ID: ${{ secrets.E2E_EVENT_ID }}
+          E2E_TICKET_TYPE_ID: ${{ secrets.E2E_TICKET_TYPE_ID }}
+          E2E_CHECKOUT_EMAIL: ${{ secrets.E2E_CHECKOUT_EMAIL }}
+          E2E_IDEMPOTENCY_KEY: ${{ secrets.E2E_IDEMPOTENCY_KEY }}
+          E2E_TICKET_ID: ${{ secrets.E2E_TICKET_ID }}
+          E2E_TICKET_TOKEN: ${{ secrets.E2E_TICKET_TOKEN }}
+          E2E_QR_TOKEN: ${{ secrets.E2E_QR_TOKEN }}
+          E2E_GATE: ${{ secrets.E2E_GATE }}
+        run: npm test -- --reporter=line
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: enterprise-browser-${{ inputs.release_sha }}
+          path: e2e/playwright-report/
+          if-no-files-found: ignore
+
+  load:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+      - name: Validate staging target
+        env:
+          BASE_URL: ${{ inputs.staging_url }}
+        run: |
+          set -euo pipefail
+          case "$BASE_URL" in
+            https://events.neelastack.com|https://events.neelastack.com/) echo 'Refusing live production origin'; exit 2;;
+            https://*) ;;
+            *) echo 'staging_url must use HTTPS'; exit 2;;
+          esac
+      - name: Run mandatory mixed load qualification
+        env:
+          BASE_URL: ${{ inputs.staging_url }}
+          K6_IMAGE: ${{ vars.K6_IMAGE || 'grafana/k6:2.2.0' }}
+          EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
+          TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
+          TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
+          ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
+          ADMIN_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
+          STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
+          GATE: ${{ secrets.LOADTEST_GATE }}
+          CHECKIN_QR_TOKENS: ${{ secrets.LOADTEST_CHECKIN_QR_TOKENS }}
+          TEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
+          DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
+          LOADTEST_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          THOUSANDS_MAX_VUS: ${{ vars.LOADTEST_THOUSANDS_MAX_VUS || '1000' }}
+          THOUSANDS_RAMP: ${{ vars.LOADTEST_THOUSANDS_RAMP || '2m' }}
+          THOUSANDS_HOLD: ${{ vars.LOADTEST_THOUSANDS_HOLD || '3m' }}
+          ENABLE_CHECKOUT_LOAD: 'true'
+          ALLOW_PRODUCTION_CHECKOUT_LOAD: 'false'
+        run: ./infra/loadtest/enterprise-gate.sh
+      - name: Upload load-test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: enterprise-load-${{ inputs.release_sha }}
+          path: loadtest-results/
+          if-no-files-found: ignore
+
+  dast:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+      - name: Run immutable-image DAST
+        env:
+          BASE_URL: ${{ inputs.staging_url }}
+          ZAP_IMAGE: ${{ secrets.ZAP_IMAGE }}
+        run: ./infra/security/dast-staging.sh
+      - name: Upload DAST evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: enterprise-dast-${{ inputs.release_sha }}
+          path: security-results/
+          if-no-files-found: ignore
+
+  enterprise-evidence:
+    needs: [backend, frontend, database, browser-e2e, load, dast]
+    runs-on: ubuntu-latest
+    environment: enterprise-certification
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+      - name: Verify protected enterprise evidence
+        env:
+          CERTIFIED_SHA: ${{ inputs.release_sha }}
+          PRODUCTION_TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+          HA_NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
+          RPO_SECONDS: ${{ vars.RPO_SECONDS }}
+          RTO_SECONDS: ${{ vars.RTO_SECONDS }}
+          MAX_RPO_SECONDS: ${{ vars.MAX_RPO_SECONDS || '300' }}
+          MAX_RTO_SECONDS: ${{ vars.MAX_RTO_SECONDS || '1800' }}
+          HA_FAILOVER_EVIDENCE_ID: ${{ vars.HA_FAILOVER_EVIDENCE_ID }}
+          PITR_EVIDENCE_ID: ${{ vars.PITR_EVIDENCE_ID }}
+          PEN_TEST_EVIDENCE_ID: ${{ vars.PEN_TEST_EVIDENCE_ID }}
+          PAYMENT_CHAOS_EVIDENCE_ID: ${{ vars.PAYMENT_CHAOS_EVIDENCE_ID }}
+          ALERTING_EVIDENCE_ID: ${{ vars.ALERTING_EVIDENCE_ID }}
+          FINANCE_RECONCILIATION_EVIDENCE_ID: ${{ vars.FINANCE_RECONCILIATION_EVIDENCE_ID }}
+          PRIVACY_REVIEW_EVIDENCE_ID: ${{ vars.PRIVACY_REVIEW_EVIDENCE_ID }}
+          MFA_EVIDENCE_ID: ${{ vars.MFA_EVIDENCE_ID }}
+          HA_FAILOVER_STATUS: ${{ vars.HA_FAILOVER_STATUS }}
+          PITR_STATUS: ${{ vars.PITR_STATUS }}
+          PEN_TEST_STATUS: ${{ vars.PEN_TEST_STATUS }}
+          PAYMENT_CHAOS_STATUS: ${{ vars.PAYMENT_CHAOS_STATUS }}
+          ALERTING_STATUS: ${{ vars.ALERTING_STATUS }}
+          FINANCE_RECONCILIATION_STATUS: ${{ vars.FINANCE_RECONCILIATION_STATUS }}
+          PRIVACY_REVIEW_STATUS: ${{ vars.PRIVACY_REVIEW_STATUS }}
+          MFA_STATUS: ${{ vars.MFA_STATUS }}
+        run: ./infra/certification/verify-enterprise-evidence.sh
+      - name: Upload certification manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: enterprise-certification-${{ inputs.release_sha }}
+          path: certification-evidence/enterprise-certification.json
+          if-no-files-found: error
+
+  certification:
+    needs: [backend, frontend, database, browser-e2e, load, dast, enterprise-evidence]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enterprise certification result
+        run: |
+          set -euo pipefail
+          echo "CERTIFIED_SHA=${{ inputs.release_sha }}"
+          echo "Application, database, browser, load, DAST and protected enterprise-evidence gates passed."
+          echo "The protected enterprise-certification environment is the authorization boundary for ENTERPRISE_CERTIFIED_SHA."

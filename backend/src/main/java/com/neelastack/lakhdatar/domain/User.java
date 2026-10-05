@@ -19,6 +19,8 @@ public class User {
     @Enumerated(EnumType.STRING) @Column(nullable=false, length=32) private Enums.UserRole role;
     @Column(nullable=false) private boolean enabled=true;
     @Column(name="must_change_password", nullable=false) private boolean mustChangePassword=false;
+    @Column(name="mfa_enabled", nullable=false) private boolean mfaEnabled=false;
+    @Column(name="mfa_secret_enc", length=512) private String mfaSecretEnc;
     @Column(name="created_at", updatable=false) private Instant createdAt=Instant.now();
     @Column(name="updated_at") private Instant updatedAt=Instant.now();
     @PreUpdate void touch(){updatedAt=Instant.now();}

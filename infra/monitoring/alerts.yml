@@ -104,6 +104,20 @@ groups:
         labels: {severity: warning, service: payments}
         annotations:
           summary: Payment webhook backlog is growing
+      - alert: LakhdatarWebhookDeadLetters
+        expr: lakhdatar_webhooks_dead_letters > 0
+        for: 2m
+        labels: {severity: critical, service: payments}
+        annotations:
+          summary: Payment webhook jobs entered the dead-letter state
+          description: One or more provider events exhausted automated processing retries and require investigation.
+      - alert: LakhdatarRefundManualReview
+        expr: lakhdatar_refunds_manual_review > 0
+        for: 2m
+        labels: {severity: critical, service: refunds}
+        annotations:
+          summary: Refunds require manual review
+          description: One or more refunds exceeded automated recovery boundaries.
       - alert: LakhdatarRefundBacklog
         expr: lakhdatar_refunds_pending > 0
         for: 15m

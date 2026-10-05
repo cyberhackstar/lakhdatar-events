@@ -154,6 +154,15 @@ export interface AuthResponse {
   tokenType: string;
   role: string;
   fullName: string;
+  mfaRequired?: boolean;
+  mfaSetupRequired?: boolean;
+  mfaChallengeToken?: string | null;
+}
+
+export interface MfaEnrollment {
+  secret: string;
+  otpauthUri: string;
+  qrDataUri: string;
 }
 
 

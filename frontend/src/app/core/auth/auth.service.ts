@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, finalize, map, of, shareReplay, tap, throwError } from 'rxjs';
 import { API_BASE_URL } from '../api/api.tokens';
-import { AuthResponse } from '../api/api.models';
+import { AuthResponse, MfaEnrollment } from '../api/api.models';
 
 const ROLE = 'lk_role';
 const NAME = 'lk_full_name';
@@ -28,6 +28,26 @@ export class AuthService {
 
   changePassword(currentPassword: string, newPassword: string): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.base}/auth/change-password`, { currentPassword, newPassword }, { withCredentials: true }).pipe(tap(r => this.store(r)));
+  }
+
+  mfaEnroll(challengeToken: string): Observable<MfaEnrollment> {
+    return this.http.post<MfaEnrollment>(`${this.base}/auth/mfa/enroll`, { challengeToken });
+  }
+
+  mfaConfirm(challengeToken: string, code: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.base}/auth/mfa/confirm`, { challengeToken, code }, { withCredentials: true }).pipe(tap(r => this.store(r)));
+  }
+
+  mfaVerify(challengeToken: string, code: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.base}/auth/mfa/verify`, { challengeToken, code }, { withCredentials: true }).pipe(tap(r => this.store(r)));
+  }
+
+  requestPasswordReset(email: string): Observable<{ accepted: boolean }> {
+    return this.http.post<{ accepted: boolean }>(`${this.base}/auth/password-reset/request`, { email });
+  }
+
+  completePasswordReset(token: string, newPassword: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/auth/password-reset/complete`, { token, newPassword });
   }
 
   /** True while an account created with an initial password has not yet chosen its own. */
@@ -67,6 +87,7 @@ export class AuthService {
   }
 
   store(r: AuthResponse): void {
+    if (!r.accessToken) return;
     this.access = r.accessToken;
     try { localStorage.removeItem(LOGGED_OUT); } catch { /* optional storage */ }
     try { sessionStorage.setItem(ROLE, r.role); sessionStorage.setItem(NAME, r.fullName); } catch { /* access token remains memory-only */ }

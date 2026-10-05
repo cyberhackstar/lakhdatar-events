@@ -14,7 +14,8 @@ class AuthCookieContractTest {
         assertTrue(controller.contains("REFRESH_COOKIE"));
         assertTrue(controller.contains("httpOnly(true)"));
         assertTrue(controller.contains("sameSite(\"Strict\")"));
-        assertTrue(controller.contains("new Response(r.accessToken(), \"\", \"Bearer\", r.role(), r.fullName())"));
+        assertTrue(controller.contains("private Response toResponse(AuthService.AuthResult r)"));
+        assertTrue(controller.contains("r.mfaRequired()"));
         assertTrue(controller.contains("props.security().refreshCookieSecure()"));
         assertTrue(controller.contains("props.jwt().refreshToken().toSeconds()"));
     }

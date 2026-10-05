@@ -16,13 +16,14 @@ public class OperationsHealthService {
     private final StringRedisTemplate redis;
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
     @Value("${spring.application.name:lakhdatar-events-backend}") private String applicationName;
-    @Value("${spring.application.version:2.0.8}") private String applicationVersion;
+    @Value("${spring.application.version:2.0.12}") private String applicationVersion;
 
     public record Health(String application, String version, Instant checkedAt, Component database, Component redis,
                          Queues queues, long publishedEvents, long organizers, boolean workerEnabled) {}
     public record Component(String status, long latencyMs, String detail) {}
     public record Queues(long pendingPayments, long stalePayments, long providerOrderRecoveryPending,
                          long pendingRefunds, long webhookBacklog, long webhookStuck,
+                         long webhookDeadLetters, long refundManualReview,
                          long heldReservations, long expiredReservations, long mailPending, long mailFailed) {}
 
     public Health health() {
@@ -66,11 +67,13 @@ public class OperationsHealthService {
         long pendingRefunds = scalar("select count(*) from refunds where status in ('REQUESTED','PROCESSING')");
         long webhookBacklog = scalar("select count(*) from payment_webhook_events where processed=false and processing=false and received_at < now() - interval '2 minutes'");
         long webhookStuck = scalar("select count(*) from payment_webhook_events where processing=true and processing_started_at < now() - interval '5 minutes'");
+        long webhookDeadLetters = scalar("select count(*) from payment_webhook_events where dead_letter=true and processed=false");
+        long refundManualReview = scalar("select count(*) from refunds where manual_review_required=true");
         long heldReservations = scalar("select count(*) from ticket_reservations where status='HELD' and expires_at > now()");
         long expiredReservations = scalar("select count(*) from ticket_reservations where status='HELD' and expires_at <= now()");
         long mailPending = scalar("select count(*) from ticket_mail_jobs where status in ('PENDING','PROCESSING')");
         long mailFailed = scalar("select count(*) from ticket_mail_jobs where status='FAILED'");
-        return new Queues(pendingPayments, stalePayments, providerRecovery, pendingRefunds, webhookBacklog, webhookStuck, heldReservations, expiredReservations, mailPending, mailFailed);
+        return new Queues(pendingPayments, stalePayments, providerRecovery, pendingRefunds, webhookBacklog, webhookStuck, webhookDeadLetters, refundManualReview, heldReservations, expiredReservations, mailPending, mailFailed);
     }
 
     long jdbcScalar(String sql) { return scalar(sql); }

@@ -1,0 +1,181 @@
+name: Enterprise Production HA Promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: 40-character certified Git SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+  attestations: read
+
+concurrency:
+  group: lakhdatar-events-enterprise-ha-production
+  cancel-in-progress: false
+
+env:
+  APP_DIR: /home/ubuntu/apps/lakhdatar-events-ha
+  PUBLIC_URL: https://events.neelastack.com
+
+jobs:
+  promote:
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+      - name: Verify certified release and HA topology
+        env:
+          CERTIFIED_RELEASE_SHA: ${{ vars.ENTERPRISE_CERTIFIED_SHA }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+          NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
+          DB_HOST: ${{ vars.DB_EXTERNAL_HOST }}
+          REDIS_HOST: ${{ vars.REDIS_EXTERNAL_HOST }}
+          INGRESS_HEALTH_URL: ${{ vars.HA_INGRESS_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a 40-character lowercase Git SHA'; exit 2; }
+          [[ "$CERTIFIED_RELEASE_SHA" == "$RELEASE_SHA" ]] || { echo 'Release SHA is not the protected certified SHA'; exit 1; }
+          [[ "$TOPOLOGY" == enterprise-ha ]] || { echo 'Certified HA promotion requires PRODUCTION_TOPOLOGY=enterprise-ha'; exit 1; }
+          [[ "$NODE_COUNT" =~ ^[2-9][0-9]*$ ]] || { echo 'HA_NODE_COUNT must be >= 2'; exit 1; }
+          PRODUCTION_TOPOLOGY="$TOPOLOGY" HA_NODE_COUNT="$NODE_COUNT" DB_EXTERNAL_HOST="$DB_HOST" REDIS_EXTERNAL_HOST="$REDIS_HOST" HA_INGRESS_HEALTH_URL="$INGRESS_HEALTH_URL" infra/ha/verify-enterprise-ha.sh
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+      - name: Authenticate release runner to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+      - name: Verify signed images and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+          identity="^https://github.com/${REPOSITORY}/.github/workflows/ci.yml@refs/heads/main$"
+          for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
+            ref="ghcr.io/${OWNER}/${image}:${RELEASE_SHA}"
+            cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
+            gh attestation verify "oci://$ref" -R "$REPOSITORY"
+          done
+      - name: Validate HA deployment inputs
+        env:
+          HOST_A: ${{ secrets.DEPLOY_HOST_A }}
+          HOST_B: ${{ secrets.DEPLOY_HOST_B }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KH_A: ${{ secrets.DEPLOY_KNOWN_HOSTS_A }}
+          KH_B: ${{ secrets.DEPLOY_KNOWN_HOSTS_B }}
+          HA_ENV: ${{ secrets.HA_ENV_FILE }}
+          TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+          NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
+          DB_HOST: ${{ vars.DB_EXTERNAL_HOST }}
+          REDIS_HOST: ${{ vars.REDIS_EXTERNAL_HOST }}
+        run: |
+          set -euo pipefail
+          for name in HOST_A HOST_B KEY KH_A KH_B HA_ENV TOPOLOGY NODE_COUNT DB_HOST REDIS_HOST; do
+            [[ -n "${!name}" ]] || { echo "Missing protected production input: $name"; exit 1; }
+          done
+          [[ "$HOST_A" != "$HOST_B" ]] || { echo 'HA_NODE_COUNT >= 2 requires distinct deployment hosts'; exit 1; }
+      - name: Validate protected HA environment
+        env:
+          HA_ENV_FILE: ${{ secrets.HA_ENV_FILE }}
+        run: |
+          set -euo pipefail
+          tmp=ha-env.validation
+          trap 'rm -f "$tmp"' EXIT
+          printf '%s\n' "$HA_ENV_FILE" > "$tmp"
+          grep -Eq '^PRODUCTION_TOPOLOGY=enterprise-ha$' "$tmp" || { echo 'HA_ENV_FILE must declare PRODUCTION_TOPOLOGY=enterprise-ha'; exit 1; }
+          grep -Eq '^MFA_REQUIRED_FOR_PRIVILEGED=true$' "$tmp" || { echo 'HA_ENV_FILE must enable privileged MFA'; exit 1; }
+          grep -Eq '^REDIS_SSL=true$' "$tmp" || { echo 'HA_ENV_FILE must enable Redis TLS'; exit 1; }
+          grep -Eq '^DB_URL=.*://' "$tmp" || { echo 'HA_ENV_FILE must define DB_URL'; exit 1; }
+          grep -Eq '^REDIS_HOST=.+$' "$tmp" || { echo 'HA_ENV_FILE must define REDIS_HOST'; exit 1; }
+          ! grep -Eq '^DB_URL=.*(localhost|127\.0\.0\.1)' "$tmp" || { echo 'HA_ENV_FILE must not use localhost DB'; exit 1; }
+          ! grep -Eq '^REDIS_HOST=(localhost|127\.0\.0\.1)$' "$tmp" || { echo 'HA_ENV_FILE must not use localhost Redis'; exit 1; }
+          ! grep -Eq '^IMAGE_NAMESPACE=ghcr\.io/your-org$' "$tmp" || { echo 'HA_ENV_FILE must use the real GHCR namespace'; exit 1; }
+      - name: Configure SSH material
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS_A: ${{ secrets.DEPLOY_KNOWN_HOSTS_A }}
+          DEPLOY_KNOWN_HOSTS_B: ${{ secrets.DEPLOY_KNOWN_HOSTS_B }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$DEPLOY_SSH_KEY" > deploy_key
+          chmod 600 deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS_A" > known_a
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS_B" > known_b
+          chmod 644 known_a known_b
+          ssh-keygen -y -f deploy_key >/dev/null
+      - name: Login to GHCR on node A
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST_A }}
+          GHCR_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          [[ -n "$GHCR_TOKEN" ]] || { echo 'GitHub Actions token is unavailable'; exit 1; }
+          printf '%s' "$GHCR_TOKEN" | ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_a "$HOST" "docker login ghcr.io -u '${OWNER}' --password-stdin"
+      - name: Login to GHCR on node B
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST_B }}
+          GHCR_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          [[ -n "$GHCR_TOKEN" ]] || { echo 'GitHub Actions token is unavailable'; exit 1; }
+          printf '%s' "$GHCR_TOKEN" | ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_b "$HOST" "docker login ghcr.io -u '${OWNER}' --password-stdin"
+      - name: Deploy node A
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST_A }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          HA_ENV_FILE: ${{ secrets.HA_ENV_FILE }}
+        run: |
+          set -euo pipefail
+          ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_a "$HOST" "mkdir -p '$APP_DIR/infra/ha' '$APP_DIR/infra/deploy'"
+          scp -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_a -r infra/ha/. "$HOST:$APP_DIR/infra/ha/"
+          scp -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_a -r infra/deploy/. "$HOST:$APP_DIR/infra/deploy/"
+          printf '%s' "$HA_ENV_FILE" | ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_a "$HOST" "cat > '$APP_DIR/infra/ha/.env' && chmod 600 '$APP_DIR/infra/ha/.env' && PRODUCTION_TOPOLOGY=enterprise-ha '$APP_DIR/infra/deploy/deploy-ha-node.sh' '$RELEASE_SHA'"
+      - name: Deploy node B
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST_B }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          HA_ENV_FILE: ${{ secrets.HA_ENV_FILE }}
+        run: |
+          set -euo pipefail
+          ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_b "$HOST" "mkdir -p '$APP_DIR/infra/ha' '$APP_DIR/infra/deploy'"
+          scp -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_b -r infra/ha/. "$HOST:$APP_DIR/infra/ha/"
+          scp -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_b -r infra/deploy/. "$HOST:$APP_DIR/infra/deploy/"
+          printf '%s' "$HA_ENV_FILE" | ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_b "$HOST" "cat > '$APP_DIR/infra/ha/.env' && chmod 600 '$APP_DIR/infra/ha/.env' && PRODUCTION_TOPOLOGY=enterprise-ha '$APP_DIR/infra/deploy/deploy-ha-node.sh' '$RELEASE_SHA'"
+      - name: Enterprise production smoke test
+        env:
+          BASE_URL: ${{ env.PUBLIC_URL }}
+          PUBLIC_HOST: events.neelastack.com
+          SMOKE_TICKET_ID: ${{ secrets.SMOKE_TICKET_ID }}
+          SMOKE_TICKET_TOKEN: ${{ secrets.SMOKE_TICKET_TOKEN }}
+          SMOKE_TICKET_PDF: ${{ vars.SMOKE_TICKET_PDF || 'false' }}
+          SMOKE_ENTERPRISE: 'true'
+        run: infra/smoke/production-smoke.sh
+      - name: Logout from GHCR on both nodes
+        if: always()
+        env:
+          HOST_A: ${{ secrets.DEPLOY_HOST_A }}
+          HOST_B: ${{ secrets.DEPLOY_HOST_B }}
+        run: |
+          set +e
+          ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_a "$HOST_A" 'docker logout ghcr.io' >/dev/null 2>&1 || true
+          ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_b "$HOST_B" 'docker logout ghcr.io' >/dev/null 2>&1 || true
+      - name: Logout release runner from GHCR
+        if: always()
+        run: docker logout ghcr.io >/dev/null 2>&1 || true
+      - name: Clean SSH material
+        if: always()
+        run: rm -f deploy_key known_a known_b

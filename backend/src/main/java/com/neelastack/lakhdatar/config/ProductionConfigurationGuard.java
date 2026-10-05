@@ -42,6 +42,16 @@ public class ProductionConfigurationGuard {
         if (!props.security().refreshCookieSecure()) throw new IllegalStateException("AUTH_COOKIE_SECURE must be true in production");
         if (props.checkout().sessionTtl().isNegative() || props.checkout().sessionTtl().isZero() || props.checkout().sessionTtl().compareTo(java.time.Duration.ofHours(2)) > 0) throw new IllegalStateException("CHECKOUT_SESSION_TTL must be between >0 and 2 hours in production");
         if (!props.rateLimit().failClosedOnRedisError()) throw new IllegalStateException("RATE_LIMIT_FAIL_CLOSED must be true in production");
+        boolean mfaRequired = environment.getProperty("app.mfa.required-for-privileged", Boolean.class, false);
+        if (!mfaRequired) throw new IllegalStateException("MFA_REQUIRED_FOR_PRIVILEGED must be true in production");
+        String mfaKey = environment.getProperty("app.mfa.encryption-key", "");
+        requireNonBlank("MFA_ENCRYPTION_KEY", mfaKey);
+        try {
+            byte[] decoded = java.util.Base64.getDecoder().decode(mfaKey.trim());
+            if (decoded.length != 32) throw new IllegalArgumentException();
+        } catch (IllegalArgumentException ex) {
+            if (!mfaKey.matches("(?i)[0-9a-f]{64}")) throw new IllegalStateException("MFA_ENCRYPTION_KEY must be a base64 or 64-hex encoded 32-byte secret when privileged MFA is required");
+        }
         if (props.bootstrap().enabled()) throw new IllegalStateException("BOOTSTRAP_ENABLED must be false in production");
         if (props.initialAdmin().enabled()) requireSecret("INITIAL_ADMIN_SETUP_TOKEN", props.initialAdmin().setupToken());
         boolean cloudinaryConfigured = present(props.cloudinary().cloudName()) || present(props.cloudinary().apiKey()) || present(props.cloudinary().apiSecret());

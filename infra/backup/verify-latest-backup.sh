@@ -3,6 +3,8 @@ set -euo pipefail
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/lakhdatar-events}"
 latest="$(ls -1t "$BACKUP_DIR"/*.dump 2>/dev/null | head -n1 || true)"
 [ -n "$latest" ] || { echo "No PostgreSQL dump found in $BACKUP_DIR" >&2; exit 1; }
+[ -f "$latest.sha256" ] || { echo "Checksum file is missing for $latest" >&2; exit 1; }
+(cd "$(dirname "$latest")" && sha256sum -c "$(basename "$latest").sha256")
 work="$(mktemp -d)"
 cleanup(){ rm -rf "$work"; }
 trap cleanup EXIT

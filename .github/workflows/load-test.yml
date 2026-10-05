@@ -12,7 +12,7 @@ on:
         required: true
         default: catalog.js
         type: choice
-        options: [suite, catalog.js, burst.js, public-event.js, thousands.js, checkout.js, checkout-idempotency.js, checkin.js, ticket-pdf.js, operations.js, seo.js]
+        options: [enterprise-gate, suite, catalog.js, burst.js, public-event.js, thousands.js, checkout.js, checkout-idempotency.js, checkin.js, ticket-pdf.js, operations.js, seo.js]
 
 permissions:
   contents: read
@@ -35,7 +35,50 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Guard enterprise gate to staging only
+        if: inputs.test == 'enterprise-gate'
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -euo pipefail
+          case "$BASE_URL" in
+            https://events.neelastack.com|https://events.neelastack.com/*|http://events.neelastack.com|http://events.neelastack.com/*)
+              echo "::error::enterprise-gate must never run against the live events.neelastack.com site"
+              exit 1
+              ;;
+          esac
+      - name: Run enterprise staging gate
+        if: inputs.test == 'enterprise-gate'
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          K6_IMAGE: grafana/k6:2.2.0
+          EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
+          TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
+          TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
+          ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
+          ADMIN_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
+          STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
+          GATE: ${{ secrets.LOADTEST_GATE }}
+          CHECKIN_QR_TOKENS: ${{ secrets.LOADTEST_CHECKIN_QR_TOKENS }}
+          TEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
+          DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
+          LOADTEST_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          THOUSANDS_MAX_VUS: ${{ vars.LOADTEST_THOUSANDS_MAX_VUS || '1000' }}
+          THOUSANDS_RAMP: ${{ vars.LOADTEST_THOUSANDS_RAMP || '2m' }}
+          THOUSANDS_HOLD: ${{ vars.LOADTEST_THOUSANDS_HOLD || '3m' }}
+          CHECKIN_RATE: ${{ secrets.LOADTEST_CHECKIN_RATE || '2' }}
+          CHECKIN_DURATION: ${{ secrets.LOADTEST_CHECKIN_DURATION || '2m' }}
+          BURST_START_RATE: ${{ secrets.LOADTEST_BURST_START_RATE || '50' }}
+          BURST_RATE_1: ${{ secrets.LOADTEST_BURST_RATE_1 || '100' }}
+          BURST_RATE_2: ${{ secrets.LOADTEST_BURST_RATE_2 || '200' }}
+          BURST_RATE_3: ${{ secrets.LOADTEST_BURST_RATE_3 || '250' }}
+          ENABLE_CHECKOUT_LOAD: "true"
+          ALLOW_PRODUCTION_CHECKOUT_LOAD: "false"
+        run: ./infra/loadtest/enterprise-gate.sh
       - name: Run pinned k6 test
+        if: inputs.test != 'enterprise-gate'
         env:
           BASE_URL: ${{ inputs.base_url }}
           K6_IMAGE: grafana/k6:2.2.0

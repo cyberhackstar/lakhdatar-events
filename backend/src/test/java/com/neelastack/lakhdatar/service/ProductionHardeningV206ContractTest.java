@@ -1,13 +1,14 @@
 package com.neelastack.lakhdatar.service;
 
 import org.junit.jupiter.api.Test;
+import java.util.regex.Pattern;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Release-contract guards for the v2.0.8 dedicated SRE monitor and production qualification fixes. */
+/** Release-contract guards for enterprise SRE/production qualification controls. */
 class ProductionHardeningV206ContractTest {
     @Test
     void teamAuthTestUsesBehavioralFilterCoverage() throws Exception {
@@ -40,10 +41,10 @@ class ProductionHardeningV206ContractTest {
         String version = Files.readString(Path.of("../VERSION")).trim();
         String pom = Files.readString(Path.of("pom.xml"));
         String pkg = Files.readString(Path.of("../frontend/package.json"));
-        assertEquals("2.0.8", version);
+        assertTrue(Pattern.matches("\\d+\\.\\d+\\.\\d+", version));
         assertTrue(pom.contains("<artifactId>lakhdatar-events</artifactId>"));
-        assertTrue(pom.contains("<version>2.0.8</version>"));
-        assertTrue(pkg.contains("\"version\": \"2.0.8\""));
+        assertTrue(pom.contains("<version>" + version + "</version>"));
+        assertTrue(pkg.contains("\"version\": \"" + version + "\""));
     }
     @Test
     void concurrencyAndObservabilityGuardsArePresent() throws Exception {
@@ -81,7 +82,7 @@ class ProductionHardeningV206ContractTest {
         assertFalse(lock.contains("void-elements-2.0.2.tgz"));
         assertFalse(lock.contains("http-errors-2.0.2.tgz"));
         String manifest = Files.readString(Path.of("../RELEASE-MANIFEST.txt"));
-        assertTrue(manifest.contains("Release: 2.0.8"));
+        assertTrue(manifest.contains("Release: " + version));
         assertTrue(Files.isRegularFile(Path.of("src/main/java/com/neelastack/lakhdatar/service/OperationsLogService.java")));
     }
 

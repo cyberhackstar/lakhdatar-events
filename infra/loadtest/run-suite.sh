@@ -17,6 +17,7 @@ run(){ local name="$1"; echo "=== k6: $name ==="; docker run --rm -i --net=host 
   -e TEST_IDEMPOTENCY_KEY="${TEST_IDEMPOTENCY_KEY:-}" \
   -e CHECKIN_RATE="${CHECKIN_RATE:-2}" -e CHECKIN_DURATION="${CHECKIN_DURATION:-2m}" \
   -e BURST_START_RATE="${BURST_START_RATE:-50}" -e BURST_RATE_1="${BURST_RATE_1:-100}" -e BURST_RATE_2="${BURST_RATE_2:-200}" -e BURST_RATE_3="${BURST_RATE_3:-250}" \
+  -e THOUSANDS_MAX_VUS="${THOUSANDS_MAX_VUS:-1000}" -e THOUSANDS_RAMP="${THOUSANDS_RAMP:-2m}" -e THOUSANDS_HOLD="${THOUSANDS_HOLD:-3m}" \
   "$IMAGE" run --summary-export="/results/${name%.js}.json" - < "$SCRIPT_DIR/$name"; }
 
 run catalog.js

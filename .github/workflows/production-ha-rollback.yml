@@ -1,0 +1,84 @@
+name: Enterprise Production HA Rollback
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: lakhdatar-events-enterprise-ha-production
+  cancel-in-progress: false
+
+env:
+  APP_DIR: /home/ubuntu/apps/lakhdatar-events-ha
+  PUBLIC_URL: https://events.neelastack.com
+
+jobs:
+  rollback:
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+      - name: Require enterprise HA topology
+        env:
+          TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+          NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
+        run: |
+          set -euo pipefail
+          [[ "$TOPOLOGY" == enterprise-ha ]] || { echo 'HA rollback requires PRODUCTION_TOPOLOGY=enterprise-ha'; exit 1; }
+          [[ "$NODE_COUNT" =~ ^[2-9][0-9]*$ ]] || { echo 'HA rollback requires at least two nodes'; exit 1; }
+      - name: Validate protected deployment inputs
+        env:
+          HOST_A: ${{ secrets.DEPLOY_HOST_A }}
+          HOST_B: ${{ secrets.DEPLOY_HOST_B }}
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KH_A: ${{ secrets.DEPLOY_KNOWN_HOSTS_A }}
+          KH_B: ${{ secrets.DEPLOY_KNOWN_HOSTS_B }}
+        run: |
+          set -euo pipefail
+          for name in HOST_A HOST_B KEY KH_A KH_B; do
+            [[ -n "${!name}" ]] || { echo "Missing protected production input: $name"; exit 1; }
+          done
+          [[ "$HOST_A" != "$HOST_B" ]] || { echo 'Rollback requires distinct HA nodes'; exit 1; }
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS_A: ${{ secrets.DEPLOY_KNOWN_HOSTS_A }}
+          DEPLOY_KNOWN_HOSTS_B: ${{ secrets.DEPLOY_KNOWN_HOSTS_B }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$DEPLOY_SSH_KEY" > deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS_A" > known_a
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS_B" > known_b
+          chmod 600 deploy_key
+          chmod 644 known_a known_b
+          ssh-keygen -y -f deploy_key >/dev/null
+      - name: Roll back node A
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST_A }}
+        run: |
+          set -euo pipefail
+          ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_a "$HOST" "cd '$APP_DIR' && chmod +x infra/deploy/*.sh && infra/deploy/rollback-ha-node.sh"
+      - name: Roll back node B
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST_B }}
+        run: |
+          set -euo pipefail
+          ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_b "$HOST" "cd '$APP_DIR' && chmod +x infra/deploy/*.sh && infra/deploy/rollback-ha-node.sh"
+      - name: Production smoke test
+        env:
+          BASE_URL: ${{ env.PUBLIC_URL }}
+          PUBLIC_HOST: events.neelastack.com
+          SMOKE_TICKET_ID: ${{ secrets.SMOKE_TICKET_ID }}
+          SMOKE_TICKET_TOKEN: ${{ secrets.SMOKE_TICKET_TOKEN }}
+          SMOKE_TICKET_PDF: ${{ vars.SMOKE_TICKET_PDF || 'false' }}
+          SMOKE_ENTERPRISE: 'true'
+        run: infra/smoke/production-smoke.sh
+      - name: Clean SSH material
+        if: always()
+        run: rm -f deploy_key known_a known_b

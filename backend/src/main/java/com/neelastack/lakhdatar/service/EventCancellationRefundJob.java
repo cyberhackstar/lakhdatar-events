@@ -27,6 +27,7 @@ public class EventCancellationRefundJob {
     private final DistributedLockService locks;
 
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
+    @Value("${app.refund.max-attempts:8}") private int maxAttempts;
 
     @Scheduled(fixedDelayString = "${app.refund.cancellation-sweep:30000}")
     public void sweep() {
@@ -35,9 +36,9 @@ public class EventCancellationRefundJob {
     }
     private void sweepLocked() {
         long started = System.nanoTime();
-        var statuses = List.of(Enums.PaymentStatus.CAPTURED, Enums.PaymentStatus.COMPLETED, Enums.PaymentStatus.REFUND_PENDING);
-        var candidates = payments.findByCancelledEventAndStatusWithoutRefund(
-                Enums.EventStatus.CANCELLED, statuses, PageRequest.of(0, 100));
+        var statuses = List.of(Enums.PaymentStatus.CAPTURED.name(), Enums.PaymentStatus.COMPLETED.name(), Enums.PaymentStatus.REFUND_PENDING.name());
+        var candidates = payments.findCancelledEventRefundCandidates(
+                Enums.EventStatus.CANCELLED.name(), statuses, Math.max(1, maxAttempts), PageRequest.of(0, 100));
         EnterpriseLog.debug(log, "refund.event_cancellation.sweep.started", "event.category", "recovery", "batch.size", candidates.size());
         int failed = 0;
         for (var payment : candidates) {
