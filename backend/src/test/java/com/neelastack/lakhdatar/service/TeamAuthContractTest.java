@@ -8,6 +8,7 @@ import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.RefreshTokenRepository;
 import com.neelastack.lakhdatar.repository.UserInviteRepository;
 import com.neelastack.lakhdatar.repository.UserRepository;
+import com.neelastack.lakhdatar.security.JwtAuthFilter;
 import com.neelastack.lakhdatar.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

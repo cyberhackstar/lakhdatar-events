@@ -1,7 +1,7 @@
-# Neelastack Event Platform — v1.9.54
+# Neelastack Event Platform — v1.9.55
 
-Enterprise release-qualification patch for the v1.9.53 CI failures.
+Enterprise release-qualification correction for the v1.9.54 CI test-compilation failure.
 
-The two failing tests are corrected without weakening production controls: forced-password-change protection is tested behaviorally, and the event lifecycle integration test uses a deterministic test-only payment provider.
+v1.9.55 fixes the missing `JwtAuthFilter` test import, synchronizes release metadata, and preserves the previously hardened production payment, refund, reconciliation, worker-isolation, scanner, authentication, backup, and HA controls.
 
-See `CHANGES-1.9.54.md` and `VALIDATION-1.9.54.md`.
+See `CHANGES-1.9.55.md` and `VALIDATION-1.9.55.md`.

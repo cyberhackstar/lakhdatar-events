@@ -7,8 +7,8 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Release-contract guards for the v1.9.54 CI qualification fixes. */
-class ProductionHardeningV1_9_54ContractTest {
+/** Release-contract guards for the v1.9.55 CI qualification fixes. */
+class ProductionHardeningV1_9_55ContractTest {
     @Test
     void teamAuthTestUsesBehavioralFilterCoverage() throws Exception {
         String source = Files.readString(Path.of("src/test/java/com/neelastack/lakhdatar/service/TeamAuthContractTest.java"));
@@ -32,9 +32,9 @@ class ProductionHardeningV1_9_54ContractTest {
         String version = Files.readString(Path.of("../VERSION")).trim();
         String pom = Files.readString(Path.of("pom.xml"));
         String pkg = Files.readString(Path.of("../frontend/package.json"));
-        assertEquals("1.9.54", version);
+        assertEquals("1.9.55", version);
         assertTrue(pom.contains("<artifactId>lakhdatar-events</artifactId>"));
-        assertTrue(pom.contains("<version>1.9.54</version>"));
-        assertTrue(pkg.contains("\"version\": \"1.9.54\""));
+        assertTrue(pom.contains("<version>1.9.55</version>"));
+        assertTrue(pkg.contains("\"version\": \"1.9.55\""));
     }
 }
