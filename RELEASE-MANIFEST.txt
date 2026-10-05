@@ -1,5 +1,4 @@
-NEELASTACK EVENTS v1.9.52 PRODUCTION RELEASE MANIFEST
-Release: 1.9.52
-Changes: CHANGES-1.9.52.md
-Validation: VALIDATION-1.9.52.md
-Deployment: infra/deploy/deploy.sh and docs/deployment.md
+NEELASTACK EVENTS v1.9.53 PRODUCTION RELEASE MANIFEST
+Release: 1.9.53
+Changes: CHANGES-1.9.53.md
+Validation: VALIDATION-1.9.53.md

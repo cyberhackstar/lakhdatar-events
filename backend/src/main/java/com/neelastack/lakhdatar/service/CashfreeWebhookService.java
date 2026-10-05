@@ -93,7 +93,7 @@ public class CashfreeWebhookService {
         if (paymentId != null && !paymentId.isBlank() && pay.hasNonNull("payment_amount")) {
             long amount = toMinorUnits(pay, "payment_amount");
             String currency = pay.path("payment_currency").asText(p.getCurrency());
-            String normalizedStatus = normalizeAttemptStatus(status);
+            Enums.PaymentStatus normalizedStatus = normalizeAttemptStatus(status);
             var providerAttempt = new PaymentGatewayProvider.ProviderPayment(
                     paymentId, orderId, amount, currency, normalizedStatus.name().toLowerCase(Locale.ROOT),
                     pay.path("payment_message").asText(null), 0, null, Enums.PaymentStatus.CAPTURED == normalizedStatus);

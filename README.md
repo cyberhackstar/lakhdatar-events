@@ -1,4 +1,4 @@
-# v1.9.52 — Enterprise observability and publish reliability
+# v1.9.53 — Enterprise observability and publish reliability
 
 This release adds full-stack metrics/logs/traces, provisioned SRE dashboards, production alert rules, edge/backend correlation and a server-authoritative publication gate.
 

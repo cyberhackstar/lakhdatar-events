@@ -491,7 +491,7 @@ public class OrderService {
             existing.setStatus(attemptStatus);
             existing.setAmountMinor(provider.amount());
             existing.setCurrency(provider.currency());
-            existing.setProviderMessage(provider.message());
+            existing.setProviderMessage(provider.errorDescription());
             paymentAttempts.save(existing);
             return;
         }
@@ -506,7 +506,7 @@ public class OrderService {
                 attemptStatus.name(),
                 provider.amount(),
                 provider.currency(),
-                provider.message());
+                provider.errorDescription());
 
         if (inserted == 0) {
             PaymentAttempt concurrent = paymentAttempts.findByProviderPaymentId(providerPaymentId)
