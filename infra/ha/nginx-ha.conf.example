@@ -17,6 +17,7 @@ map $http_x_correlation_id $edge_correlation_id {
 limit_req_zone $client_rate_key zone=public_api:10m rate=20r/s;
 limit_req_zone $client_rate_key zone=public_catalog_api:10m rate=1200r/s;
 limit_req_zone $client_rate_key zone=auth_api:10m rate=5r/s;
+limit_req_zone $client_rate_key zone=ops_logs_api:10m rate=2r/s;
 limit_conn_zone $client_rate_key zone=per_ip:10m;
 
 upstream backend_pool {
@@ -86,6 +87,10 @@ server {
         proxy_pass http://web_pool;
         proxy_read_timeout 20s;
     }
+    location = /monitor/ {
+        if ($is_monitor_host = 0) { return 404; }
+        return 308 /monitor;
+    }
 
     # Keep business admin pages on the Events hostname. The monitor hostname exposes only the SRE console
     # plus the authenticated API paths it needs.
@@ -95,7 +100,18 @@ server {
         proxy_read_timeout 20s;
     }
 
+    location = /login {
+        proxy_pass http://web_pool;
+        proxy_read_timeout 20s;
+    }
+
+    location = /change-password {
+        proxy_pass http://web_pool;
+        proxy_read_timeout 20s;
+    }
+
     location ^~ /api/v1/public/events/ {
+        if ($is_monitor_host = 1) { return 404; }
         limit_req zone=public_catalog_api burst=2000 nodelay;
         proxy_pass http://backend_pool;
         proxy_read_timeout 20s;
@@ -132,6 +148,7 @@ server {
     # Buffer admin event responses at the origin edge. This includes streamed CSV exports,
     # preventing the generic unbuffered /api/ proxy from exposing an unstable transfer to the edge.
     location ^~ /api/v1/admin/events/ {
+        if ($is_monitor_host = 1) { return 404; }
         limit_req zone=public_api burst=40 nodelay;
         proxy_pass http://backend_pool;
         proxy_send_timeout 30s;
@@ -141,23 +158,43 @@ server {
         proxy_buffer_size 16k;
     }
 
+    location = /api/v1/admin/ops/logs {
+        limit_req zone=ops_logs_api burst=4 nodelay;
+        proxy_pass http://backend_pool;
+        proxy_send_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_buffering on;
+        proxy_buffers 4 16k;
+        proxy_buffer_size 16k;
+    }
+
+    location ^~ /api/v1/admin/ops/ {
+        proxy_pass http://backend_pool;
+        proxy_send_timeout 15s;
+        proxy_read_timeout 30s;
+        proxy_buffering off;
+    }
+
     location ^~ /api/ {
+        if ($is_monitor_host = 1) { return 404; }
         limit_req zone=public_api burst=40 nodelay;
         proxy_pass http://backend_pool;
         proxy_send_timeout 15s;
         proxy_read_timeout 30s;
         proxy_buffering off;
     }
-    location = /robots.txt { proxy_pass http://backend_pool; proxy_read_timeout 10s; }
-    location = /sitemap.xml { proxy_pass http://backend_pool; proxy_read_timeout 10s; }
-    location ~ ^/sitemap-[0-9]+\.xml$ { proxy_pass http://backend_pool; proxy_read_timeout 10s; }
+    location = /robots.txt { if ($is_monitor_host = 1) { return 404; } proxy_pass http://backend_pool; proxy_read_timeout 10s; }
+    location = /sitemap.xml { if ($is_monitor_host = 1) { return 404; } proxy_pass http://backend_pool; proxy_read_timeout 10s; }
+    location ~ ^/sitemap-[0-9]+\.xml$ { if ($is_monitor_host = 1) { return 404; } proxy_pass http://backend_pool; proxy_read_timeout 10s; }
 
     location ^~ /ticket/ {
+        if ($is_monitor_host = 1) { return 404; }
         access_log off;
         proxy_pass http://web_pool;
         proxy_read_timeout 20s;
     }
     location / {
+        if ($is_monitor_host = 1) { return 404; }
         proxy_pass http://web_pool;
         proxy_read_timeout 20s;
     }

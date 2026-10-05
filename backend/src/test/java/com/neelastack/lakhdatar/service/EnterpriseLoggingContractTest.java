@@ -45,6 +45,8 @@ class EnterpriseLoggingContractTest {
         assertTrue(service.contains("http://loki:3100"));
         assertFalse(service.contains("request.body"));
         assertFalse(service.contains("response.body"));
+        assertTrue(service.contains("String responseBody"));
+        assertTrue(service.contains("summarize(json), correlation"));
         assertTrue(lifecycle.contains("application.ready"));
         assertTrue(lifecycle.contains("application.stopping"));
         String frontend = Files.readString(Path.of("../frontend/src/app/features/monitor-console.component.ts"));

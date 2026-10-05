@@ -23,9 +23,9 @@ const prodCompose = read('infra/docker-compose.prod.yml');
 const version = read('VERSION').trim();
 
 const expected = {
-  '@angular/animations':'^20.3.30', '@angular/common':'^20.3.30', '@angular/compiler':'^20.3.30',
+  '@angular/common':'^20.3.30', '@angular/compiler':'^20.3.30',
   '@angular/core':'^20.3.30', '@angular/forms':'^20.3.30', '@angular/platform-browser':'^20.3.30',
-  '@angular/platform-browser-dynamic':'^20.3.30', '@angular/platform-server':'^20.3.30', '@angular/router':'^20.3.30',
+  '@angular/platform-server':'^20.3.30', '@angular/router':'^20.3.30',
   '@angular/ssr':'^20.3.36', express:'^4.22.2', rxjs:'~7.8.1', tslib:'^2.8.0', 'zone.js':'~0.15.0'
 };
 const problems=[];
@@ -38,6 +38,12 @@ if (pkg.devDependencies['@types/node'] !== '^22.9.0') problems.push('@types/node
 if (pkg.devDependencies.typescript !== '~5.9.3') problems.push('typescript baseline mismatch');
 if (pkg.overrides?.qs !== '6.16.0') problems.push('qs override mismatch');
 if (pkg.overrides?.piscina !== '5.3.2') problems.push('piscina security override mismatch');
+if (pkg.overrides?.['http-errors@2.0.1']?.inherits !== '2.0.4') problems.push('http-errors inherits override mismatch');
+if (pkg.dependencies['@angular/animations']) problems.push('deprecated Angular animations package must not be a direct dependency');
+if (pkg.dependencies['@angular/platform-browser-dynamic']) problems.push('deprecated Angular platform-browser-dynamic package must not be a direct dependency');
+const appConfigSource = read('frontend/src/app/app.config.ts');
+if (appConfigSource.includes('provideAnimationsAsync')) problems.push('deprecated Angular animations provider must not be configured');
+if (!ci.includes('npm run verify:dependencies')) problems.push('frontend dependency lock verification missing from CI');
 if (!pom.includes('<artifactId>spring-boot-starter-parent</artifactId>\n    <version>4.0.8</version>')) problems.push('Spring Boot baseline mismatch');
 if (!pom.includes('<java.version>21</java.version>')) problems.push('Java baseline mismatch');
 if (!pom.includes('<jjwt.version>0.13.0</jjwt.version>')) problems.push('JJWT baseline mismatch');
@@ -160,6 +166,9 @@ if (!monitorComponent.includes('Live logs')) problems.push('SRE monitor live-log
 if (!monitorComponent.includes('Incidents &amp; warnings')) problems.push('SRE monitor incident surface missing');
 if (!fs.existsSync(path.join(root, 'frontend/src/app/features/monitor-console.component.ts'))) problems.push('SRE monitor component file missing');
 if (!edgeNginx.includes('return 302 /monitor$is_args$args;')) problems.push('canonical monitor redirect missing');
+if (!edgeNginx.includes('location = /api/v1/admin/ops/logs')) problems.push('dedicated low-rate monitor log endpoint missing');
+if (!edgeNginx.includes('location ^~ /api/v1/admin/ops/')) problems.push('monitor operations API namespace missing');
+if (!edgeNginx.includes('if ($is_monitor_host = 1) { return 404; }')) problems.push('monitor business-route deny gates missing');
 if (!edgeNginx.includes('location = /monitor')) problems.push('dedicated monitor route missing');
 if (!edgeNginx.includes('if ($is_monitor_host = 0) { return 404; }')) problems.push('monitor host isolation missing');
 if (!edgeNginx.includes('limit_conn per_ip 1000;')) problems.push('edge connection ceiling baseline mismatch');
@@ -175,6 +184,9 @@ if (!haCompose.includes('KEEP_ALIVE_TIMEOUT_MS: ${KEEP_ALIVE_TIMEOUT_MS:-60000}'
 if (!haEdgeNginx.includes('return 302 /monitor$is_args$args;')) problems.push('HA NGINX monitor routing baseline missing');
 if (!haEdgeNginx.includes('location = /monitor')) problems.push('HA dedicated monitor route missing');
 if (!haEdgeNginx.includes('if ($is_monitor_host = 0) { return 404; }')) problems.push('HA monitor host isolation missing');
+if (!haEdgeNginx.includes('zone=ops_logs_api:10m rate=2r/s')) problems.push('HA dedicated monitor log rate limit missing');
+if (!haEdgeNginx.includes('location = /api/v1/admin/ops/logs')) problems.push('HA dedicated low-rate monitor log endpoint missing');
+if (!haEdgeNginx.includes('location ^~ /api/v1/admin/ops/')) problems.push('HA monitor operations API namespace missing');
 if (!haEdgeNginx.includes('proxy_cache_path /var/cache/nginx/public-cache')) problems.push('HA public event micro-cache missing');
 if (!haEdgeNginx.includes('keepalive 64;') || !haEdgeNginx.includes('keepalive 32;')) problems.push('HA NGINX upstream keepalive pools missing');
 if (!haCompose.includes('security_opt: [no-new-privileges:true]') || !haCompose.includes('cap_drop: [ALL]')) problems.push('HA web/edge hardening missing');

@@ -30,10 +30,21 @@ class MonitorSeparationContractTest {
         for (String source : new String[]{edge, ha}) {
             assertTrue(source.contains("map $host $is_monitor_host"));
             assertTrue(source.contains("location = /monitor"));
+            assertTrue(source.contains("location = /monitor/"));
             assertTrue(source.contains("if ($is_monitor_host = 0) { return 404; }"));
+            assertTrue(source.contains("location = /login"));
+            assertTrue(source.contains("location = /change-password"));
             assertTrue(source.contains("location ^~ /admin"));
             assertTrue(source.contains("if ($is_monitor_host = 1) { return 404; }"));
+            assertTrue(source.contains("location ^~ /api/v1/admin/ops/"));
+            assertTrue(source.contains("location = /api/v1/admin/ops/logs"));
+            assertTrue(source.contains("location ^~ /api/v1/public/events/"));
+            assertTrue(source.contains("location ^~ /api/v1/admin/events/"));
+            assertTrue(source.contains("if ($is_monitor_host = 1) { return 404; }"));
+            assertTrue(source.contains("location ^~ /ticket/"));
+            assertTrue(source.contains("location ^~ /api/"));
             assertTrue(source.contains("return 302 /monitor$is_args$args;"));
+            assertFalse(source.contains("PLACEHOLDER_BACKEND"));
         }
     }
 }

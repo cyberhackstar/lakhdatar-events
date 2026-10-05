@@ -7,8 +7,8 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Release-contract guards for the v2.0.5 dedicated SRE monitor and production qualification fixes. */
-class ProductionHardeningV204ContractTest {
+/** Release-contract guards for the v2.0.6 dedicated SRE monitor and production qualification fixes. */
+class ProductionHardeningV206ContractTest {
     @Test
     void teamAuthTestUsesBehavioralFilterCoverage() throws Exception {
         String source = Files.readString(Path.of("src/test/java/com/neelastack/lakhdatar/service/TeamAuthContractTest.java"));
@@ -40,10 +40,10 @@ class ProductionHardeningV204ContractTest {
         String version = Files.readString(Path.of("../VERSION")).trim();
         String pom = Files.readString(Path.of("pom.xml"));
         String pkg = Files.readString(Path.of("../frontend/package.json"));
-        assertEquals("2.0.5", version);
+        assertEquals("2.0.6", version);
         assertTrue(pom.contains("<artifactId>lakhdatar-events</artifactId>"));
-        assertTrue(pom.contains("<version>2.0.5</version>"));
-        assertTrue(pkg.contains("\"version\": \"2.0.5\""));
+        assertTrue(pom.contains("<version>2.0.6</version>"));
+        assertTrue(pkg.contains("\"version\": \"2.0.6\""));
     }
     @Test
     void concurrencyAndObservabilityGuardsArePresent() throws Exception {
@@ -73,10 +73,15 @@ class ProductionHardeningV204ContractTest {
         assertTrue(edge.contains("$cookie_ld_checkout"));
         assertTrue(lock.contains("\"node_modules/void-elements\": {\n      \"version\": \"2.0.1\""));
         assertTrue(lock.contains("\"node_modules/http-errors\": {\n      \"version\": \"2.0.1\""));
+        assertTrue(lock.contains("\"node_modules/inherits\": {\n      \"version\": \"2.0.4\""));
+        assertFalse(lock.contains("inherits-2.0.5.tgz"));
+        assertTrue(edge.contains("location ^~ /api/v1/admin/ops/"));
+        assertTrue(edge.contains("location = /api/v1/admin/ops/logs"));
+        assertTrue(edge.contains("if ($is_monitor_host = 1) { return 404; }"));
         assertFalse(lock.contains("void-elements-2.0.2.tgz"));
         assertFalse(lock.contains("http-errors-2.0.2.tgz"));
         String manifest = Files.readString(Path.of("../RELEASE-MANIFEST.txt"));
-        assertTrue(manifest.contains("Release: 2.0.5"));
+        assertTrue(manifest.contains("Release: 2.0.6"));
         assertTrue(Files.isRegularFile(Path.of("src/main/java/com/neelastack/lakhdatar/service/OperationsLogService.java")));
     }
 

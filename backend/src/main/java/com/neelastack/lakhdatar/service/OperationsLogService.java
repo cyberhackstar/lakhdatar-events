@@ -96,9 +96,10 @@ public class OperationsLogService {
                 .timeout(Duration.ofMillis(Math.max(1000, timeoutMs)))
                 .header("Accept", "application/json")
                 .GET().build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) throw new IllegalStateException("Loki returned HTTP " + response.statusCode());
-        return response.body();
+        HttpResponse<String> httpResponse = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (httpResponse.statusCode() != 200) throw new IllegalStateException("Loki returned HTTP " + httpResponse.statusCode());
+        String responseBody = httpResponse.body();
+        return responseBody;
     }
 
     private List<LogEntry> parse(String body) throws Exception {
@@ -130,7 +131,7 @@ public class OperationsLogService {
                 String level = json.path("log").path("level").asText(json.path("level").asText("INFO"));
                 String action = json.path("event").path("action").asText(json.path("message").asText("log.entry"));
                 String correlation = json.path("correlationId").asText(json.path("correlation_id").asText(null));
-                return new Parsed(normalizeLevel(level), action, summarize(json));
+                return new Parsed(normalizeLevel(level), action, summarize(json), correlation);
             }
         } catch (Exception ignored) { }
         String upper = raw.toUpperCase(Locale.ROOT);

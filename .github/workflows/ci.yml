@@ -31,6 +31,9 @@ jobs:
         uses: gitleaks/gitleaks-action@v3.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      - name: Verify frontend dependency lock before install
+        working-directory: frontend
+        run: npm run verify:dependencies
       - name: Frontend production dependency audit
         working-directory: frontend
         # Audit only dependencies that are shipped at runtime. The development toolchain
@@ -97,6 +100,9 @@ jobs:
       - name: Verify Neelastack stability baseline
         working-directory: frontend
         run: npm run verify:baseline
+      - name: Verify frontend dependency lock
+        working-directory: frontend
+        run: npm run verify:dependencies
       - name: Install dependencies and build (production, SSR)
         working-directory: frontend
         run: npm ci --no-audit --no-fund && npm run build
@@ -227,6 +233,27 @@ jobs:
             exit 1
           }
           echo "Monitor canonical redirect regression test passed."
+          # Dedicated monitor hostname must not expose business HTML, ticket URLs or generic APIs.
+          for url in \
+            /admin/operations \
+            /api/v1/public/events/featured \
+            /api/v1/orders \
+            /ticket/ci-monitor-isolation; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 -H 'Host: monitor.neelastack.com' "http://127.0.0.1:18082${url}")
+            test "$code" = "404" || {
+              echo "::error::Monitor isolation regression: ${url} returned ${code}, expected 404"
+              docker logs "$container" || true
+              exit 1
+            }
+          done
+          echo "Monitor business-route isolation regression test passed."
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 3 -H 'Host: events.neelastack.com' http://127.0.0.1:18082/monitor)
+          test "$code" = "404" || {
+            echo "::error::Events host exposed dedicated monitor route: ${code}"
+            docker logs "$container" || true
+            exit 1
+          }
+          echo "Monitor host boundary regression test passed."
 
       - name: Scan backend image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
