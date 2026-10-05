@@ -1,4 +1,4 @@
-# Neelastack Events v2.0.7 — CI Release Blocker Fix
+# Neelastack Events v2.0.8 — CI Release Blocker Fix
 
 ## Release blockers fixed
 
@@ -7,7 +7,7 @@
 - Regenerated `frontend/package-lock.json` with npm so the lockfile and `package.json` agree on the release version and dependency tree.
 - Preserved the existing removal of deprecated direct Angular animation/dynamic-platform dependencies and the unused animation provider.
 - Preserved the dedicated SRE monitor hostname separation and production logging safeguards from v2.0.6.
-- Synchronized release metadata to v2.0.7 across backend, frontend, runtime health reporting and production compose defaults.
+- Synchronized release metadata to v2.0.8 across backend, frontend, runtime health reporting and production compose defaults.
 
 ## CI evidence addressed
 

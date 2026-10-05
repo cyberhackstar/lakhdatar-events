@@ -1,4 +1,4 @@
-# v2.0.7 — Enterprise Events + SRE Monitoring
+# v2.0.8 — Enterprise Events + SRE Monitoring
 
 This release adds full-stack metrics/logs/traces, provisioned SRE dashboards, production alert rules, edge/backend correlation and a server-authoritative publication gate.
 

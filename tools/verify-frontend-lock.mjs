@@ -6,13 +6,24 @@ const lock = JSON.parse(fs.readFileSync(new URL('package-lock.json', root), 'utf
 const rootPkg = lock.packages?.[''];
 const failures = [];
 
-if (pkg.version !== '2.0.7') failures.push(`frontend/package.json version ${pkg.version} != 2.0.7`);
-if (lock.version !== '2.0.7' || rootPkg?.version !== '2.0.7') failures.push('package-lock root version is not 2.0.7');
+if (pkg.version !== '2.0.8') failures.push(`frontend/package.json version ${pkg.version} != 2.0.8`);
+if (lock.version !== '2.0.8' || rootPkg?.version !== '2.0.8') failures.push('package-lock root version is not 2.0.8');
 if (pkg.dependencies?.['@angular/animations']) failures.push('@angular/animations must not be a direct dependency');
 if (pkg.dependencies?.['@angular/platform-browser-dynamic']) failures.push('@angular/platform-browser-dynamic must not be a direct dependency');
 if (lock.packages?.['node_modules/@angular/animations']) failures.push('lockfile still installs @angular/animations');
 if (lock.packages?.['node_modules/@angular/platform-browser-dynamic']) failures.push('lockfile still installs @angular/platform-browser-dynamic');
 
+
+const hasown = lock.packages?.['node_modules/hasown'];
+if (!hasown) failures.push('node_modules/hasown entry is missing');
+else {
+  if (hasown.version !== '2.0.4') failures.push(`hasown version ${hasown.version} != 2.0.4`);
+  if (hasown.resolved !== 'https://registry.npmjs.org/hasown/-/hasown-2.0.4.tgz') failures.push('hasown tarball is not the 2.0.4 registry artifact');
+}
+const hasownOverride = pkg.overrides?.hasown;
+if (hasownOverride !== '2.0.4') failures.push(`hasown override ${hasownOverride} != 2.0.4`);
+const coreHasown = lock.packages?.['node_modules/is-core-module']?.dependencies?.hasown;
+if (coreHasown !== '^2.0.4') failures.push(`is-core-module hasown range ${coreHasown} != ^2.0.4`);
 const inherits = lock.packages?.['node_modules/inherits'];
 if (!inherits) failures.push('node_modules/inherits entry is missing');
 else {
@@ -24,6 +35,9 @@ if (override !== '2.0.4') failures.push(`http-errors override ${override} != 2.0
 // npm does not need to serialize root overrides into package-lock.json; the lock is validated by the resolved package entry below.
 const rawLock = fs.readFileSync(new URL('package-lock.json', root), 'utf8');
 if (rawLock.includes('inherits-2.0.5.tgz')) failures.push('stale inherits-2.0.5.tgz tarball reference remains');
+if (rawLock.includes('hasown-2.0.5.tgz')) failures.push('stale hasown-2.0.5.tgz tarball reference remains');
+if (rawLock.includes('http-errors-2.0.2.tgz')) failures.push('stale http-errors-2.0.2.tgz tarball reference remains');
+if (rawLock.includes('void-elements-2.0.2.tgz')) failures.push('stale void-elements-2.0.2.tgz tarball reference remains');
 
 if (failures.length) {
   console.error('Frontend dependency verification: FAIL');

@@ -1,6 +1,6 @@
 {
   "name": "lakhdatar-events-frontend",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "private": true,
   "scripts": {
     "ng": "ng",
@@ -46,6 +46,8 @@
     "piscina": "5.3.2",
     "http-errors@2.0.1": {
       "inherits": "2.0.4"
-    }
+    },
+    "hasown": "2.0.4",
+    "inherits": "2.0.4"
   }
 }

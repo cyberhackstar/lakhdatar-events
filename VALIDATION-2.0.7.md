@@ -1,10 +1,10 @@
-# v2.0.7 Validation Record
+# v2.0.8 Validation Record
 
 ## Source-driven CI blocker
 
 The provided CI logs show the frontend job and the security job both stop at `npm run verify:dependencies` with `lockfile root override missing`. Gitleaks succeeds before the security job reaches that failure.
 
-The v2.0.7 fix changes the verification contract to the npm-supported model: root `package.json` owns `overrides`, while the lockfile is validated by its resolved package entries. The lockfile resolves `node_modules/inherits` to 2.0.4 and contains no `inherits-2.0.5.tgz` reference. npm documents `overrides` as root `package.json` policy.
+The v2.0.8 fix changes the verification contract to the npm-supported model: root `package.json` owns `overrides`, while the lockfile is validated by its resolved package entries. The lockfile resolves `node_modules/inherits` to 2.0.4 and contains no `inherits-2.0.5.tgz` reference. npm documents `overrides` as root `package.json` policy.
 
 ## Workspace validation
 
@@ -17,7 +17,7 @@ The v2.0.7 fix changes the verification contract to the npm-supported model: roo
 - JavaScript/MJS syntax — PASS
 - Bash syntax — PASS
 - JSON/YAML parsing — PASS
-- release version consistency — PASS (2.0.7)
+- release version consistency — PASS (2.0.8)
 - artifact hygiene — PASS
 
 ## Runtime gates not executed here
