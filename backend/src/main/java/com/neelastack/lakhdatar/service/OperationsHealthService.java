@@ -16,7 +16,7 @@ public class OperationsHealthService {
     private final StringRedisTemplate redis;
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
     @Value("${spring.application.name:lakhdatar-events-backend}") private String applicationName;
-    @Value("${spring.application.version:1.9.48}") private String applicationVersion;
+    @Value("${spring.application.version:1.9.52}") private String applicationVersion;
 
     public record Health(String application, String version, Instant checkedAt, Component database, Component redis,
                          Queues queues, long publishedEvents, long organizers, boolean workerEnabled) {}
@@ -72,6 +72,8 @@ public class OperationsHealthService {
         long mailFailed = scalar("select count(*) from ticket_mail_jobs where status='FAILED'");
         return new Queues(pendingPayments, stalePayments, providerRecovery, pendingRefunds, webhookBacklog, webhookStuck, heldReservations, expiredReservations, mailPending, mailFailed);
     }
+
+    long jdbcScalar(String sql) { return scalar(sql); }
 
     private long scalar(String sql) {
         try { Long value = jdbc.queryForObject(sql, Long.class); return value == null ? 0L : value; }

@@ -1,16 +1,65 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    platform: lakhdatar-events
+    environment: production
+
+rule_files:
+  - /etc/prometheus/recording-rules.yml
+  - /etc/prometheus/alerts.yml
 
 scrape_configs:
   - job_name: lakhdatar-backend
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: ["backend:8080"]
+        labels: {service: lakhdatar-backend}
+
+  - job_name: nginx-edge
+    static_configs:
+      - targets: ["nginx-exporter:9113"]
+        labels: {service: edge}
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels: {service: host}
+
+  - job_name: containers
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels: {service: containers}
+
+  - job_name: postgresql
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels: {service: postgresql}
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels: {service: redis}
+
+  - job_name: blackbox
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://events.neelastack.com/
+          - https://events.neelastack.com/robots.txt
+          - https://events.neelastack.com/sitemap.xml
+          - https://events.neelastack.com/api/v1/public/events/featured
     relabel_configs:
       - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
         target_label: instance
-        replacement: lakhdatar-backend
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
 
-rule_files:
-  - /etc/prometheus/alerts.yml
+  - job_name: prometheus
+    static_configs:
+      - targets: ["prometheus:9090"]

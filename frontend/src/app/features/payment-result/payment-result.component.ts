@@ -58,7 +58,9 @@ export class PaymentResultComponent implements OnInit, OnDestroy {
   copied = false;
   private pendingRetryTimer?: ReturnType<typeof setTimeout>;
   private returnAttempt = 0;
-  private readonly maxReturnAttempts = 8;
+  // The API permits five verification calls per order per minute. One initial call +
+  // four spaced retries stays within that limit while still covering delayed webhooks.
+  private readonly maxReturnAttempts = 4;
 
   ngOnInit(): void {
     const orderId = this.route.snapshot.queryParamMap.get('order_id');
@@ -108,7 +110,9 @@ export class PaymentResultComponent implements OnInit, OnDestroy {
   private scheduleReturnVerification(providerOrderId: string): void {
     this.returnAttempt += 1;
     if (this.pendingRetryTimer) clearTimeout(this.pendingRetryTimer);
-    this.pendingRetryTimer = setTimeout(() => this.verifyReturnedOrder(providerOrderId), 2500);
+    const delaysMs = [3000, 6000, 10000, 15000];
+    const delay = delaysMs[Math.min(this.returnAttempt - 1, delaysMs.length - 1)];
+    this.pendingRetryTimer = setTimeout(() => this.verifyReturnedOrder(providerOrderId), delay);
   }
 
 

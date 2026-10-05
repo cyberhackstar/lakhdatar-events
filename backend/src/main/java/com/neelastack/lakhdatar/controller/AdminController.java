@@ -57,6 +57,13 @@ public class AdminController {
         UserPrincipal u = p(a); return ResponseEntity.status(201).body(eventService.create(b, u.userId(), u.role()));
     }
 
+    @GetMapping("/events/{id}/publish-readiness")
+    EventManagementService.PublishReadinessView publishReadiness(@PathVariable UUID id, Authentication a) {
+        UserPrincipal u = p(a);
+        var r = eventService.publishReadiness(id, u.userId(), u.role());
+        return new EventManagementService.PublishReadinessView(r.ready(), r.blockers(), r.warnings());
+    }
+
     @PostMapping("/events/{id}/publish")
     ResponseEntity<Void> publish(@PathVariable UUID id, Authentication a) {
         UserPrincipal u = p(a); eventService.publish(id, u.userId(), u.role()); return ResponseEntity.noContent().build();

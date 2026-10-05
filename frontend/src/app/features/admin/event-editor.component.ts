@@ -4,7 +4,7 @@ import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterLink } from '@angular/router';
 import { map, Subscription } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
-import { AdminEventView } from '../../core/api/api.models';
+import { AdminEventView, PublishReadiness } from '../../core/api/api.models';
 import { DEFAULT_TZ, TIMEZONES, toIsoInZone, toLocalInput } from '../../core/datetime';
 import { ADMIN_UI_STYLES } from './admin.styles';
 import { AdminStore } from './admin-store.service';
@@ -33,6 +33,16 @@ import { EventTeamPanelComponent } from './event-team-panel.component';
       <div class="editor-message success" *ngIf="created && !success" role="status">Draft created. Add branding and review the details below, then publish when you are ready.</div>
       <div class="editor-message error" *ngIf="error" role="alert">{{ error }}</div>
       <div class="editor-message success" *ngIf="success" role="status">{{ success }}</div>
+
+      <section class="publish-readiness" *ngIf="event && (event.status==='DRAFT' || event.status==='UNPUBLISHED')" aria-live="polite">
+        <div class="readiness-head"><div><span class="eyebrow">Release gate</span><h3>Publish readiness</h3><p>Server-validated checks prevent incomplete events from going live.</p></div><span class="readiness-state" [class.ready]="publishReadiness?.ready" [class.pending]="publishReadinessLoading">{{ publishReadinessLoading ? 'CHECKING' : (publishReadiness?.ready ? 'READY TO PUBLISH' : 'ACTION REQUIRED') }}</span></div>
+        <div *ngIf="publishReadinessLoading" class="readiness-loading">Checking event, ticket inventory and payment configuration…</div>
+        <div *ngIf="publishReadiness && !publishReadinessLoading">
+          <div class="readiness-item blocker" *ngFor="let blocker of publishReadiness.blockers"><span>!</span><div>{{ blocker }}</div></div>
+          <div class="readiness-item warning" *ngFor="let warning of publishReadiness.warnings"><span>i</span><div>{{ warning }}</div></div>
+          <div class="readiness-ok" *ngIf="publishReadiness.ready">✓ All publication gates passed. Publishing is safe to proceed.</div>
+        </div>
+      </section>
 
       <form [formGroup]="form" (ngSubmit)="saveEvent()" novalidate>
         <div class="editor-section">
@@ -140,7 +150,7 @@ import { EventTeamPanelComponent } from './event-team-panel.component';
         <div class="editor-footer">
           <div class="lifecycle">
             <span class="state">{{event.status}}</span>
-            <button type="button" *ngIf="event.status==='DRAFT' || event.status==='UNPUBLISHED'" [disabled]="transitioningAction!==null || !canPublish" [title]="publishHint" (click)="transition('publish')">{{transitioningAction==='publish'?'Publishing…':'Publish'}}</button>
+            <button type="button" *ngIf="event.status==='DRAFT' || event.status==='UNPUBLISHED'" [disabled]="transitioningAction!==null || publishReadinessLoading" [title]="publishHint" (click)="transition('publish')">{{transitioningAction==='publish'?'Publishing…':'Publish'}}</button>
             <button type="button" *ngIf="event.status==='PUBLISHED'" [disabled]="transitioningAction!==null" (click)="transition('unpublish')">{{transitioningAction==='unpublish'?'Unpublishing…':'Unpublish'}}</button>
             <button type="button" class="danger" *ngIf="event.status==='DRAFT' || event.status==='PUBLISHED' || event.status==='UNPUBLISHED'" [disabled]="transitioningAction!==null" (click)="transition('cancel')">{{transitioningAction==='cancel'?'Cancelling…':'Cancel event'}}</button>
             <button type="button" *ngIf="canComplete" [disabled]="transitioningAction!==null" (click)="transition('complete')">{{transitioningAction==='complete'?'Completing…':'Complete event'}}</button>
@@ -197,6 +207,8 @@ import { EventTeamPanelComponent } from './event-team-panel.component';
     .lifecycle button{min-height:38px;border:1px solid #d8d0c7;background:#fff;color:var(--ink);border-radius:10px;padding:0 14px;font-size:13px;font-weight:700;cursor:pointer}.lifecycle button.danger{color:#8f3e42;border-color:#ebcdcf}
     .save-event{min-width:210px;min-height:48px;border:0;background:#17121a;color:#fff;border-radius:12px;padding:0 18px;font-weight:800;font-size:14px;cursor:pointer;display:inline-flex;justify-content:space-between;align-items:center;gap:12px}.save-event:disabled{opacity:.45;cursor:not-allowed}
     .editor-loading{text-align:center;padding:40px;color:#8b828c;font-size:14px}
+    .publish-readiness{margin:0 0 20px;padding:20px;border:1px solid #e3ddd5;border-radius:18px;background:linear-gradient(180deg,#fffdf9,#faf7f1)}
+    .readiness-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.readiness-head h3{margin:4px 0;font-family:var(--display);font-size:22px}.readiness-head p{margin:0;color:#776d79;font-size:12px}.readiness-state{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border-radius:999px;background:#f1ece4;color:#766b76;font-size:10px;font-weight:800;letter-spacing:.1em}.readiness-state.ready{background:#e4f2e7;color:#2e6b3c}.readiness-state.pending{background:#fff4d9;color:#79601c}.readiness-loading{padding:12px 14px;border-radius:12px;background:#f4f0ea;color:#756b76;font-size:12px}.readiness-item{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:11px;font-size:12px;line-height:1.45;margin-top:8px}.readiness-item.blocker{background:#fff0f0;color:#8b3030;border:1px solid #f1caca}.readiness-item.warning{background:#fff8e6;color:#775c17;border:1px solid #eddca8}.readiness-item span{display:grid;place-items:center;flex:0 0 18px;width:18px;height:18px;border-radius:50%;background:currentColor;color:#fff;font-weight:900;font-size:11px}.readiness-ok{margin-top:8px;padding:11px 12px;border-radius:11px;background:#eaf6ee;color:#23623a;border:1px solid #c1dfc9;font-size:12px;font-weight:700}
     @media(max-width:900px){.grid.two,.grid.three{grid-template-columns:1fr}.ticket-grid{grid-template-columns:1fr 1fr}.asset-grid{grid-template-columns:1fr}.small-action{margin-left:0}.editor-footer{align-items:stretch;flex-direction:column}.save-event{width:100%}}
     @media(max-width:600px){.editor-head{padding:20px 16px}.editor-section{padding:22px 16px}.section-title{grid-template-columns:30px 1fr}.ticket-grid{grid-template-columns:1fr}.editor-footer{padding:18px 16px}.lifecycle button{flex:1 1 40%}.editor-actions{width:100%}.editor-actions .a-btn{flex:1}}
   `]
@@ -220,6 +232,8 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   saving = false;
   savingTicketIndex = -1;
   transitioningAction: 'publish' | 'unpublish' | 'cancel' | 'complete' | 'archive' | null = null;
+  publishReadiness?: PublishReadiness;
+  publishReadinessLoading = false;
   originalPaymentProvider = 'RAZORPAY';
   private _error = '';
   private _success = '';
@@ -258,7 +272,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     ageRestriction: ['', Validators.maxLength(80)],
     featured: [false],
     displayOrder: [0, [Validators.min(0), Validators.max(100000)]],
-    paymentProvider: ['RAZORPAY'],
+    paymentProvider: ['CASHFREE'],
     brandingMode: ['BOTH'],
     organizerLogoUrl: [''],
     eventLogoUrl: [''],
@@ -286,23 +300,43 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
 
   get canPublish(): boolean {
     if (!this.event || !['DRAFT', 'UNPUBLISHED'].includes(this.event.status)) return false;
-    if (!this.event.ticketTypes?.length) return false;
-    return new Date(this.event.startsAt).getTime() > Date.now();
+    if (this.publishReadiness) return this.publishReadiness.ready;
+    const hasTickets = !!this.event.ticketTypes?.length;
+    const startsValid = !!this.event.startsAt && new Date(this.event.startsAt).getTime() > Date.now();
+    return hasTickets && startsValid;
   }
 
   get publishHint(): string {
     if (!this.event) return '';
+    if (this.publishReadiness?.blockers?.length) return this.publishReadiness.blockers[0];
+    if (this.publishReadiness?.ready) return 'Publish this event';
     if (!this.event.ticketTypes?.length) return 'Add at least one ticket type before publishing.';
     if (new Date(this.event.startsAt).getTime() <= Date.now()) return 'An event in the past cannot be published.';
-    return 'Publish this event';
+    return 'Publication readiness is being checked.';
   }
 
   private load(keepMessages = false): void {
     this.loading = true;
     if (!keepMessages) { this.error = ''; this.success = ''; }
     this.subscriptions.add(this.api.adminEvent(this.eventId).subscribe({
-      next: e => { this.event = e; this.populate(e); this.loading = false; },
+      next: e => { this.event = e; this.populate(e); this.loading = false; this.refreshPublishReadiness(); },
       error: err => { this.loading = false; this.error = err?.error?.message || 'Event details could not be loaded.'; }
+    }));
+  }
+
+  private refreshPublishReadiness(): void {
+    if (!this.event || !['DRAFT', 'UNPUBLISHED'].includes(this.event.status)) {
+      this.publishReadiness = undefined;
+      this.publishReadinessLoading = false;
+      return;
+    }
+    this.publishReadinessLoading = true;
+    this.subscriptions.add(this.api.publishReadiness(this.event.id).subscribe({
+      next: r => { this.publishReadiness = r; this.publishReadinessLoading = false; },
+      error: err => {
+        this.publishReadinessLoading = false;
+        this.publishReadiness = { ready: false, blockers: [err?.error?.message || 'Publication readiness could not be verified. Retry before publishing.'], warnings: [] };
+      }
     }));
   }
 
@@ -314,7 +348,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
       timezone:e.timezone || DEFAULT_TZ, capacity:e.capacity || 0, venueName:e.venueName || '', venueAddress:e.venueAddress || '',
       city:e.city || '', state:e.state || '', mapUrl:e.mapUrl || '', coverImageUrl:e.coverImageUrl || '',
       gallery:(e.gallery || []).join('\n'), highlights:(e.highlights || []).join('\n'), terms:e.terms || '', refundPolicy:e.refundPolicy || '',
-      ageRestriction:e.ageRestriction || '', featured:e.featured, displayOrder:e.displayOrder || 0, paymentProvider:e.paymentProvider || 'RAZORPAY', brandingMode:e.brandingMode || 'BOTH', organizerLogoUrl:e.organizerLogoUrl || '', eventLogoUrl:e.eventLogoUrl || '', eventBannerUrl:e.eventBannerUrl || ''
+      ageRestriction:e.ageRestriction || '', featured:e.featured, displayOrder:e.displayOrder || 0, paymentProvider:e.paymentProvider || 'CASHFREE', brandingMode:e.brandingMode || 'BOTH', organizerLogoUrl:e.organizerLogoUrl || '', eventLogoUrl:e.eventLogoUrl || '', eventBannerUrl:e.eventBannerUrl || ''
     });
     this.originalPaymentProvider = e.paymentProvider || 'RAZORPAY';
     this.ticketForms.clear();
@@ -397,10 +431,10 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
       featured: !!v.featured, displayOrder: Number(v.displayOrder || 0), organizerLogoUrl: String(v.organizerLogoUrl || ''), eventLogoUrl: String(v.eventLogoUrl || ''), eventBannerUrl: String(v.eventBannerUrl || ''), brandingMode: String(v.brandingMode || 'BOTH')
     };
     // Do not accidentally submit the form's default provider value as a provider change.
-    if (String(v.paymentProvider || 'RAZORPAY') !== this.originalPaymentProvider) body.paymentProvider = String(v.paymentProvider || 'RAZORPAY');
+    if (String(v.paymentProvider || 'CASHFREE') !== this.originalPaymentProvider) body.paymentProvider = String(v.paymentProvider || 'CASHFREE');
     // The backend update contract intentionally does not alter currency, slug, capacity, or organizer ownership.
     this.subscriptions.add(this.api.updateEvent(this.event.id, body).subscribe({
-      next: () => { this.saving=false; this.success='Event changes saved.'; this.load(true); this.store.load(true); },
+      next: () => { this.saving=false; this.success='Event changes saved.'; this.load(true); this.store.load(true); this.refreshPublishReadiness(); },
       error: err => { this.saving=false; this.error=err?.error?.message || 'Event could not be updated.'; }
     }));
   }
@@ -426,7 +460,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
       ? this.api.updateTicketType(existingId, body)
       : this.api.addTicketType(this.event.id, body).pipe(map(() => void 0));
     this.subscriptions.add(request$.subscribe({
-      next: () => { this.savingTicketIndex=-1; this.success=existingId?'Ticket type updated.':'Ticket type added.'; this.load(true); },
+      next: () => { this.savingTicketIndex=-1; this.success=existingId?'Ticket type updated.':'Ticket type added.'; this.load(true); this.refreshPublishReadiness(); },
       error: err => { this.savingTicketIndex=-1; this.error=err?.error?.message || 'Ticket type could not be saved.'; }
     }));
   }
@@ -434,8 +468,42 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
   transition(action: 'publish'|'unpublish'|'cancel'|'complete'|'archive'): void {
     if (!this.event || this.transitioningAction) return;
     const status = this.event.status;
-    if (action === 'publish' && !this.canPublish) {
-      this.error = this.publishHint;
+
+    // Publishing always re-validates against the server immediately before the state change.
+    // This avoids stale readiness data making the Publish button appear to do nothing.
+    if (action === 'publish') {
+      this.error = ''; this.success = '';
+      this.transitioningAction = 'publish';
+      this.publishReadinessLoading = true;
+      const eventId = this.event.id;
+      this.subscriptions.add(this.api.publishReadiness(eventId).subscribe({
+        next: readiness => {
+          this.publishReadiness = readiness;
+          this.publishReadinessLoading = false;
+          if (!readiness.ready) {
+            this.transitioningAction = null;
+            this.error = readiness.blockers[0] || 'This event is not ready to publish.';
+            return;
+          }
+          this.subscriptions.add(this.api.publishEvent(eventId).subscribe({
+            next: () => {
+              this.transitioningAction = null;
+              this.success = 'Event published successfully.';
+              this.load(true); this.store.load(true);
+            },
+            error: err => {
+              this.transitioningAction = null;
+              this.error = err?.error?.message || 'Publishing failed. Publication readiness should be reviewed and retried.';
+              this.refreshPublishReadiness();
+            }
+          }));
+        },
+        error: err => {
+          this.publishReadinessLoading = false;
+          this.transitioningAction = null;
+          this.error = err?.error?.message || 'Publication readiness could not be verified. Please retry.';
+        }
+      }));
       return;
     }
     if (action === 'unpublish' && status !== 'PUBLISHED') {
@@ -460,9 +528,7 @@ export class EventEditorComponent implements OnChanges, OnDestroy {
     const label = action.charAt(0).toUpperCase()+action.slice(1);
     const DONE: Record<string, string> = { publish: 'published', unpublish: 'unpublished', cancel: 'cancelled', complete: 'marked as completed', archive: 'archived' };
     this.transitioningAction = action;
-    const request$ = action === 'publish'
-      ? this.api.publishEvent(this.event.id)
-      : this.api.adminTransition(this.event.id, action);
+    const request$ = this.api.adminTransition(this.event.id, action);
     this.subscriptions.add(request$.subscribe({
       next: () => { this.transitioningAction=null; this.success=`Event ${DONE[action]} successfully.`; this.load(true); this.store.load(true); },
       error: err => { this.transitioningAction=null; this.error=err?.error?.message || `${label} failed.`; }

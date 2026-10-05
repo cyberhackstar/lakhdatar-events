@@ -1,3 +1,9 @@
+# v1.9.52 — Enterprise observability and publish reliability
+
+This release adds full-stack metrics/logs/traces, provisioned SRE dashboards, production alert rules, edge/backend correlation and a server-authoritative publication gate.
+
+---
+
 ## v1.9.48 — CI and Neelastack branding correction
 
 Enterprise multi-event ticketing platform with server-authoritative payments, admission verification, multi-day booking windows, finance/reconciliation, event lifecycle controls, and mobile gate scanning.
@@ -120,7 +126,7 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 
 
 ## Current release
-See `CHANGES-1.9.48.md` and `VALIDATION-1.9.48.md`.
+See `CHANGES-1.9.52.md` and `VALIDATION-1.9.52.md`.
 
 
 ### Deployment dotenv safety

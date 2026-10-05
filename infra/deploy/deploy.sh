@@ -44,6 +44,7 @@ WEB_READINESS_INTERVAL_SECONDS="${WEB_READINESS_INTERVAL_SECONDS:-3}"
 
 [[ -n "$TAG" ]] || { echo "Usage: $0 <immutable-image-tag>" >&2; exit 2; }
 [[ -f "$ROOT/.env" ]] || { echo "Missing $ROOT/.env" >&2; exit 2; }
+PREVIOUS_TAG="$(cat "$CURRENT" 2>/dev/null || true)"
 IMAGE_NAMESPACE="${IMAGE_NAMESPACE:-$(dotenv_get IMAGE_NAMESPACE)}"
 [[ -n "${IMAGE_NAMESPACE:-}" ]] || { echo "IMAGE_NAMESPACE is required (e.g. ghcr.io/owner)" >&2; exit 2; }
 [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "Release image tag must be a 40-character Git SHA" >&2; exit 2; }
@@ -56,7 +57,6 @@ done
 # Validate the exact production Compose model before touching services.
 IMAGE_TAG="$TAG" docker compose --env-file "$ROOT/.env" -f "$ROOT/infra/docker-compose.prod.yml" config >/dev/null
 
-PREVIOUS_TAG="$(cat "$CURRENT" 2>/dev/null || true)"
 DEPLOY_STAGE=0
 
 rollback_previous() {
@@ -176,8 +176,19 @@ wait_for_edge_readiness() {
 }
 
 echo "[1/7] Pre-deployment database backup"
-"$ROOT/infra/backup/backup-postgres.sh" --allow-missing
-if ls "$ROOT"/infra/backups/*.dump >/dev/null 2>&1 || [[ -n "${BACKUP_DIR:-}" && -d "${BACKUP_DIR}" && -n "$(find "${BACKUP_DIR}" -maxdepth 1 -name 'lakhdatar-*.dump' -print -quit 2>/dev/null)" ]]; then
+POSTGRES_VOLUME_EXISTS="$(docker volume inspect lakhdatar_pg_data >/dev/null 2>&1 && echo 1 || echo 0)"
+if [[ -n "$PREVIOUS_TAG" || "$POSTGRES_VOLUME_EXISTS" == "1" ]]; then
+  if [[ -n "$PREVIOUS_TAG" ]]; then
+    echo "Existing deployment detected ($PREVIOUS_TAG): backup is mandatory and fail-closed."
+  else
+    echo "Existing PostgreSQL data volume detected: backup is mandatory and fail-closed."
+  fi
+  "$ROOT/infra/backup/backup-postgres.sh"
+else
+  echo "No previous deployment marker or PostgreSQL data volume found: allowing first-install backup exception."
+  "$ROOT/infra/backup/backup-postgres.sh" --allow-missing
+fi
+if [[ -n "$PREVIOUS_TAG" || -n "$(find "${BACKUP_DIR:-$ROOT/infra/backups}" -maxdepth 1 -name 'lakhdatar-*.dump' -print -quit 2>/dev/null)" ]]; then
   BACKUP_DIR="${BACKUP_DIR:-$ROOT/infra/backups}" "$ROOT/infra/backup/verify-latest-backup.sh"
 fi
 

@@ -1,3 +1,9 @@
+# v1.9.50 — Enterprise observability + publish gate
+
+Status: implementation packaged; authoritative CI remains GitHub Actions.
+
+---
+
 # IMPLEMENTATION STATUS 1.9.48
 
 Release details: `CHANGES-1.9.48.md` and `VALIDATION-1.9.48.md`.

@@ -111,8 +111,9 @@ export class ApiService {
   adminEvents() { return this.http.get<Dashboard['events']>(`${this.base}/admin/events`); }
   adminEventsCursor(params: { q?: string; status?: string; cursor?: string; size?: number } = {}) { return this.http.get<import('./api.models').AdminEventCursorPage>(`${this.base}/admin/events/cursor`, { params: this.queryParams(params) }); }
   adminEvent(eventId: string) { return this.http.get<AdminEventView>(`${this.base}/admin/events/${eventId}`); }
+  publishReadiness(eventId: string) { return this.http.get<import('./api.models').PublishReadiness>(`${this.base}/admin/events/${eventId}/publish-readiness`, { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } }); }
   eventOperationsSummary(eventId: string) { return this.http.get<{eventId:string;eventName:string;ticketsSold:number;ticketsCheckedIn:number;revenueMinor:number;orderCount:number}>(`${this.base}/admin/events/${eventId}/operations/summary`); }
-  publishEvent(eventId: string) { return this.http.post<void>(`${this.base}/admin/events/${eventId}/publish`, {}); }
+  publishEvent(eventId: string) { return this.http.post<void>(`${this.base}/admin/events/${eventId}/publish`, {}, { headers: { 'Cache-Control': 'no-store' } }); }
   adminTransition(eventId: string, action: 'unpublish' | 'cancel' | 'complete' | 'archive') { return this.http.post<void>(`${this.base}/admin/events/${eventId}/${action}`, {}); }
   updateEvent(eventId: string, body: Record<string, unknown>) { return this.http.put<void>(`${this.base}/admin/events/${eventId}`, body); }
   addTicketType(eventId: string, body: Record<string, unknown>) { return this.http.post<{ id: string; name: string }>(`${this.base}/admin/events/${eventId}/ticket-types`, body); }

@@ -27,8 +27,9 @@ class PaymentWebhookReleaseContractTest {
         String order = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/OrderService.java"));
         String refund = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/RefundService.java"));
         assertTrue(!order.contains("if(partial) completeQueuedRefundIfNeeded(paymentId,\"Completing partial provider refund\")"));
-        assertTrue(refund.contains("PARTIAL_PROVIDER_REFUND"));
-        assertTrue(refund.contains("Enums.RefundStatus.FAILED"));
+        assertTrue(refund.contains("PARTIAL_PROVIDER_REFUND_RECONCILED"));
+        assertTrue(refund.contains("completedMinor"));
+        assertTrue(refund.contains("remainingMinor"));
     }
 
     @Test
@@ -48,8 +49,33 @@ class PaymentWebhookReleaseContractTest {
     }
 
     @Test
-    void orphanRefundWebhookIsRetriedInsteadOfDiscarded() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/RefundService.java"));
-        assertTrue(source.contains("REFUND_NOT_LINKED"));
+    void razorpayRefundWebhookIsReconciledFromProviderPaymentId() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/WebhookService.java"));
+        assertTrue(source.contains("processRazorpayRefund"));
+        assertTrue(source.contains("findByProviderPaymentId"));
+        assertTrue(source.contains("reconcileProviderRefund"));
+        assertTrue(source.contains("reconcileProviderRefundsIfPresent"));
     }
+
+    @Test
+    void workerOnlyRecoveryHasAnExplicitRuntimeGuard() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/WebhookService.java"));
+        assertTrue(source.contains("if (!workerEnabled) return;"));
+    }
+
+    @Test
+    void failedCredentialAndWrongEventScansDoNotExposeTicketDetails() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/CheckInService.java"));
+        assertTrue(source.contains("record(Enums.CheckInResult.INVALID, \"Invalid ticket credential\", t, r, e.getId(), 0, 0, false)"));
+        assertTrue(source.contains("record(Enums.CheckInResult.WRONG_EVENT, \"Ticket belongs to a different event\", t, r, e.getId(), 0, 0, false)"));
+    }
+    @org.junit.jupiter.api.Test
+    void forcedPasswordChangeDoesNotBlockPublicOrWebhookEndpointsEvenWithBearerToken() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/security/JwtAuthFilter.java"));
+        assertTrue(source.contains("isAllowedDuringPasswordChange"));
+        assertTrue(source.contains("/api/v1/public/"));
+        assertTrue(source.contains("/api/v1/webhooks/"));
+        assertTrue(source.contains("/api/v1/setup/"));
+    }
+
 }

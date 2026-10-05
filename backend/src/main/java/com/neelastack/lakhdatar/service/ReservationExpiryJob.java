@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -22,8 +23,11 @@ public class ReservationExpiryJob {
 
     private final DistributedLockService locks;
 
+    @Value("${app.worker.enabled:true}") private boolean workerEnabled;
+
     @Scheduled(fixedDelayString = "${app.reservation.sweep}")
     public void sweep() {
+        if (!workerEnabled) return;
         locks.withLock("job:reservation-expiry", java.time.Duration.ofSeconds(45), () -> {
             var batch = reservations.findTop200ByStatusAndExpiresAtBeforeOrderByExpiresAtAsc(
                     Enums.ReservationStatus.HELD, Instant.now());

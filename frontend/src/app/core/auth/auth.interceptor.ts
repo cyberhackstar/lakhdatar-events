@@ -11,10 +11,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
   const router = inject(Router);
   const isAuthRoute = req.url.includes('/auth/');
+  const isPublicApiRoute = /\/api\/v1\/public(?:\/|$)/.test(req.url);
   // These two auth endpoints are authenticated, unlike login/refresh/accept-invite.
   const needsToken = /\/auth\/(change-password|password-status)(\?|$)/.test(req.url);
   const token = auth.accessToken();
-  const request = token && (!isAuthRoute || needsToken)
+  const request = token && !isPublicApiRoute && (!isAuthRoute || needsToken)
     ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` }, withCredentials: true })
     : req.clone({ withCredentials: true });
 
@@ -24,7 +25,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         router.navigate(['/change-password'], { queryParams: { required: 1, returnUrl: router.url } });
         return throwError(() => error);
       }
-      if (error.status !== 401 || isAuthRoute || request.context.get(AUTH_RETRIED)) {
+      if (error.status !== 401 || isAuthRoute || isPublicApiRoute || request.context.get(AUTH_RETRIED)) {
         return throwError(() => error);
       }
       return auth.refresh().pipe(

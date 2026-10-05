@@ -13,9 +13,9 @@ public class RefundIdempotencyContractTest {
         String entity = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/domain/Refund.java"));
         require(razor.contains("X-Refund-Idempotency"), "Missing Razorpay refund idempotency header");
         require(razor.contains("n.path(\"receipt\").asText(null)"), "Refund receipt is not parsed");
-        require(refund.contains("receipt()"), "Provider refund matching is not receipt-based");
-        require(refund.contains("getProviderReceipt"), "Local provider receipt is not persisted/used");
-        require(entity.contains("providerReceipt"), "Refund entity missing provider receipt");
+        require(refund.contains("providerRefundId") && refund.contains("providerReceipt"), "Provider refund identity/receipt is not persisted and reconciled");
+        require(refund.contains("reconcileProviderRefund"), "External provider refund reconciliation is missing");
+        require(entity.contains("providerRefundId") && entity.contains("providerReceipt"), "Refund entity missing provider refund identity");
     }
     private static void require(boolean ok, String msg) { if (!ok) throw new IllegalStateException(msg); }
 }

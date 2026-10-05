@@ -74,6 +74,7 @@ public class TicketMailService {
     private final TransactionTemplate tx;
     private final String from;
     private final String baseUrl;
+    @Value("${app.worker.enabled:true}") private boolean workerEnabled;
     private final ExecutorService worker;
 
     public TicketMailService(ObjectProvider<JavaMailSender> sender, OrderRepository orders, TicketRepository tickets,
@@ -105,7 +106,7 @@ public class TicketMailService {
                 // never mark the payment/ticket transaction rollback-only. The repair sweep below
                 // closes the small crash window between business commit and outbox persistence.
                 enqueue(orderId);
-                submitOrder(orderId);
+                if (workerEnabled) submitOrder(orderId);
             } catch (Exception ex) {
                 log.warn("Ticket email outbox enqueue failed for order {} ({})", orderId, ex.getClass().getSimpleName());
             }
@@ -199,7 +200,7 @@ public class TicketMailService {
     @Scheduled(fixedDelayString = "${app.mail-delivery-repair-sweep:30000}")
     @ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true)
     public void repairMissingMailJobs() {
-        if (!isConfigured()) return;
+        if (!workerEnabled || !isConfigured()) return;
         Instant since = Instant.now().minus(Duration.ofDays(30));
         for (Order order : orders.findConfirmedPaidWithoutMailJob(Enums.OrderStatus.CONFIRMED, Enums.PaymentStatus.COMPLETED, since, PageRequest.of(0, 100))) {
             try {
@@ -214,7 +215,7 @@ public class TicketMailService {
     @Scheduled(fixedDelayString = "${app.mail-delivery-cleanup-sweep:21600000}")
     @ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true)
     public void cleanupMailHistory() {
-        if (!isConfigured()) return;
+        if (!workerEnabled || !isConfigured()) return;
         Instant cutoff = Instant.now().minus(Duration.ofDays(30));
         long deleted = mailJobs.deleteByStatusInAndUpdatedAtBefore(
                 List.of(TicketMailJob.Status.SENT, TicketMailJob.Status.SKIPPED, TicketMailJob.Status.FAILED), cutoff);
@@ -224,7 +225,7 @@ public class TicketMailService {
     @Scheduled(fixedDelayString = "${app.mail-delivery-sweep:30000}")
     @ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true)
     public void sweepDurableMailQueue() {
-        if (!isConfigured()) return;
+        if (!workerEnabled || !isConfigured()) return;
         Instant now = Instant.now();
         List<TicketMailJob> due = mailJobs.findTop100ByStatusInAndNextAttemptAtBeforeOrderByCreatedAtAsc(
                 List.of(TicketMailJob.Status.PENDING, TicketMailJob.Status.PROCESSING), now);

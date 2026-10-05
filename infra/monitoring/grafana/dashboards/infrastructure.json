@@ -1,0 +1,553 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 201,
+      "type": "timeseries",
+      "title": "Host CPU",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "CPU used %",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 202,
+      "type": "timeseries",
+      "title": "Host memory",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "legendFormat": "Memory used %",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 203,
+      "type": "timeseries",
+      "title": "Root filesystem",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})",
+          "legendFormat": "Used",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 204,
+      "type": "timeseries",
+      "title": "NGINX active connections",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "nginx_connections_active",
+          "legendFormat": "active",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "rate(nginx_connections_accepted[5m])",
+          "legendFormat": "accepted/s",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "expr": "rate(nginx_connections_handled[5m])",
+          "legendFormat": "handled/s",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 205,
+      "type": "timeseries",
+      "title": "PostgreSQL sessions",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "pg_stat_database_numbackends{datname=\"lakhdatar\"}",
+          "legendFormat": "connections",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "pg_stat_database_xact_commit{datname=\"lakhdatar\"}",
+          "legendFormat": "commits",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "expr": "pg_stat_database_xact_rollback{datname=\"lakhdatar\"}",
+          "legendFormat": "rollbacks",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 206,
+      "type": "timeseries",
+      "title": "Redis memory & ops",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "redis_memory_used_bytes",
+          "legendFormat": "memory used",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "rate(redis_commands_processed_total[5m])",
+          "legendFormat": "commands/s",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "expr": "redis_evicted_keys_total",
+          "legendFormat": "evicted keys",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 207,
+      "type": "timeseries",
+      "title": "Container CPU",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (name)(rate(container_cpu_usage_seconds_total{name!=\"\"}[5m]))",
+          "legendFormat": "{{name}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 208,
+      "type": "timeseries",
+      "title": "Container memory",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (name)(container_memory_working_set_bytes{name!=\"\"})",
+          "legendFormat": "{{name}}",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "style": "dark",
+  "tags": [
+    "neelastack",
+    "infrastructure"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": ".*"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Service",
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": "label_values(up, service)",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Neelastack Production \u2014 Infrastructure",
+  "uid": "neelastack-infrastructure",
+  "version": 1,
+  "weekStart": ""
+}

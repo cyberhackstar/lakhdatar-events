@@ -1,0 +1,694 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Requests / sec",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar:http_requests_per_second:5m",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "5xx rate",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar:http_5xx_ratio:5m",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "p95 latency",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar:http_p95_seconds:5m",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Public synthetic probe",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar:public_site_probe_success:5m",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "DB up",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar_dependency_database_up",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Redis up",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar_dependency_redis_up",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Stale payments",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar_payments_stale",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Webhook stuck",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar_webhooks_stuck",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Traffic & Errors",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"lakhdatar-events-backend\"}[5m]))",
+          "legendFormat": "Requests/s",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"lakhdatar-events-backend\",status=~\"5..\"}[5m]))",
+          "legendFormat": "5xx/s",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Latency SLI",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar:http_p95_seconds:5m",
+          "legendFormat": "p95",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "lakhdatar:http_p99_seconds:5m",
+          "legendFormat": "p99",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Business queues",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "lakhdatar_payments_pending",
+          "legendFormat": "Pending payments",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "lakhdatar_refunds_pending",
+          "legendFormat": "Pending refunds",
+          "range": true
+        },
+        {
+          "refId": "C",
+          "expr": "lakhdatar_webhooks_backlog",
+          "legendFormat": "Webhook backlog",
+          "range": true
+        },
+        {
+          "refId": "D",
+          "expr": "lakhdatar_mail_failed",
+          "legendFormat": "Mail failed",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Runtime health",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - (jvm_memory_used_bytes{application=\"lakhdatar-events-backend\",area=\"heap\"} / clamp_min(jvm_memory_max_bytes{application=\"lakhdatar-events-backend\",area=\"heap\"},1))",
+          "legendFormat": "JVM heap free ratio",
+          "range": true
+        },
+        {
+          "refId": "B",
+          "expr": "hikaricp_connections_pending{application=\"lakhdatar-events-backend\"}",
+          "legendFormat": "DB connections pending",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "auto",
+            "pointSize": 4,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisBorderShow": false,
+            "axisCenteredZero": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "logs",
+      "title": "Production logs",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"docker\",platform=\"lakhdatar-events\"}",
+          "queryType": "range",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLines": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "deduplication": "none"
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "style": "dark",
+  "tags": [
+    "neelastack",
+    "sre",
+    "production"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "All",
+          "value": ".*"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Service",
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": "label_values(up, service)",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Neelastack Production \u2014 SRE Overview",
+  "uid": "neelastack-sre",
+  "version": 1,
+  "weekStart": ""
+}

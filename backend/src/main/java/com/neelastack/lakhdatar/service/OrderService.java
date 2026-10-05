@@ -24,16 +24,19 @@ import java.util.*;
 @RequiredArgsConstructor
 public class OrderService {
     private final EventRepository events; private final TicketTypeRepository ticketTypes; private final OrderRepository orders; private final OrderItemRepository items;
-    private final PaymentRepository payments; private final TicketRepository tickets; private final TicketReservationRepository reservations; private final TicketReservationService reservationService;
+    private final PaymentRepository payments; private final PaymentAttemptRepository paymentAttempts; private final TicketRepository tickets; private final TicketReservationRepository reservations; private final TicketReservationService reservationService;
     private final TicketMailService ticketMail; private final PaymentGatewayRouter gateways; private final QrCredentialService qr; private final AccessTokenService accessTokens; private final AuditService audit; private final AppProperties props;
     private final JdbcTemplate jdbc; private final RateLimitService rateLimits; private final TransactionTemplate tx; private final DistributedLockService locks; private final RefundService refundService; private final PaymentStateMachine paymentStateMachine;
     private final SecureRandom secureRandom = new SecureRandom();
     @org.springframework.beans.factory.annotation.Value("${app.payment.reconciliation-window-hours:168}") private long recoveryWindowHours = 168;
     @org.springframework.beans.factory.annotation.Value("${app.payment.recovery-recheck-ms:30000}") private long recoveryRecheckMs = 30_000;
+    @org.springframework.beans.factory.annotation.Value("${app.worker.enabled:true}") private boolean workerEnabled = true;
 
     public record CheckoutItem(UUID ticketTypeId,int quantity){}
     public record CheckoutRequest(UUID eventId,String customerName,String customerEmail,String customerPhone,String idempotencyKey,List<CheckoutItem> items,String clientKey){}
-    public record CheckoutResponse(String orderPublicId,String orderNumber,String provider,String providerOrderId,String providerPublicKey,String providerSessionId,long amountMinorUnits,String currency,Instant reservationExpiresAt,@JsonIgnore String checkoutSessionToken,long checkoutSessionTtlSeconds){}
+    public record CheckoutResponse(String orderPublicId,String orderNumber,String provider,String providerOrderId,String providerPublicKey,String providerSessionId,
+            long amountMinorUnits,String currency,Instant reservationExpiresAt,String providerCheckoutMode,
+            @JsonIgnore String checkoutSessionToken,long checkoutSessionTtlSeconds){}
     public record VerifyRequest(String providerOrderId,String providerPaymentId,String providerSignature,String checkoutSessionToken,String clientKey){
         public VerifyRequest(String providerOrderId,String providerPaymentId,String providerSignature,String checkoutSessionToken){
             this(providerOrderId,providerPaymentId,providerSignature,checkoutSessionToken,"unknown");
@@ -165,14 +168,14 @@ public class OrderService {
                     if(providerOrder.amount()!=context.amountMinor() || !context.currency().equalsIgnoreCase(providerOrder.currency()) || !context.orderNumber().equals(providerOrder.receipt()))
                         throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_PROVIDER_MISMATCH","The provider order does not match this checkout");
                 if("paid".equalsIgnoreCase(providerOrder.status())){
-                    var providerPayment=gateways.forProvider(context.provider()).fetchPaymentsForOrder(providerOrder.id()).stream()
-                            .filter(x -> x.amount()==context.amountMinor() && context.currency().equalsIgnoreCase(x.currency()))
-                            .filter(x -> "captured".equalsIgnoreCase(x.status()) || "refunded".equalsIgnoreCase(x.status()))
-                            .findFirst();
+                    var providerPayments = gateways.forProvider(context.provider()).fetchPaymentsForOrder(providerOrder.id());
+                    var providerPayment = selectProviderPaymentForReconciliation(
+                            payments.findByOrderId(context.orderId()).orElseThrow(), providerPayments);
                     if(providerPayment.isPresent()){
                         var pp=providerPayment.get();
-                        if("refunded".equalsIgnoreCase(pp.status())) markProviderRefunded(context.orderId(),pp);
-                        else {
+                        if(reconcileProviderRefundsIfPresent(context.orderId(),pp)) {
+                            throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_REFUND_RECONCILIATION_PENDING","A provider refund is present; ticket issuance is paused until refund reconciliation completes");
+                        } else {
                             var reconciled=reconcileCapturedPayment(findPaymentId(context.orderId()),pp);
                             if("FULFILLED".equals(reconciled.status())) throw new ApiException(HttpStatus.CONFLICT,"ORDER_ALREADY_CONFIRMED","Payment was already completed; retrieve the ticket from order recovery");
                             if("REFUND_PENDING".equals(reconciled.status())) completeQueuedRefundIfNeeded(findPaymentId(context.orderId()),"Provider payment captured after checkout recovery");
@@ -207,22 +210,25 @@ public class OrderService {
                     throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_PROVIDER_MISMATCH","A provider order with this receipt does not match this checkout");
                 tx.executeWithoutResult(s->{ payments.findByOrderId(context.orderId()).ifPresent(p->{p.setProviderOrderId(providerOrder.id()); if(p.getProvider()==Enums.PaymentProvider.RAZORPAY)p.setRazorpayOrderId(providerOrder.id()); p.setProviderPublicKey(providerOrder.publicKey());p.setProviderSessionId(providerOrder.sessionId());p.setRazorpayOrderState("READY");paymentStateMachine.transition(p,Enums.PaymentStatus.PENDING);p.setProviderLastError(null);payments.save(p);}); });
                 if("paid".equalsIgnoreCase(providerOrder.status())) {
-                    var recoveredPayment=gateways.forProvider(context.provider()).fetchPaymentsForOrder(providerOrder.id()).stream()
-                            .filter(x -> x.amount()==context.amountMinor() && context.currency().equalsIgnoreCase(x.currency()))
-                            .filter(x -> "captured".equalsIgnoreCase(x.status()) || "refunded".equalsIgnoreCase(x.status()))
-                            .findFirst();
+                    var recoveredPayments = gateways.forProvider(context.provider()).fetchPaymentsForOrder(providerOrder.id());
+                    var recoveredPayment = selectProviderPaymentForReconciliation(
+                            payments.findByOrderId(context.orderId()).orElseThrow(), recoveredPayments);
                     if(recoveredPayment.isPresent()) {
                         var rpPayment=recoveredPayment.get();
                         Long localPaymentId=payments.findByOrderId(context.orderId()).orElseThrow().getId();
-                        if("refunded".equalsIgnoreCase(rpPayment.status())) markProviderRefunded(localPaymentId, rpPayment);
-                        else {
+                        if(reconcileProviderRefundsIfPresent(localPaymentId, rpPayment)) {
+                            throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_REFUND_RECONCILIATION_PENDING","A provider refund is present; ticket issuance is paused until refund reconciliation completes.");
+                        } else {
                             var reconciled=reconcileCapturedPayment(localPaymentId, rpPayment);
                             if("FULFILLED".equals(reconciled.status())) throw new ApiException(HttpStatus.CONFLICT,"ORDER_ALREADY_CONFIRMED","Payment was already completed; retrieve the ticket from order recovery");
+                            if("REFUND_PENDING".equals(reconciled.status())) {
+                                completeQueuedRefundIfNeeded(localPaymentId,"Provider payment captured during receipt-based checkout recovery");
+                            }
                         }
                     }
                     throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_RECOVERY_PENDING","This payment session is already marked paid at the provider. Please use order recovery while we finish reconciliation.");
                 }
-                return new CheckoutResponse(context.publicId().toString(),context.orderNumber(),context.provider().name(),providerOrder.id(),providerOrder.publicKey(),providerOrder.sessionId(),context.amountMinor(),context.currency(),context.reservationExpiresAt(),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());
+                return new CheckoutResponse(context.publicId().toString(),context.orderNumber(),context.provider().name(),providerOrder.id(),providerOrder.publicKey(),providerOrder.sessionId(),context.amountMinor(),context.currency(),context.reservationExpiresAt(),providerCheckoutMode(context.provider()),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());
             }
             if(!"NOT_CREATED".equalsIgnoreCase(context.providerOrderState())) {
                 // The lookup above is authoritative: an empty result means the provider does not
@@ -247,7 +253,7 @@ public class OrderService {
                                 && context.currency().equalsIgnoreCase(providerOrder.currency())
                                 && context.orderNumber().equals(providerOrder.receipt())) {
                             tx.executeWithoutResult(s->{ payments.findByOrderId(context.orderId()).ifPresent(p->{p.setProviderOrderId(providerOrder.id()); if(p.getProvider()==Enums.PaymentProvider.RAZORPAY)p.setRazorpayOrderId(providerOrder.id()); p.setProviderPublicKey(providerOrder.publicKey());p.setProviderSessionId(providerOrder.sessionId());p.setRazorpayOrderState("READY");paymentStateMachine.transition(p,Enums.PaymentStatus.PENDING);p.setProviderLastError(null);payments.save(p);}); });
-                            return new CheckoutResponse(context.publicId().toString(),context.orderNumber(),context.provider().name(),providerOrder.id(),providerOrder.publicKey(),providerOrder.sessionId(),context.amountMinor(),context.currency(),context.reservationExpiresAt(),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());
+                            return new CheckoutResponse(context.publicId().toString(),context.orderNumber(),context.provider().name(),providerOrder.id(),providerOrder.publicKey(),providerOrder.sessionId(),context.amountMinor(),context.currency(),context.reservationExpiresAt(),providerCheckoutMode(context.provider()),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());
                         }
                     }
                 } catch (RuntimeException ignored) { }
@@ -258,7 +264,7 @@ public class OrderService {
                 Payment p=payments.findByOrderId(context.orderId()).orElseThrow();
                 if(p.getProviderOrderId()==null){p.setProviderOrderId(rp.id()); if(p.getProvider()==Enums.PaymentProvider.RAZORPAY)p.setRazorpayOrderId(rp.id()); p.setProviderPublicKey(rp.publicKey());p.setProviderSessionId(rp.sessionId());p.setRazorpayOrderState("READY");paymentStateMachine.transition(p,Enums.PaymentStatus.PENDING);p.setProviderLastError(null);payments.save(p);}
             });
-            return new CheckoutResponse(context.publicId().toString(),context.orderNumber(),context.provider().name(),rp.id(),rp.publicKey(),rp.sessionId(),context.amountMinor(),context.currency(),context.reservationExpiresAt(),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());
+            return new CheckoutResponse(context.publicId().toString(),context.orderNumber(),context.provider().name(),rp.id(),rp.publicKey(),rp.sessionId(),context.amountMinor(),context.currency(),context.reservationExpiresAt(),providerCheckoutMode(context.provider()),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());
         } finally { lock.close(); }
     }
 
@@ -292,16 +298,25 @@ public class OrderService {
                 provider=gateway.fetchPayment(req.providerPaymentId());
             } else {
                 List<PaymentGatewayProvider.ProviderPayment> cashfreePayments = gateway.fetchPaymentsForOrder(lockedPayment.getProviderOrderId());
-                Optional<PaymentGatewayProvider.ProviderPayment> captured = cashfreePayments.stream()
-                        .filter(x->x.amount()==lockedPayment.getAmountMinor()&&lockedPayment.getCurrency().equalsIgnoreCase(x.currency()))
-                        .filter(x->"captured".equalsIgnoreCase(x.status()) && x.captured())
-                        .findFirst();
+                cashfreePayments.forEach(attempt -> recordProviderAttempt(lockedPayment, attempt));
+                Optional<PaymentGatewayProvider.ProviderPayment> captured = selectCapturedPayment(lockedPayment, req.providerPaymentId(), cashfreePayments);
                 if (captured.isEmpty()) {
                     // Cashfree redirects here for both success and user-cancelled/failed attempts.
                     // A missing captured payment is therefore a normal non-final state, not a client error.
                     Order pendingOrder=orders.findById(lockedPayment.getOrderId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
-                    boolean failed = cashfreePayments.stream().anyMatch(x -> "failed".equalsIgnoreCase(x.status()) || "cancelled".equalsIgnoreCase(x.status()));
-                    return new VerifyResponse(pendingOrder.getPublicId().toString(), pendingOrder.getOrderNumber(), failed ? "CANCELLED" : "PENDING", List.of());
+                    boolean inProgress = cashfreePayments.stream().anyMatch(x ->
+                            !x.captured()
+                                    && !"failed".equalsIgnoreCase(x.status())
+                                    && !"cancelled".equalsIgnoreCase(x.status())
+                                    && !"user_dropped".equalsIgnoreCase(x.status()));
+                    boolean failed = !inProgress && !cashfreePayments.isEmpty()
+                            && cashfreePayments.stream().allMatch(x ->
+                                "failed".equalsIgnoreCase(x.status())
+                                        || "cancelled".equalsIgnoreCase(x.status())
+                                        || "user_dropped".equalsIgnoreCase(x.status()));
+                    // A failed/abandoned earlier attempt must not hide a newer pending attempt.
+                    return new VerifyResponse(pendingOrder.getPublicId().toString(), pendingOrder.getOrderNumber(),
+                            failed ? "CANCELLED" : "PENDING", List.of());
                 }
                 provider=captured.get();
             }
@@ -348,6 +363,7 @@ public class OrderService {
             Event event=events.findById(o.getEventId()).orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,"EVENT_NOT_FOUND","Event no longer exists"));
             if(p.getProviderPaymentId()!=null && !Objects.equals(p.getProviderPaymentId(), provider.id()))
                 throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_ID_MISMATCH","A different payment is already associated with this order");
+            recordProviderAttempt(p, provider);
             p.setProviderPaymentId(provider.id()); if(p.getProvider()==Enums.PaymentProvider.RAZORPAY)p.setRazorpayPaymentId(provider.id());
             if(p.getStatus()==Enums.PaymentStatus.REFUND_PENDING) {
                 // A provider capture can legitimately arrive after local compensation was queued.
@@ -366,10 +382,14 @@ public class OrderService {
             boolean eventOpen=PublicEventService.bookingWindowOpen(event, now);
             boolean orderPayable=o.getStatus()==Enums.OrderStatus.CREATED || o.getStatus()==Enums.OrderStatus.AWAITING_PAYMENT;
             if(!reservationValid || !eventOpen || !orderPayable){
+                // A provider capture may legitimately arrive while the local payment is still
+                // PENDING/FAILED/CANCELLED. Record the financial fact first, then queue compensation.
+                transitionToCapturedBeforeRefund(p);
                 paymentStateMachine.transition(p,Enums.PaymentStatus.REFUND_PENDING); payments.save(p);
                 reservationService.releaseOrder(o.getId());
                 if(o.getStatus()!=Enums.OrderStatus.CONFIRMED) o.setStatus(Enums.OrderStatus.CANCELLED);
-                // Queue compensation in the same transaction so a captured payment can never be silently orphaned.
+                // Return REFUND_PENDING so the caller queues compensation immediately after this transaction commits.
+                // The reconciliation sweep is the durable fallback if the caller is interrupted.
                 return new CaptureReconciliation(o.getOrderNumber(),"REFUND_PENDING");
             }
             paymentStateMachine.transition(p,Enums.PaymentStatus.CAPTURED); payments.save(p);
@@ -380,29 +400,47 @@ public class OrderService {
 
     public void completeQueuedRefundIfNeeded(Long paymentId,String reason){ refundService.queueCapturedPaymentRefund(paymentId,reason); }
 
-    public boolean markProviderRefunded(Long paymentId, PaymentGatewayProvider.ProviderPayment provider){
-        Boolean partialResult = tx.execute(status -> {
-            Payment p=payments.findByIdForUpdate(paymentId).orElseThrow();
-            if(p.getStatus()==Enums.PaymentStatus.REFUNDED) return false;
-            if(!Objects.equals(p.getProviderOrderId(), provider.orderId()) || provider.amount()!=p.getAmountMinor() || !p.getCurrency().equalsIgnoreCase(provider.currency()))
-                throw new ApiException(HttpStatus.CONFLICT,"PROVIDER_PAYMENT_MISMATCH","Provider refund does not match local payment");
-            if(p.getProviderPaymentId()!=null && !Objects.equals(p.getProviderPaymentId(), provider.id()))
-                throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_ID_MISMATCH","Provider refund refers to a different payment");
-            p.setProviderPaymentId(provider.id()); if(p.getProvider()==Enums.PaymentProvider.RAZORPAY)p.setRazorpayPaymentId(provider.id());
-            if(provider.amountRefunded() < p.getAmountMinor()) {
-                paymentStateMachine.transition(p,Enums.PaymentStatus.REFUND_PENDING);
-                payments.save(p);
-                return true;
-            }
-            paymentStateMachine.transition(p,Enums.PaymentStatus.REFUNDED);
-            Order o=orders.findById(p.getOrderId()).orElseThrow();
-            if(o.getStatus()!=Enums.OrderStatus.CONFIRMED) o.setStatus(Enums.OrderStatus.CANCELLED);
-            reservationService.releaseOrder(o.getId());
-            tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).forEach(t->{if(t.getStatus()!=Enums.TicketStatus.CHECKED_IN)t.setStatus(Enums.TicketStatus.REFUNDED);});
-            audit.log(null,"PROVIDER_REFUND_RECONCILED","PAYMENT",p.getPublicId().toString(),null);
+    public boolean reconcileProviderRefundsIfPresent(Long paymentId, PaymentGatewayProvider.ProviderPayment providerPayment){
+        if (providerPayment == null || providerPayment.id() == null || providerPayment.id().isBlank()) return false;
+        Payment local = payments.findById(paymentId).orElseThrow(() ->
+                new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_NOT_FOUND", "Payment for provider refund was not found"));
+        boolean refundIndicated = providerPayment.amountRefunded() > 0 || "refunded".equalsIgnoreCase(providerPayment.status());
+        if (!refundIndicated) return false;
+        if (local.getProvider() != Enums.PaymentProvider.RAZORPAY) {
+            // Cashfree refund webhooks are reconciled by CashfreeWebhookService. Keep polling
+            // conservative so a provider-specific refund API is never called with a mismatched ID.
             return false;
-        });
-        return Boolean.TRUE.equals(partialResult);
+        }
+        List<PaymentGatewayProvider.ProviderRefund> providerRefunds = gateways.forPayment(local).fetchRefundsForPayment(providerPayment.id());
+        if (providerRefunds == null || providerRefunds.isEmpty()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "REFUND_LEDGER_UNAVAILABLE",
+                    "Provider reports a refund but no refund transaction could be retrieved; reconciliation is deferred");
+        }
+        boolean activeRefundPresent = false;
+        for (PaymentGatewayProvider.ProviderRefund providerRefund : providerRefunds) {
+            if (providerRefund == null || providerRefund.id() == null || providerRefund.id().isBlank() || providerRefund.amount() <= 0) continue;
+            refundService.reconcileProviderRefund(paymentId, providerRefund.id(), providerRefund.status(), providerRefund.amount(), providerRefund.receipt());
+            String status = providerRefund.status() == null ? "" : providerRefund.status().trim().toLowerCase(Locale.ROOT);
+            if (!(status.equals("failed") || status.equals("failure") || status.equals("cancelled") || status.equals("canceled") || status.equals("rejected")
+                    || status.endsWith("_failed") || status.endsWith("_failure") || status.endsWith("_cancelled") || status.endsWith("_canceled") || status.endsWith("_rejected"))) {
+                activeRefundPresent = true;
+            }
+        }
+        return activeRefundPresent;
+    }
+
+    /**
+     * Provider truth is authoritative once a payment is observed as captured/refunded.
+     * Local payment attempts can still be PENDING/FAILED/CANCELLED because the webhook,
+     * browser verification and reconciliation paths are intentionally asynchronous.
+     */
+    private void transitionToCapturedBeforeRefund(Payment p) {
+        if (p.getStatus() != Enums.PaymentStatus.CAPTURED
+                && p.getStatus() != Enums.PaymentStatus.COMPLETED
+                && p.getStatus() != Enums.PaymentStatus.REFUND_PENDING
+                && p.getStatus() != Enums.PaymentStatus.REFUNDED) {
+            paymentStateMachine.transition(p, Enums.PaymentStatus.CAPTURED);
+        }
     }
 
     private void fulfillOrderLocked(Order o, Payment p, List<TicketReservation> rs){
@@ -437,6 +475,57 @@ public class OrderService {
         });
     }
 
+    /** Persist every provider transaction reference without replacing the authoritative successful payment ID. */
+    public void recordProviderAttempt(Payment payment, PaymentGatewayProvider.ProviderPayment provider) {
+        if (provider == null || provider.id() == null || provider.id().isBlank()) return;
+        String providerPaymentId = provider.id();
+        PaymentAttempt existing = paymentAttempts.findByProviderPaymentId(providerPaymentId).orElse(null);
+        Enums.PaymentStatus attemptStatus = toAttemptStatus(provider.status(), provider.captured());
+
+        if (existing != null) {
+            if (!Objects.equals(existing.getPaymentId(), payment.getId())) {
+                throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ATTEMPT_COLLISION",
+                        "Provider payment reference is already associated with another order");
+            }
+            existing.setProviderOrderId(provider.orderId());
+            existing.setStatus(attemptStatus);
+            existing.setAmountMinor(provider.amount());
+            existing.setCurrency(provider.currency());
+            existing.setProviderMessage(provider.message());
+            paymentAttempts.save(existing);
+            return;
+        }
+
+        // Do not use saveAndFlush + catch here: PostgreSQL marks the surrounding transaction
+        // rollback-only after a unique-key violation. ON CONFLICT keeps the race inside SQL.
+        int inserted = paymentAttempts.insertIgnoreDuplicate(
+                payment.getId(),
+                payment.getProvider().name(),
+                providerPaymentId,
+                provider.orderId(),
+                attemptStatus.name(),
+                provider.amount(),
+                provider.currency(),
+                provider.message());
+
+        if (inserted == 0) {
+            PaymentAttempt concurrent = paymentAttempts.findByProviderPaymentId(providerPaymentId)
+                    .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT,
+                            "PAYMENT_ATTEMPT_CONCURRENCY", "Provider payment attempt could not be reconciled"));
+            if (!Objects.equals(concurrent.getPaymentId(), payment.getId())) {
+                throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_ATTEMPT_COLLISION",
+                        "Provider payment reference is already associated with another order");
+            }
+        }
+    }
+
+    private Enums.PaymentStatus toAttemptStatus(String status, boolean captured) {
+        if (captured || "captured".equalsIgnoreCase(status) || "success".equalsIgnoreCase(status)) return Enums.PaymentStatus.CAPTURED;
+        if ("failed".equalsIgnoreCase(status)) return Enums.PaymentStatus.FAILED;
+        if ("cancelled".equalsIgnoreCase(status) || "user_dropped".equalsIgnoreCase(status)) return Enums.PaymentStatus.CANCELLED;
+        return Enums.PaymentStatus.PENDING;
+    }
+
     public VerifyResponse response(Order o){List<TicketRef> refs=tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream().map(t->new TicketRef(t.getPublicId(),t.getTicketNumber(),accessTokens.issue(t.getPublicId()))).toList();return new VerifyResponse(o.getPublicId().toString(),o.getOrderNumber(),o.getStatus().name(),refs);}
     public CheckoutResponse existingResponse(Order o){return provisionPaymentOrder(o.getId());}
 
@@ -448,6 +537,7 @@ public class OrderService {
     @Scheduled(fixedDelayString = "${app.razorpay.order-recovery-sweep:30000}")
     @ConditionalOnProperty(prefix="app.worker", name="enabled", havingValue="true", matchIfMissing=true)
     public void recoverMissingProviderOrders(){
+        if (!workerEnabled) return;
         locks.withLock("job:provider-order-recovery", java.time.Duration.ofSeconds(55), this::recoverMissingProviderOrdersLocked);
     }
     private void recoverMissingProviderOrdersLocked(){
@@ -469,6 +559,40 @@ public class OrderService {
             }
         }
     }
+    private Optional<PaymentGatewayProvider.ProviderPayment> selectCapturedPayment(Payment localPayment, String requestedPaymentId, List<PaymentGatewayProvider.ProviderPayment> paymentsForOrder) {
+        List<PaymentGatewayProvider.ProviderPayment> candidates = paymentsForOrder.stream()
+                .filter(x -> x.amount() == localPayment.getAmountMinor() && localPayment.getCurrency().equalsIgnoreCase(x.currency()))
+                .filter(x -> "captured".equalsIgnoreCase(x.status()) && x.captured())
+                .toList();
+        String requested = requestedPaymentId == null ? null : requestedPaymentId.trim();
+        if (requested != null && !requested.isBlank()) {
+            return candidates.stream().filter(x -> requested.equals(x.id())).findFirst();
+        }
+        if (localPayment.getProviderPaymentId() != null && !localPayment.getProviderPaymentId().isBlank()) {
+            return candidates.stream().filter(x -> localPayment.getProviderPaymentId().equals(x.id())).findFirst();
+        }
+        if (candidates.size() == 1) return Optional.of(candidates.get(0));
+        if (candidates.size() > 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "MULTIPLE_CAPTURED_PAYMENTS", "Multiple captured payments were found for this order; use the provider transaction ID to reconcile the order");
+        }
+        return Optional.empty();
+    }
+
+    Optional<PaymentGatewayProvider.ProviderPayment> selectProviderPaymentForReconciliation(Payment localPayment, List<PaymentGatewayProvider.ProviderPayment> paymentsForOrder) {
+        List<PaymentGatewayProvider.ProviderPayment> candidates = paymentsForOrder.stream()
+                .filter(x -> x.amount() == localPayment.getAmountMinor() && localPayment.getCurrency().equalsIgnoreCase(x.currency()))
+                .filter(x -> "captured".equalsIgnoreCase(x.status()) || "refunded".equalsIgnoreCase(x.status()))
+                .toList();
+        if (localPayment.getProviderPaymentId() != null && !localPayment.getProviderPaymentId().isBlank()) {
+            return candidates.stream().filter(x -> localPayment.getProviderPaymentId().equals(x.id())).findFirst();
+        }
+        if (candidates.size() == 1) return Optional.of(candidates.get(0));
+        if (candidates.size() > 1) {
+            throw new ApiException(HttpStatus.CONFLICT, "MULTIPLE_CAPTURED_PAYMENTS", "Multiple provider payments were found for this order; reconcile using the provider transaction ID");
+        }
+        return Optional.empty();
+    }
+
     public void validateProviderPayment(Payment p,PaymentGatewayProvider.ProviderPayment provider){
         if(provider.id()==null||!Objects.equals(p.getProviderOrderId(),provider.orderId())) throw new ApiException(HttpStatus.BAD_REQUEST,"PAYMENT_MISMATCH","Payment does not belong to this order");
         if(provider.amount()!=p.getAmountMinor()||!p.getCurrency().equalsIgnoreCase(provider.currency())) throw new ApiException(HttpStatus.BAD_REQUEST,"PAYMENT_AMOUNT_MISMATCH","Payment amount could not be verified");
@@ -483,14 +607,27 @@ public class OrderService {
         if(normalized.matches("(?i)^LK-[A-Z0-9]{12}$")) {
             o=orders.findByOrderNumber(normalized.toUpperCase()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
         } else {
-            Payment providerPayment=payments.findByProviderPaymentId(normalized).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
-            o=orders.findById(providerPayment.getOrderId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+            Optional<Payment> providerPayment = payments.findByProviderPaymentId(normalized);
+            if (providerPayment.isPresent()) {
+                o = orders.findById(providerPayment.get().getOrderId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+            } else {
+                PaymentAttempt attempt = paymentAttempts.findByProviderPaymentId(normalized)
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+                Payment localPayment = payments.findById(attempt.getPaymentId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+                o = orders.findById(localPayment.getOrderId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
+            }
         }
         if(!o.getCustomerEmail().equalsIgnoreCase(email.trim()))throw new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found");
         Event e=events.findById(o.getEventId()).orElseThrow();
-        List<PublicEventControllerTicket> ts=tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream()
-                .filter(t->t.getStatus()!=Enums.TicketStatus.CANCELLED && t.getStatus()!=Enums.TicketStatus.REFUNDED)
-                .map(t->new PublicEventControllerTicket(t.getPublicId(),t.getTicketNumber(),accessTokens.issue(t.getPublicId()))).toList();
+        List<PublicEventControllerTicket> ts = o.getStatus() == Enums.OrderStatus.CONFIRMED
+                ? tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream()
+                    .filter(t -> t.getStatus() != Enums.TicketStatus.CANCELLED && t.getStatus() != Enums.TicketStatus.REFUNDED)
+                    .map(t -> new PublicEventControllerTicket(t.getPublicId(), t.getTicketNumber(), accessTokens.issue(t.getPublicId())))
+                    .toList()
+                : List.of();
         return new RecoveryOrder(o.getOrderNumber(),o.getStatus(),e.getName(),ts);
     }
     private String bookingBlockCode(Event event, Instant now) {
@@ -527,7 +664,13 @@ public class OrderService {
         return actual.equals(expected);
     }
     private ProviderOrderContext context(Long orderId){Order o=orders.findById(orderId).orElseThrow();Payment p=payments.findByOrderId(orderId).orElseThrow();return new ProviderOrderContext(orderId,o.getPublicId(),o.getOrderNumber(),p.getProviderOrderId(),p.getAmountMinor(),p.getCurrency(),minReservationExpiry(orderId),true,null,p.getRazorpayOrderState(),o.getCustomerName(),o.getCustomerEmail(),o.getCustomerPhone(),p.getProvider());}
-    private CheckoutResponse responseForCheckout(ProviderOrderContext c, String checkoutSessionToken){var p=payments.findByOrderId(c.orderId()).orElseThrow();return new CheckoutResponse(c.publicId().toString(),c.orderNumber(),c.provider().name(),c.providerOrderId(),p.getProviderPublicKey(),p.getProviderSessionId(),c.amountMinor(),c.currency(),c.reservationExpiresAt(),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());}
+    private CheckoutResponse responseForCheckout(ProviderOrderContext c, String checkoutSessionToken){var p=payments.findByOrderId(c.orderId()).orElseThrow();return new CheckoutResponse(c.publicId().toString(),c.orderNumber(),c.provider().name(),c.providerOrderId(),p.getProviderPublicKey(),p.getProviderSessionId(),c.amountMinor(),c.currency(),c.reservationExpiresAt(),providerCheckoutMode(c.provider()),checkoutSessionToken,props.checkout().sessionTtl().toSeconds());}
+    private String providerCheckoutMode(Enums.PaymentProvider provider) {
+        if (provider != Enums.PaymentProvider.CASHFREE || props.cashfree() == null) return null;
+        String baseUrl = props.cashfree().baseUrl();
+        return baseUrl != null && baseUrl.toLowerCase(Locale.ROOT).contains("sandbox") ? "sandbox" : "production";
+    }
+
     private record LocalCheckout(Long orderId, String checkoutSessionToken){}
     private String newCheckoutSessionToken(){
         byte[] b=new byte[32]; secureRandom.nextBytes(b);

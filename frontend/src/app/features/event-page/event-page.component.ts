@@ -146,7 +146,7 @@ import { environment } from '../../../environments/environment';
               <div class="summary" aria-live="polite">
                 <div><span>{{ cartCount() }} {{ cartCount() === 1 ? 'ticket' : 'tickets' }}</span><strong>{{ money(cartTotal(), e.currency) }}</strong></div>
                 <button class="btn btn-primary" type="button" [disabled]="cartCount() === 0 || !bookable(e)" (click)="continueToCheckout()">Continue to checkout →</button>
-                <p class="fine">Final price is confirmed securely at checkout. Payments by Razorpay.</p>
+                <p class="fine">Final price is confirmed securely at checkout. Payments by {{ providerLabel(e) }}.</p>
               </div>
             </div>
           </aside>
@@ -286,6 +286,7 @@ export class EventPageComponent implements OnInit {
   mapLink(e: EventView) { return e.mapUrl && /^https:\/\//i.test(e.mapUrl) ? e.mapUrl : null; }
   paragraphs(text?: string | null) { return (text || '').split(/\n{1,}/).map(x => x.trim()).filter(Boolean); }
   label(e: EventView) { return SALES_LABEL[e.salesState || 'AVAILABLE'] || ''; }
+  providerLabel(e: EventView) { return e.paymentProvider === 'CASHFREE' ? 'Cashfree' : 'Razorpay'; }
   longDate(e: EventView) { return eventLongDate(e.startsAt, e.timezone); }
   time(e: EventView) { return eventTime(e.startsAt, e.timezone); }
   endTime(e: EventView) { return eventTime(e.endsAt, e.timezone); }

@@ -1,28 +1,142 @@
-# Prometheus rule examples. Integrate into the platform's existing Prometheus stack.
 groups:
-  - name: lakhdatar-events
+  - name: lakhdatar-symptoms
+    interval: 30s
     rules:
-      - alert: LakhdatarBackendDown
-        expr: up{job=~"lakhdatar-backend.*"} == 0
+      - alert: LakhdatarPostgresExporterDown
+        expr: up{job="postgresql"} == 0
         for: 2m
-        labels: {severity: critical}
+        labels: {severity: critical, service: database}
         annotations:
-          summary: Lakhdatar backend target is down
-      - alert: LakhdatarHigh5xxRate
-        expr: sum(rate(http_server_requests_seconds_count{application="lakhdatar-events-backend",status=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{application="lakhdatar-events-backend"}[5m])), 1) > 0.02
+          summary: PostgreSQL monitoring exporter is down
+          description: Prometheus cannot scrape the PostgreSQL exporter. Database health may be unknown.
+      - alert: LakhdatarRedisExporterDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels: {severity: critical, service: redis}
+        annotations:
+          summary: Redis monitoring exporter is down
+          description: Prometheus cannot scrape the Redis exporter. Redis health may be unknown.
+      - alert: LakhdatarNginxExporterDown
+        expr: up{job="nginx-edge"} == 0
+        for: 2m
+        labels: {severity: warning, service: edge}
+        annotations:
+          summary: NGINX edge metrics are unavailable
+      - alert: LakhdatarBusinessMetricRefreshStale
+        expr: time() - lakhdatar_observability_last_refresh_timestamp_seconds > 120
         for: 5m
-        labels: {severity: critical}
+        labels: {severity: warning, service: backend}
         annotations:
-          summary: Lakhdatar backend 5xx rate exceeds 2%
+          summary: Business metric refresh is stale
+          description: The backend business-metric snapshot has not refreshed within two minutes.
+      - alert: LakhdatarPublicSiteDown
+        expr: lakhdatar:public_site_probe_success:5m < 1
+        for: 2m
+        labels: {severity: critical, service: public-edge}
+        annotations:
+          summary: Public Neelastack Events endpoint is unavailable
+          description: At least one synthetic public endpoint probe has been failing for more than two minutes.
+      - alert: LakhdatarPublicApiDown
+        expr: lakhdatar:public_api_probe_success:5m < 1
+        for: 2m
+        labels: {severity: critical, service: public-api}
+        annotations:
+          summary: Public Neelastack Events API is unavailable
+          description: The critical public events API synthetic probe has been failing for more than two minutes.
+      - alert: LakhdatarBusinessMetricRefreshErrors
+        expr: increase(lakhdatar_observability_refresh_errors_total[10m]) > 0
+        for: 5m
+        labels: {severity: warning, service: backend}
+        annotations:
+          summary: Business observability refresh is failing
+          description: One or more business-metric refresh cycles failed during the last ten minutes.
+      - alert: LakhdatarBackendDown
+        expr: up{job="lakhdatar-backend"} == 0
+        for: 2m
+        labels: {severity: critical, service: backend}
+        annotations:
+          summary: Lakhdatar backend is down
+      - alert: LakhdatarHigh5xxRate
+        expr: lakhdatar:http_5xx_ratio:5m > 0.02
+        for: 5m
+        labels: {severity: critical, service: backend}
+        annotations:
+          summary: Backend 5xx rate exceeds 2%
       - alert: LakhdatarHighLatency
-        expr: histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application="lakhdatar-events-backend"}[5m])) by (le)) > 1
+        expr: lakhdatar:http_p95_seconds:5m > 1
         for: 10m
-        labels: {severity: warning}
+        labels: {severity: warning, service: backend}
         annotations:
-          summary: Lakhdatar backend p95 latency exceeds 1 second
-      - alert: LakhdatarDatabasePoolExhaustion
+          summary: Backend p95 latency exceeds one second
+      - alert: LakhdatarDatabaseUnavailable
+        expr: lakhdatar_dependency_database_up == 0
+        for: 2m
+        labels: {severity: critical, service: database}
+        annotations:
+          summary: PostgreSQL dependency is unavailable
+      - alert: LakhdatarRedisUnavailable
+        expr: lakhdatar_dependency_redis_up == 0
+        for: 2m
+        labels: {severity: critical, service: redis}
+        annotations:
+          summary: Redis dependency is unavailable
+      - alert: LakhdatarDatabasePoolWaiting
         expr: hikaricp_connections_pending{application="lakhdatar-events-backend"} > 0
         for: 5m
-        labels: {severity: warning}
+        labels: {severity: warning, service: database}
         annotations:
           summary: Requests are waiting for database connections
+      - alert: LakhdatarStalePayments
+        expr: lakhdatar_payments_stale > 0
+        for: 10m
+        labels: {severity: critical, service: payments}
+        annotations:
+          summary: Payment reconciliation queue contains stale payments
+      - alert: LakhdatarWebhookStuck
+        expr: lakhdatar_webhooks_stuck > 0
+        for: 5m
+        labels: {severity: critical, service: payments}
+        annotations:
+          summary: Payment webhook jobs are stuck
+      - alert: LakhdatarWebhookBacklog
+        expr: lakhdatar_webhooks_backlog > 10
+        for: 10m
+        labels: {severity: warning, service: payments}
+        annotations:
+          summary: Payment webhook backlog is growing
+      - alert: LakhdatarRefundBacklog
+        expr: lakhdatar_refunds_pending > 0
+        for: 15m
+        labels: {severity: warning, service: refunds}
+        annotations:
+          summary: Refunds remain pending for more than fifteen minutes
+      - alert: LakhdatarMailFailures
+        expr: lakhdatar_mail_failed > 5
+        for: 10m
+        labels: {severity: warning, service: mail}
+        annotations:
+          summary: Ticket mail failures exceed five jobs
+      - alert: LakhdatarReservationCleanupStalled
+        expr: lakhdatar_reservations_expired > 25
+        for: 10m
+        labels: {severity: warning, service: reservations}
+        annotations:
+          summary: Expired ticket reservations are accumulating
+      - alert: LakhdatarJvmHeapHigh
+        expr: sum(jvm_memory_used_bytes{application="lakhdatar-events-backend",area="heap"}) / clamp_min(sum(jvm_memory_max_bytes{application="lakhdatar-events-backend",area="heap"}), 1) > 0.85
+        for: 10m
+        labels: {severity: warning, service: backend}
+        annotations:
+          summary: JVM heap usage exceeds 85%
+      - alert: LakhdatarContainerRestarting
+        expr: sum by (name) (changes(container_start_time_seconds[15m])) > 2
+        for: 5m
+        labels: {severity: warning, service: containers}
+        annotations:
+          summary: A production container is repeatedly restarting
+      - alert: LakhdatarHostDiskLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) < 0.15
+        for: 10m
+        labels: {severity: critical, service: host}
+        annotations:
+          summary: Root filesystem has less than 15% free space

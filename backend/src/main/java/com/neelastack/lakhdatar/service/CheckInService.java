@@ -67,9 +67,9 @@ public class CheckInService {
         if (op.isEmpty()) return record(Enums.CheckInResult.INVALID, "Invalid ticket", null, r, e.getId(), 0, 0);
         Ticket t = op.get();
         if (!qr.verifyCredential(r.credential(), t.getPublicId(), t.getQrCredentialHash()))
-            return record(Enums.CheckInResult.INVALID, "Invalid ticket credential", t, r, e.getId(), 0, 0);
+            return record(Enums.CheckInResult.INVALID, "Invalid ticket credential", t, r, e.getId(), 0, 0, false);
         if (!t.getEventId().equals(e.getId()))
-            return record(Enums.CheckInResult.WRONG_EVENT, "Ticket belongs to a different event", t, r, e.getId(), 0, 0);
+            return record(Enums.CheckInResult.WRONG_EVENT, "Ticket belongs to a different event", t, r, e.getId(), 0, 0, false);
 
         List<Ticket> orderTickets = tickets.findByOrderIdOrderByTicketNumberAsc(t.getOrderId());
         long orderTicketCount = orderTickets.size();
@@ -92,6 +92,10 @@ public class CheckInService {
     }
 
     private ScanResult record(Enums.CheckInResult result, String msg, Ticket t, ScanRequest r, Long eventId, int ticketPosition, long orderTicketCount) {
+        return record(result, msg, t, r, eventId, ticketPosition, orderTicketCount, true);
+    }
+
+    private ScanResult record(Enums.CheckInResult result, String msg, Ticket t, ScanRequest r, Long eventId, int ticketPosition, long orderTicketCount, boolean exposeTicket) {
         TicketCheckin c = new TicketCheckin();
         c.setEventId(eventId);
         c.setTicketId(t == null ? null : t.getId());
@@ -101,6 +105,7 @@ public class CheckInService {
         c.setCorrelationId(r.correlationId());
         checkins.save(c);
         audit.log(r.staffUserId(), result == Enums.CheckInResult.ACCEPTED ? "CHECKIN_ACCEPTED" : "CHECKIN_REJECTED", "TICKET", t == null ? "unknown" : t.getPublicId().toString(), r.correlationId());
+        if (!exposeTicket) return new ScanResult(result, msg, null, null, null, null, 0, 0);
         String ticketType = t == null ? null : ticketTypes.findById(t.getTicketTypeId()).map(TicketType::getName).orElse(null);
         String issuer = t != null && t.getIssuedByUserId() != null ? users.findById(t.getIssuedByUserId()).map(User::getFullName).orElse(null) : null;
         String source = t == null || t.getSource() == null ? null : t.getSource().name();

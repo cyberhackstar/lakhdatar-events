@@ -32,19 +32,17 @@ public class ReconciliationJob {
     }
     private void reconcileLocked(){
         Instant cutoff=Instant.now().minusMillis(props.payment().reconciliationAgeMs());
-        List<Enums.PaymentStatus> states=List.of(Enums.PaymentStatus.CREATED,Enums.PaymentStatus.PENDING,Enums.PaymentStatus.PAYMENT_INITIATED,Enums.PaymentStatus.AUTHORIZED,Enums.PaymentStatus.CAPTURED);
+        List<Enums.PaymentStatus> states=List.of(Enums.PaymentStatus.CREATED,Enums.PaymentStatus.PENDING,Enums.PaymentStatus.PAYMENT_INITIATED,Enums.PaymentStatus.AUTHORIZED,Enums.PaymentStatus.CAPTURED,Enums.PaymentStatus.COMPLETED);
         Instant now=Instant.now();
         Instant windowStart=now.minus(Duration.ofHours(Math.max(1,windowHours)));
         Instant recheckBefore=now.minusMillis(Math.max(0,recheckMs));
         for(Payment p:payments.findReconciliationCandidates(states,cutoff,windowStart,recheckBefore,PageRequest.of(0,100))){
             try{
                 if(p.getProviderOrderId()==null) continue;
-                var provider=gateways.forPayment(p).fetchPaymentsForOrder(p.getProviderOrderId()).stream()
-                        .filter(x->"captured".equalsIgnoreCase(x.status())||"refunded".equalsIgnoreCase(x.status()))
-                        .filter(x->x.amount()==p.getAmountMinor() && p.getCurrency().equalsIgnoreCase(x.currency()))
-                        .findFirst();
+                var providerPayments = gateways.forPayment(p).fetchPaymentsForOrder(p.getProviderOrderId());
+                var provider = orders.selectProviderPaymentForReconciliation(p, providerPayments);
                 if(provider.isPresent()){
-                    if("refunded".equalsIgnoreCase(provider.get().status())) orders.markProviderRefunded(p.getId(),provider.get());
+                    if(orders.reconcileProviderRefundsIfPresent(p.getId(),provider.get())) { /* provider refund is already being reconciled */ }
                     else {var result=orders.reconcileCapturedPayment(p.getId(),provider.get()); if("REFUND_PENDING".equals(result.status())) orders.completeQueuedRefundIfNeeded(p.getId(),"Reservation expired before payment reconciliation");}
                 }
             }catch(Exception ex){log.warn("Payment reconciliation deferred paymentId={}",p.getId());}

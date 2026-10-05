@@ -119,10 +119,14 @@ class EnterpriseScaleContractTest {
         String list = read("../frontend/src/app/features/admin/events-list.component.ts");
         assertTrue(editor.contains("get canPublish(): boolean"));
         assertTrue(editor.contains("An event in the past cannot be published."));
-        assertTrue(editor.contains("action === 'publish' && !this.canPublish"));
-        assertTrue(editor.contains("action === 'complete' && !this.canComplete"));
+        assertTrue(editor.contains("if (action === 'publish')"));
+        assertTrue(editor.contains("if (!readiness.ready)"));
+        assertTrue(editor.contains("!this.event || !['DRAFT', 'UNPUBLISHED'].includes(this.event.status)"));
+        assertTrue(editor.contains("publishReadiness"));
+        assertTrue(editor.contains("Publication readiness could not be verified"));
         assertTrue(editor.contains("Only a published event can be unpublished."));
-        assertTrue(list.contains("canPublish(e)"));
+        assertTrue(list.contains("this.api.publishReadiness(e.id)"));
+        assertTrue(list.contains("this.api.publishEvent(e.id)"));
         assertTrue(list.contains("e.status === 'DRAFT' || e.status === 'UNPUBLISHED'"));
     }
 
@@ -156,22 +160,53 @@ class EnterpriseScaleContractTest {
         assertTrue(containsNormalized(apiToken, "if (typeof window !== 'undefined' && environment.production) return '/api/v1';"));
         assertTrue(auth.contains("inject(API_BASE_URL)"));
         assertFalse(apiToken.contains("events.neelastack.com:8080"));
-        // Validate observable payment-result behavior without relying on comments or exact indentation.
-        assertTrue(containsNormalized(paymentResult, "error: e => {"),
-                "payment-result verification error handler must exist");
-        assertFalse(containsNormalized(paymentResult, "error: e => { this.router.navigateByUrl('/recover'"),
+        // Inspect only the verification method body so unrelated routing on the missing-state path
+        // cannot make this contract brittle. Validate behavior, not formatting or comment wording.
+        int verifyStart = paymentResult.indexOf("private verifyReturnedOrder");
+        int retryStart = paymentResult.indexOf("private scheduleReturnVerification", verifyStart);
+        assertTrue(verifyStart >= 0 && retryStart > verifyStart, "payment-result verification method must exist");
+        String verifyBlock = paymentResult.substring(verifyStart, retryStart);
+        assertTrue(verifyBlock.contains("verifyPayment("), "payment-result must verify the returned order");
+        assertTrue(verifyBlock.contains("error:"), "payment-result verification must handle provider errors");
+        assertFalse(verifyBlock.contains("navigateByUrl('/recover'"),
                 "transient provider verification failures must not force navigation to recovery");
-        assertTrue(containsNormalized(paymentResult,
-                "this.result = { orderPublicId: '', orderNumber: recoveryOrder || providerOrderId, status: 'PENDING', tickets: [] };"),
+        assertTrue(verifyBlock.contains("recoveryOrder || providerOrderId"),
                 "verification failures must preserve a recoverable order reference");
-        assertTrue(containsNormalized(paymentResult,
-                "if (this.returnAttempt < this.maxReturnAttempts) this.scheduleReturnVerification(providerOrderId);"),
+        assertTrue(verifyBlock.contains("status: 'PENDING'"),
+                "verification failures must remain recoverable/pending");
+        assertTrue(verifyBlock.contains("scheduleReturnVerification(providerOrderId)"),
                 "verification failures must use bounded retry");
-        assertTrue(paymentResult.contains("maxReturnAttempts = 8"));
+        assertTrue(paymentResult.contains("maxReturnAttempts = 4"));
         assertTrue(recover.contains("Cashfree transaction ID"));
         assertTrue(containsNormalized(recover, "finalize(() => { this.loading = false; })"));
         assertTrue(orderService.contains("findByProviderPaymentId(normalized)"));
         assertTrue(containsNormalized(orderService, "if(verifiedOrder.getStatus()==Enums.OrderStatus.CONFIRMED) return response(verifiedOrder);"));
+    }
+
+    @Test
+    void productionObservabilityStackIsProvisionedAndPrivateByDefault() throws Exception {
+        String compose = read("../infra/monitoring/docker-compose.observability.yml");
+        String prometheus = read("../infra/monitoring/prometheus.yml");
+        String alerts = read("../infra/monitoring/alerts.yml");
+        String grafanaProviders = read("../infra/monitoring/grafana/provisioning/dashboards/dashboards.yml");
+        assertTrue(compose.contains("prom/prometheus"));
+        assertTrue(compose.contains("grafana/grafana"));
+        assertTrue(compose.contains("grafana/loki"));
+        assertTrue(compose.contains("grafana/tempo"));
+        assertTrue(compose.contains("grafana/alloy"));
+        assertTrue(compose.contains("127.0.0.1:${GRAFANA_PORT:-3100}:3000"));
+        assertFalse(compose.contains("depends_on:\n      postgres:"));
+        assertFalse(compose.contains("depends_on:\n      edge:"));
+        assertTrue(prometheus.contains("/actuator/prometheus"));
+        assertTrue(prometheus.contains("blackbox-exporter:9115"));
+        assertTrue(alerts.contains("LakhdatarPublicSiteDown"));
+        assertTrue(alerts.contains("LakhdatarStalePayments"));
+        assertTrue(grafanaProviders.contains("foldersFromFilesStructure: true"));
+        assertTrue(Files.isRegularFile(Path.of("../infra/monitoring/grafana/dashboards/sre-overview.json")));
+        assertTrue(Files.isRegularFile(Path.of("../infra/monitoring/grafana/dashboards/application.json")));
+        assertTrue(Files.isRegularFile(Path.of("../infra/monitoring/grafana/dashboards/infrastructure.json")));
+        assertTrue(Files.isRegularFile(Path.of("../infra/monitoring/grafana/dashboards/business-operations.json")));
+        assertTrue(prometheus.contains("https://events.neelastack.com/api/v1/public/events/featured"));
     }
 
     @Test

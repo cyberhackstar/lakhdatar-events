@@ -274,7 +274,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     }
 
     try {
-      const cashfree = cashfreeFactory({ mode: environment.production ? 'production' : 'sandbox' });
+      const cashfree = cashfreeFactory({ mode: response.providerCheckoutMode || (environment.production ? 'production' : 'sandbox') });
       // Use Cashfree's supported hosted redirect for all browsers. This avoids embedding
       // Cashfree inside a third-party iframe whose own CSP can reject api.cashfree.com,
       // and it also removes the mobile blur/overlay while navigation starts.

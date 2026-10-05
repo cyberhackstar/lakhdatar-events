@@ -56,6 +56,7 @@ public class EventManagementService {
     public record AdminTicketView(UUID id, String name, String description, long priceMinorUnits, String currency,
                                   int totalQuantity, int soldQuantity, int reservedQuantity, int availableQuantity,
                                   int minPerOrder, int maxPerOrder, String status, Instant saleStartsAt, Instant saleEndsAt) {}
+    public record PublishReadinessView(boolean ready, List<String> blockers, List<String> warnings) {}
     public record AdminEventView(UUID id, String slug, String name, String shortDescription, String description,
                                  String category, Instant startsAt, Instant endsAt, Integer capacity, String timezone,
                                  String currency, String venueName, String venueAddress, String city, String state,
@@ -195,6 +196,22 @@ public class EventManagementService {
                 bFor(e).getBrandingMode(), bFor(e).getOrganizerLogoUrl(), bFor(e).getEventLogoUrl(), bFor(e).getEventBannerUrl(), tv);
     }
 
+    @Transactional(readOnly = true)
+    public PublishReadiness.Result publishReadiness(UUID eventPublicId, Long actorId, String role) {
+        Event e = managed(eventPublicId, actorId, role);
+        List<TicketType> typeList = ticketTypes.findByEventIdOrderByPriceMinorUnitsAsc(e.getId());
+        boolean hasTickets = !typeList.isEmpty();
+        boolean hasActive = typeList.stream().anyMatch(t -> t.getStatus() == Enums.TicketTypeStatus.ACTIVE);
+        boolean providerConfigured;
+        try {
+            providerConfigured = paymentGateways.forProvider(e.getPaymentProvider()).isConfigured();
+        } catch (RuntimeException ex) {
+            providerConfigured = false;
+        }
+        return PublishReadiness.evaluate(role, e.getStatus(), e.getStartsAt(), e.getEndsAt(),
+                e.getBookingStartsAt(), e.getBookingEndsAt(), hasTickets, hasActive, providerConfigured);
+    }
+
     @Transactional
     public void publish(UUID eventPublicId, Long actorId, String role) {
         if (!organizerManagementRole(role))
@@ -205,13 +222,19 @@ public class EventManagementService {
         Event e = managedEvent;
         // Publishing is idempotent so duplicate clicks/retries cannot create noisy 409s.
         if (e.getStatus() == Enums.EventStatus.PUBLISHED) return;
-        if (ticketTypes.findByEventIdOrderByPriceMinorUnitsAsc(e.getId()).isEmpty())
-            throw new ApiException(HttpStatus.CONFLICT, "NO_TICKETS", "Add at least one ticket type before publishing");
+        List<TicketType> typeList = ticketTypes.findByEventIdOrderByPriceMinorUnitsAsc(e.getId());
+        boolean hasTickets = !typeList.isEmpty();
+        boolean hasActive = typeList.stream().anyMatch(t -> t.getStatus() == Enums.TicketTypeStatus.ACTIVE);
+        boolean providerConfigured;
+        try { providerConfigured = paymentGateways.forProvider(e.getPaymentProvider()).isConfigured(); }
+        catch (RuntimeException ex) { providerConfigured = false; }
+        PublishReadiness.Result readiness = PublishReadiness.evaluate(role, e.getStatus(), e.getStartsAt(), e.getEndsAt(),
+                e.getBookingStartsAt(), e.getBookingEndsAt(), hasTickets, hasActive, providerConfigured);
+        if (!readiness.ready()) {
+            String detail = readiness.blockers().isEmpty() ? "Event is not ready to publish" : readiness.blockers().get(0);
+            throw new ApiException(HttpStatus.CONFLICT, "PUBLISH_NOT_READY", detail);
+        }
         Instant now = Instant.now();
-        if (e.getStartsAt().isBefore(now))
-            throw new ApiException(HttpStatus.CONFLICT, "EVENT_STARTED", "An event in the past cannot be published");
-        if (e.getStatus() != Enums.EventStatus.DRAFT && e.getStatus() != Enums.EventStatus.UNPUBLISHED)
-            throw new ApiException(HttpStatus.CONFLICT, "INVALID_TRANSITION", "Only draft or unpublished events can be published");
         if (e.getBookingEndsAt() == null && e.getEndsAt() != null) e.setBookingEndsAt(e.getEndsAt());
         validateWindow(e.getBookingStartsAt(), e.getBookingEndsAt(), e.getStartsAt(), e.getEndsAt());
         e.setStatus(Enums.EventStatus.PUBLISHED);
@@ -381,7 +404,7 @@ public class EventManagementService {
     private long paymentsForEvent(Long eventId) { return payments.sumSuccessfulByEventId(eventId, java.util.List.of(Enums.PaymentStatus.PENDING, Enums.PaymentStatus.PAYMENT_INITIATED, Enums.PaymentStatus.AUTHORIZED, Enums.PaymentStatus.CAPTURED, Enums.PaymentStatus.COMPLETED, Enums.PaymentStatus.REFUND_PENDING, Enums.PaymentStatus.REFUNDED)); }
     private BrandConfiguration bFor(Event e) { return e.getBrandConfigId() == null ? new BrandConfiguration() : brands.findById(e.getBrandConfigId()).orElse(new BrandConfiguration()); }
     private String parseBrandingMode(String raw) { if (raw == null || raw.isBlank()) return "BOTH"; String v=raw.trim().toUpperCase(Locale.ROOT); if (!java.util.Set.of("TEXT_ONLY","LOGO_ONLY","BOTH").contains(v)) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_BRANDING_MODE","Unsupported branding display mode"); return v; }
-    private Enums.PaymentProvider parsePaymentProvider(String raw) { if (raw == null || raw.isBlank()) return Enums.PaymentProvider.RAZORPAY; try { return Enums.PaymentProvider.valueOf(raw.trim().toUpperCase(Locale.ROOT)); } catch (IllegalArgumentException ex) { throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PAYMENT_PROVIDER","Unsupported payment provider"); } }
+    private Enums.PaymentProvider parsePaymentProvider(String raw) { if (raw == null || raw.isBlank()) return paymentGateways.defaultProvider(); try { return Enums.PaymentProvider.valueOf(raw.trim().toUpperCase(Locale.ROOT)); } catch (IllegalArgumentException ex) { throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PAYMENT_PROVIDER","Unsupported payment provider"); } }
     private void require(boolean ok, String message) { if (!ok) throw new ApiException(HttpStatus.CONFLICT, "INVALID_TRANSITION", message); }
     private void validateWindow(Instant from, Instant to, Instant eventStart, Instant eventEnd) {
         Instant effectiveEventEnd = eventEnd != null ? eventEnd : eventStart;

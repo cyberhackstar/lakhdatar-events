@@ -4,6 +4,7 @@ import com.neelastack.lakhdatar.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,9 +20,12 @@ public class RefreshTokenCleanupJob {
     private final RefreshTokenRepository refreshTokens;
     private final DistributedLockService locks;
 
+    @Value("${app.worker.enabled:true}") private boolean workerEnabled;
+
     @Scheduled(fixedDelayString = "${app.auth.cleanup-sweep:3600000}")
     @Transactional
     public void sweep() {
+        if (!workerEnabled) return;
         if (!locks.withLock("job:refresh-token-cleanup", Duration.ofMinutes(5), () -> deleteExpired())) return;
     }
 

@@ -109,6 +109,7 @@ export interface CheckoutResponse {
   amountMinorUnits: number;
   currency: string;
   reservationExpiresAt: string;
+  providerCheckoutMode?: 'sandbox' | 'production';
 }
 
 export interface VerifyResponse {
@@ -161,6 +162,8 @@ export interface AdminTicketView {
   totalQuantity: number; soldQuantity: number; reservedQuantity: number; availableQuantity: number;
   minPerOrder: number; maxPerOrder: number; status: string; saleStartsAt?: string; saleEndsAt?: string;
 }
+
+export interface PublishReadiness { ready: boolean; blockers: string[]; warnings: string[]; }
 
 export interface AdminEventView {
   id: string; slug: string; name: string; shortDescription?: string; description?: string; category: string;

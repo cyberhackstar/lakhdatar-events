@@ -9,8 +9,8 @@ import com.neelastack.lakhdatar.domain.PaymentWebhookEvent;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.PaymentRepository;
 import com.neelastack.lakhdatar.repository.PaymentWebhookEventRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.Locale;
 
 @Service
 public class CashfreeWebhookService {
@@ -89,6 +90,15 @@ public class CashfreeWebhookService {
         String paymentId = pay.path("cf_payment_id").asText(null); String status = pay.path("payment_status").asText("");
         if (orderId == null) return;
         Payment p = payments.findByProviderOrderId(orderId).orElseThrow(() -> new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_NOT_LINKED", "Cashfree webhook arrived before the local payment was linked"));
+        if (paymentId != null && !paymentId.isBlank() && pay.hasNonNull("payment_amount")) {
+            long amount = toMinorUnits(pay, "payment_amount");
+            String currency = pay.path("payment_currency").asText(p.getCurrency());
+            String normalizedStatus = normalizeAttemptStatus(status);
+            var providerAttempt = new PaymentGatewayProvider.ProviderPayment(
+                    paymentId, orderId, amount, currency, normalizedStatus.name().toLowerCase(Locale.ROOT),
+                    pay.path("payment_message").asText(null), 0, null, Enums.PaymentStatus.CAPTURED == normalizedStatus);
+            orders.recordProviderAttempt(p, providerAttempt);
+        }
         if (refund.hasNonNull("refund_id")) {
             String refundId = refund.path("refund_id").asText(null); long refundAmount = toMinorUnits(refund, "refund_amount"); String refundStatus = refund.path("refund_status").asText("");
             if (refundId != null && refundAmount >= 0) refundService.reconcileProviderRefund(p.getId(), refundId, refundStatus, refundAmount);
@@ -102,6 +112,13 @@ public class CashfreeWebhookService {
             var result = orders.reconcileCapturedPayment(p.getId(), normalized);
             if ("REFUND_PENDING".equals(result.status())) orders.completeQueuedRefundIfNeeded(p.getId(), "Cashfree payment captured after checkout recovery");
         }
+    }
+
+    private Enums.PaymentStatus normalizeAttemptStatus(String status) {
+        if ("SUCCESS".equalsIgnoreCase(status)) return Enums.PaymentStatus.CAPTURED;
+        if ("FAILED".equalsIgnoreCase(status)) return Enums.PaymentStatus.FAILED;
+        if ("USER_DROPPED".equalsIgnoreCase(status) || "CANCELLED".equalsIgnoreCase(status)) return Enums.PaymentStatus.CANCELLED;
+        return Enums.PaymentStatus.PENDING;
     }
 
     private long toMinorUnits(JsonNode node, String field) {

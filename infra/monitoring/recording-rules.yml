@@ -1,0 +1,23 @@
+groups:
+  - name: lakhdatar-sli-recordings
+    interval: 30s
+    rules:
+      - record: lakhdatar:http_requests_per_second:5m
+        expr: sum(rate(http_server_requests_seconds_count{application="lakhdatar-events-backend"}[5m]))
+      - record: lakhdatar:http_5xx_ratio:5m
+        expr: sum(rate(http_server_requests_seconds_count{application="lakhdatar-events-backend",status=~"5.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{application="lakhdatar-events-backend"}[5m])), 1)
+      - record: lakhdatar:http_4xx_ratio:5m
+        expr: sum(rate(http_server_requests_seconds_count{application="lakhdatar-events-backend",status=~"4.."}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{application="lakhdatar-events-backend"}[5m])), 1)
+      - record: lakhdatar:http_p95_seconds:5m
+        expr: histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application="lakhdatar-events-backend"}[5m])) by (le))
+      - record: lakhdatar:http_p99_seconds:5m
+        expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application="lakhdatar-events-backend"}[5m])) by (le))
+      - record: lakhdatar:public_site_probe_success:5m
+        expr: min(probe_success{job="blackbox",instance="https://events.neelastack.com/"})
+      - record: lakhdatar:public_api_probe_success:5m
+        expr: min(probe_success{job="blackbox",instance="https://events.neelastack.com/api/v1/public/events/featured"})
+
+      - record: lakhdatar:business_orders_per_second:5m
+        expr: lakhdatar_orders_last5m / 300
+      - record: lakhdatar:business_checkins_per_second:15m
+        expr: lakhdatar_checkins_last15m / 900

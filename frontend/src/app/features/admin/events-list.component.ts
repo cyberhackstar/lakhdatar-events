@@ -157,10 +157,21 @@ export class EventsListComponent implements OnInit {
   }
 
   publish(e: EventRow): void {
+    if (this.publishingId() === e.id) return;
     this.publishingId.set(e.id); this.actionError.set(''); this.message.set('');
-    this.api.publishEvent(e.id).subscribe({
-      next: () => { this.publishingId.set(''); this.message.set(`“${e.name}” is now published.`); this.store.load(true); this.resetAndLoad(); },
-      error: err => { this.publishingId.set(''); this.actionError.set(err?.error?.message || 'Could not publish this event. Make sure it has at least one ticket type.'); }
+    this.api.publishReadiness(e.id).subscribe({
+      next: readiness => {
+        if (!readiness.ready) {
+          this.publishingId.set('');
+          this.actionError.set(readiness.blockers[0] || 'This event is not ready to publish. Open the event editor for the full checklist.');
+          return;
+        }
+        this.api.publishEvent(e.id).subscribe({
+          next: () => { this.publishingId.set(''); this.message.set(`“${e.name}” is now published.`); this.store.load(true); this.resetAndLoad(); },
+          error: err => { this.publishingId.set(''); this.actionError.set(err?.error?.message || 'Could not publish this event. Open the event editor to review publication readiness.'); }
+        });
+      },
+      error: err => { this.publishingId.set(''); this.actionError.set(err?.error?.message || 'Publication readiness could not be verified. Please retry.'); }
     });
   }
 

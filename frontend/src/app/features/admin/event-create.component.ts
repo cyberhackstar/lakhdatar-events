@@ -169,7 +169,7 @@ export class EventCreateComponent implements OnInit {
     venueAddress: ['', Validators.maxLength(500)],
     description: ['', Validators.maxLength(5000)],
     capacity: [5000, [Validators.required, Validators.min(1), Validators.max(1000000)]],
-    paymentProvider: ['RAZORPAY'],
+    paymentProvider: ['CASHFREE'],
     ticketTypes: this.fb.array([this.ticketGroup('General Entry', 599, 1000)])
   });
 

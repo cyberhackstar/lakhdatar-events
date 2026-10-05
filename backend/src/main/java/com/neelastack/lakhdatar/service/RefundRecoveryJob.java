@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -19,8 +20,11 @@ public class RefundRecoveryJob {
 
     private final DistributedLockService locks;
 
+    @Value("${app.worker.enabled:true}") private boolean workerEnabled;
+
     @Scheduled(fixedDelayString = "${app.refund.recovery-sweep:30000}")
     public void sweep() {
+        if (!workerEnabled) return;
         locks.withLock("job:refund-recovery", java.time.Duration.ofSeconds(55), () -> {
             for (var refund : refunds.findTop100ByStatusInOrderByCreatedAtAsc(java.util.List.of(Enums.RefundStatus.REQUESTED, Enums.RefundStatus.PROCESSING))) {
                 try { service.processRefund(refund.getId()); }
