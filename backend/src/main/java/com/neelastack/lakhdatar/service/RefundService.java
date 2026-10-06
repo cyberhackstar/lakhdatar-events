@@ -417,7 +417,7 @@ public class RefundService {
                         "REFUND_PROVIDER_ID_REUSED".equals(api.code())
                                 || "REFUND_PROVIDER_ID_MISMATCH".equals(api.code())
                                 || "REFUND_EVENT_MISMATCH".equals(api.code())
-                                || "REFUND_TOTAL_EXCEEDS_PAYMENT".equals(api.code());
+                                || "REFUND_TOTAL_EXCEEDS_PAYMENT".equals(api.code()));
                 if (nonRetryable || r.getAttemptCount() >= Math.max(1, maxAttempts)) {
                     r.setStatus(Enums.RefundStatus.FAILED);
                     r.setNextAttemptAt(Instant.now());

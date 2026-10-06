@@ -1,10 +1,10 @@
-# Neelastack Events v2.0.12
+# Neelastack Events v2.0.13
 
 This release is the enterprise-hardening continuation of v2.0.8. It addresses financial recovery, event-state concurrency, large-event cancellation, payment webhook durability, privileged MFA recovery, disaster-recovery validation, deployment safety, and release smoke/load qualification.
 
-See `CHANGES-2.0.12.md` and `VALIDATION-2.0.12.md` for the release evidence and operational gates.
+See `CHANGES-2.0.13.md` and `VALIDATION-2.0.13.md` for the release evidence and operational gates.
 
-## 2.0.12
+## 2.0.13
 - Event-cancellation refunds are retryable after failed provider attempts and terminal manual-review states are explicit.
 - Event cancellation uses set-based ticket/reservation updates and the final check-in write is conditioned on the event remaining published.
 - Razorpay and Cashfree webhooks are durably persisted, asynchronously processed, provider-scoped, retried with jittered backoff, and dead-lettered after bounded attempts.
