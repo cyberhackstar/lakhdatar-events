@@ -44,8 +44,8 @@ class EnterpriseReleaseV215ContractTest {
     }
 
     @Test void currentHaTopologyCannotClaimUndeployedNodes() throws Exception {
-        String verify = Files.readString(Path.of("../infra/ha/verify-enterprise-ha.sh"));
-        String env = Files.readString(Path.of("../infra/ha/.env.ha.example"));
+        String verify = readRepoFile("infra/ha/verify-enterprise-ha.sh");
+        String env = readRepoFile("infra/ha/.env.ha.example");
         assertTrue(verify.contains("HA_NODE_COUNT\" == 2"));
         assertTrue(env.contains("events.neelastack.com,monitor.neelastack.com"));
     }
@@ -62,6 +62,20 @@ class EnterpriseReleaseV215ContractTest {
         assertTrue(haCompose.contains("JWT_AUDIENCE: ${JWT_AUDIENCE:?JWT_AUDIENCE is required}"));
         assertTrue(flyway.contains("source tree latest migration is V$LATEST_MIGRATION"));
         assertTrue(flyway.contains("EXPECTED_LATEST_MIGRATION=\"$LATEST_MIGRATION\""));
+    }
+
+    /** Resolve committed repository fixtures from any Maven working directory. */
+    private static String readRepoFile(String relativePath) throws Exception {
+        Path cursor = Path.of("").toAbsolutePath().normalize();
+        while (cursor != null) {
+            Path candidate = cursor.resolve(relativePath).normalize();
+            if (Files.isRegularFile(candidate)) return Files.readString(candidate);
+
+            Path backendCandidate = cursor.resolve("backend").resolve(relativePath).normalize();
+            if (Files.isRegularFile(backendCandidate)) return Files.readString(backendCandidate);
+            cursor = cursor.getParent();
+        }
+        throw new java.nio.file.NoSuchFileException(relativePath);
     }
 
 }

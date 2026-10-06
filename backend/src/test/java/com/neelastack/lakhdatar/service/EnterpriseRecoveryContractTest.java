@@ -7,6 +7,10 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 class EnterpriseRecoveryContractTest {
+    private static String normalized(String source) {
+        return source.toLowerCase(java.util.Locale.ROOT).replaceAll("\\s+", " ").trim();
+    }
+
     @Test void cancellationRefundCandidatesCanRetryFailedRefundsAndAvoidInFlightDuplicates() throws Exception {
         String s = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/repository/PaymentRepository.java"));
         assertTrue(s.contains("status = 'COMPLETED'"));
@@ -21,20 +25,29 @@ class EnterpriseRecoveryContractTest {
     @Test void eventCancellationUsesSetBasedTicketUpdate() throws Exception {
         String svc = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/EventManagementService.java"));
         String repo = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/repository/TicketRepository.java"));
-        assertTrue(svc.contains("tickets.cancelIssuedForEvent(e.getId())"));
-        assertTrue(repo.contains("cancelIssuedForEvent"));
-        assertTrue(repo.toLowerCase(java.util.Locale.ROOT).contains("update tickets set status='cancelled'"));
-        assertFalse(svc.contains("findByEventIdOrderByTicketNumberAsc(e.getId()).forEach"));
+        String normalizedSvc = normalized(svc);
+        String normalizedRepo = normalized(repo);
+        assertTrue(normalizedSvc.contains("tickets.cancelissuedforevent(eventid)"));
+        assertTrue(normalizedRepo.contains("cancelissuedforevent"));
+        assertTrue(normalizedRepo.contains("update tickets set status='cancelled' where event_id=:eventid and status='issued'"));
+        assertFalse(normalizedSvc.contains("findbyeventidorderticketnumberasc"));
     }
 
     @Test void eventCancellationReleasesHeldReservationsWithoutWalkingEveryReservation() throws Exception {
         String repo = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/repository/TicketReservationRepository.java"));
         String svc = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/TicketReservationService.java"));
         String event = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/EventManagementService.java"));
-        assertTrue(repo.contains("UPDATE ticket_reservations"));
-        assertTrue(repo.contains("UPDATE ticket_types"));
-        assertTrue(svc.contains("releaseHeldForEvent"));
-        assertTrue(event.contains("reservations.releaseHeldForEvent(e.getId())"));
+        String normalizedRepo = normalized(repo);
+        String normalizedSvc = normalized(svc);
+        String normalizedEvent = normalized(event);
+        assertTrue(normalizedRepo.contains("update ticket_reservations tr"));
+        assertTrue(normalizedRepo.contains("from ticket_types tt"));
+        assertTrue(normalizedRepo.contains("tr.ticket_type_id=tt.id"));
+        assertTrue(normalizedRepo.contains("tt.event_id=:eventid"));
+        assertTrue(normalizedRepo.contains("update ticket_types tt"));
+        assertTrue(normalizedRepo.contains("reserved_quantity = reserved_quantity - totals.quantity"));
+        assertTrue(normalizedSvc.contains("releaseheldforevent"));
+        assertTrue(normalizedEvent.contains("reservations.releaseheldforevent(eventid)"));
     }
 
     @Test void checkInFinalWriteIsConditionedOnPublishedEventState() throws Exception {

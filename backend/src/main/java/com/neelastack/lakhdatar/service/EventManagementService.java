@@ -257,10 +257,11 @@ public class EventManagementService {
         Event managedEvent = managed(eventPublicId, actorId, role);
         // Inventory mutation paths use ticket-type -> event lock ordering. Cancellation must acquire
         // the same locks in the same order so it cannot deadlock a concurrent hot checkout.
+        final Long eventId = managedEvent.getId();
         if (t == Transition.CANCEL) {
-            ticketTypes.findByEventIdForUpdateOrderByIdAsc(managedEvent.getId());
+            ticketTypes.findByEventIdForUpdateOrderByIdAsc(eventId);
         }
-        Event e = events.findByIdForUpdate(managedEvent.getId()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
+        Event e = events.findByIdForUpdate(eventId).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         Enums.EventStatus from = e.getStatus();
         // Lifecycle endpoints are retry-safe: repeating a completed state is a no-op.
         if ((t == Transition.UNPUBLISH && from == Enums.EventStatus.UNPUBLISHED)
@@ -274,15 +275,18 @@ public class EventManagementService {
                 require(from == Enums.EventStatus.DRAFT || from == Enums.EventStatus.PUBLISHED || from == Enums.EventStatus.UNPUBLISHED, "This event can no longer be cancelled");
                 to = Enums.EventStatus.CANCELLED;
                 // Customer-facing ticket state must immediately reflect event cancellation.
-                // The event row is already locked, so these bulk updates cannot race checkout/inventory
-                // mutations and avoid loading tens of thousands of tickets into Hibernate.
-                // Both repository bulk operations clear the persistence context. Therefore they must
-                // happen BEFORE assigning the final event status, otherwise the locked Event entity is
-                // detached and CANCELLED would never be flushed to the database.
-                int cancelledTickets = tickets.cancelIssuedForEvent(e.getId());
-                int releasedReservations = reservations.releaseHeldForEvent(e.getId());
-                e = events.findByIdForUpdate(managedEvent.getId())
+                // The event row is already locked, so this bulk update cannot race checkout/inventory
+                // mutations and avoids loading tens of thousands of tickets into Hibernate.
+                int cancelledTickets = tickets.cancelIssuedForEvent(eventId);
+                int releasedReservations = reservations.releaseHeldForEvent(eventId);
+                // Both bulk repository operations intentionally clear Hibernate's persistence context.
+                // Re-fetch the locked event before changing its lifecycle state so CANCELLED is persisted
+                // on the managed entity rather than being written to a detached instance.
+                e = events.findByIdForUpdate(eventId)
                         .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
+                from = e.getStatus();
+                require(from == Enums.EventStatus.DRAFT || from == Enums.EventStatus.PUBLISHED || from == Enums.EventStatus.UNPUBLISHED,
+                        "This event can no longer be cancelled");
                 EnterpriseLog.info(log, "event.cancellation.tickets_closed",
                         "event.category", "event", "event.id", e.getPublicId(),
                         "tickets.cancelled", cancelledTickets,

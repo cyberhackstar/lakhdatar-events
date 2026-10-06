@@ -2,6 +2,10 @@
 .env
 .env.*
 !.env.example
+# Safe committed HA configuration template (contains placeholders only).
+!infra/
+!infra/ha/
+!infra/ha/.env.ha.example
 
 # Java / Maven
 backend/target/

@@ -39,6 +39,15 @@ if (rawLock.includes('inherits-2.0.5.tgz')) failures.push('stale inherits-2.0.5.
 if (rawLock.includes('hasown-2.0.5.tgz')) failures.push('stale hasown-2.0.5.tgz tarball reference remains');
 if (rawLock.includes('http-errors-2.0.2.tgz')) failures.push('stale http-errors-2.0.2.tgz tarball reference remains');
 if (rawLock.includes('void-elements-2.0.2.tgz')) failures.push('stale void-elements-2.0.2.tgz tarball reference remains');
+const colorette = lock.packages?.['node_modules/colorette'];
+if (!colorette) failures.push('node_modules/colorette entry is missing');
+else {
+  if (colorette.version !== '2.0.20') failures.push(`colorette version ${colorette.version} != 2.0.20`);
+  if (colorette.resolved !== 'https://registry.npmjs.org/colorette/-/colorette-2.0.20.tgz') failures.push('colorette tarball is not the 2.0.20 registry artifact');
+}
+const listr2Colorette = lock.packages?.['node_modules/listr2']?.dependencies?.colorette;
+if (listr2Colorette !== '^2.0.20') failures.push(`listr2 colorette range ${listr2Colorette} != ^2.0.20`);
+if (rawLock.includes('colorette-2.0.21.tgz')) failures.push('unavailable colorette-2.0.21.tgz tarball reference remains');
 
 if (failures.length) {
   console.error('Frontend dependency verification: FAIL');

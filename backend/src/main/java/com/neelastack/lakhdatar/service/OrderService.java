@@ -109,17 +109,25 @@ public class OrderService {
         int totalQty=merged.values().stream().mapToInt(Integer::intValue).sum();
         if(totalQty<1||totalQty>props.checkout().maxTicketsPerOrder()) throw new ApiException(HttpStatus.BAD_REQUEST,"CART_LIMIT","Too many tickets in one order");
 
-        List<UUID> ids=new ArrayList<>(merged.keySet()); ids.sort(Comparator.comparing(UUID::toString));
-        long total=0; List<TicketType> lockedTypes=new ArrayList<>();
-        for(UUID id:ids){
-            TicketType tt=ticketTypes.findByPublicId(id).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"TICKET_TYPE_NOT_FOUND","Ticket type not found"));
+        // Resolve all requested ticket types first, then acquire row locks in database-ID order.
+        // Every inventory mutation path (checkout, admin updates, event cancellation) follows the
+        // same ticket-type -> event ordering, with ticket types acquired in a deterministic order.
+        List<TicketTypeRequest> requestedTypes = new ArrayList<>(merged.size());
+        for (Map.Entry<UUID,Integer> entry : merged.entrySet()) {
+            TicketType tt=ticketTypes.findByPublicId(entry.getKey()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"TICKET_TYPE_NOT_FOUND","Ticket type not found"));
             if(!tt.getEventId().equals(event.getId())) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_CART","Ticket type does not belong to this event");
-            TicketType locked=reservationService.reserve(tt.getId(),merged.get(id));
+            requestedTypes.add(new TicketTypeRequest(entry.getKey(), tt.getId(), entry.getValue()));
+        }
+        requestedTypes.sort(Comparator.comparing(TicketTypeRequest::ticketTypeId));
+
+        long total=0; List<TicketType> lockedTypes=new ArrayList<>();
+        for(TicketTypeRequest typeRequest:requestedTypes){
+            TicketType locked=reservationService.reserve(typeRequest.ticketTypeId(), typeRequest.quantity());
             // ReservationService locks the ticket-type row. Validate the locked snapshot, not the stale
             // pre-lock entity, so price/status/quantity changes cannot bleed into the order.
-            validateTicketType(locked,merged.get(id));
+            validateTicketType(locked,typeRequest.quantity());
             lockedTypes.add(locked);
-            total=Math.addExact(total,Math.multiplyExact(locked.getPriceMinorUnits(),merged.get(id)));
+            total=Math.addExact(total,Math.multiplyExact(locked.getPriceMinorUnits(),typeRequest.quantity()));
         }
         if(total<=0) throw new ApiException(HttpStatus.CONFLICT,"FREE_CHECKOUT_UNSUPPORTED","Zero-value checkout is not enabled for this deployment");
         // Take the event lock only for the final inventory/order commit. This preserves the cancellation/update
@@ -706,6 +714,7 @@ public class OrderService {
     }
 
     private record LocalCheckout(Long orderId, String checkoutSessionToken){}
+    private record TicketTypeRequest(UUID publicId, Long ticketTypeId, int quantity){}
     private String newCheckoutSessionToken(){
         byte[] b=new byte[32]; secureRandom.nextBytes(b);
         long exp=Instant.now().plus(props.checkout().sessionTtl()).getEpochSecond();

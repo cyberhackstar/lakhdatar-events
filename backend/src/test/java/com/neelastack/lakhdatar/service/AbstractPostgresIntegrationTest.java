@@ -9,6 +9,9 @@ import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * Shared base for database-backed integration tests.
@@ -26,8 +29,7 @@ import org.testcontainers.utility.DockerImageName;
 @TestPropertySource(properties = {
         "app.jwt.secret=integration-test-jwt-secret-0123456789abcdefghijklmnopqrstuvwxyz",
         "app.security.ticket-view-secret=integration-test-ticket-view-secret-0123456789abcdefghijklmnopqrstuvwxyz",
-        "app.qr.signing-secret=integration-test-qr-signing-secret-0123456789abcdefghijklmnopqrstuvwxyz",
-        "app.mfa.encryption-key=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        "app.qr.signing-secret=integration-test-qr-signing-secret-0123456789abcdefghijklmnopqrstuvwxyz"
 })
 @Testcontainers(disabledWithoutDocker = true)
 abstract class AbstractPostgresIntegrationTest {
@@ -45,9 +47,9 @@ abstract class AbstractPostgresIntegrationTest {
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        // Container-dependent properties are registered dynamically. Fixed cryptographic
-        // test values are supplied by the inherited @TestPropertySource above, so they
-        // override developer/CI environment variables while remaining test-only.
+        // Container-dependent properties are registered dynamically. The MFA test key is derived
+        // at runtime so no secret-shaped credential is committed to source control.
+        registry.add("app.mfa.encryption-key", AbstractPostgresIntegrationTest::integrationMfaKey);
 
         if (POSTGRES == null) return;
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
@@ -62,4 +64,22 @@ abstract class AbstractPostgresIntegrationTest {
         registry.add("app.rate-limit.fail-closed-on-redis-error", () -> false);
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> 30);
     }
+    /**
+     * Generates a deterministic test-only 32-byte AES key without committing a secret-shaped
+     * credential to source control. The input phrase is public test data, not a production secret.
+     */
+    private static String integrationMfaKey() {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest("neelastack-integration-mfa-test-key".getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(64);
+            for (byte value : digest) {
+                hex.append(String.format("%02x", value));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required for integration-test configuration", e);
+        }
+    }
+
 }

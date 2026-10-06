@@ -7,6 +7,26 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Cross-cutting release contract checks for the 2.0.20 enterprise certification gates. */
 class EnterpriseReleaseV220ContractTest {
+    private static String normalized(String source) {
+        return source.replaceAll("\\s+", " ").trim();
+    }
+
+    private static void assertAppearsBefore(String source, String first, String second) {
+        int a = source.indexOf(first);
+        int b = source.indexOf(second);
+        assertTrue(a >= 0, "Missing expected source fragment: " + first);
+        assertTrue(b >= 0, "Missing expected source fragment: " + second);
+        assertTrue(a < b, "Expected lock-order fragment to appear before: " + second);
+    }
+
+    private static void assertPatternAppearsBefore(String source, String regex, String second) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(regex).matcher(source);
+        assertTrue(matcher.find(), "Missing expected source pattern: " + regex);
+        int b = source.indexOf(second);
+        assertTrue(b >= 0, "Missing expected source fragment: " + second);
+        assertTrue(matcher.start() < b, "Expected lock acquisition pattern to appear before: " + second);
+    }
+
     @Test void cashfreeUsesIdempotentServerSideProviderCalls() throws Exception {
         String provider = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/CashfreeGatewayProvider.java"));
         String webhook = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/CashfreeWebhookService.java"));
@@ -28,15 +48,24 @@ class EnterpriseReleaseV220ContractTest {
     }
 
     @Test void checkoutAndInventoryAdminUseTheSameLockOrder() throws Exception {
-        String checkout = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/OrderService.java"));
-        String admin = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/EventManagementService.java"));
-        assertTrue(checkout.contains("TicketType locked=reservationService.reserve"));
-        assertTrue(checkout.contains("events.findByIdForUpdate(event.getId())"));
-        assertTrue(admin.contains("TicketType t = ticketTypes.findByIdForUpdate(found.getId())"));
-        assertTrue(admin.contains("Event e = events.findByIdForUpdate(t.getEventId())"));
-        String transition = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/EventManagementService.java"));
-        assertTrue(transition.contains("if (t == Transition.CANCEL)"));
-        assertTrue(transition.contains("ticketTypes.findByEventIdForUpdateOrderByIdAsc(managedEvent.getId())"));
+        String checkout = normalized(Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/OrderService.java"))).toLowerCase(java.util.Locale.ROOT);
+        String admin = normalized(Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/EventManagementService.java"))).toLowerCase(java.util.Locale.ROOT);
+
+        assertTrue(checkout.contains("requestedtypes.sort(comparator.comparing(tickettyperequest::tickettypeid))"));
+        assertPatternAppearsBefore(checkout,
+                "reservationservice\\.reserve\\(\\w+\\.tickettypeid\\(\\),\\s*\\w+\\.quantity\\(\\)\\)",
+                "events.findbyidforupdate(event.getid())");
+
+        assertTrue(admin.contains("tickettype t = tickettypes.findbyidforupdate(found.getid()).orelsethrow()"));
+        assertAppearsBefore(admin,
+                "tickettypes.findbyidforupdate(found.getid()).orelsethrow()",
+                "events.findbyidforupdate(t.geteventid())");
+
+        assertTrue(admin.contains("if (t == transition.cancel)"));
+        assertTrue(admin.contains("tickettypes.findbyeventidforupdateorderbyidasc(eventid)"));
+        assertAppearsBefore(admin,
+                "tickettypes.findbyeventidforupdateorderbyidasc(eventid)",
+                "event e = events.findbyidforupdate(eventid)");
     }
 
     @Test void mfaAttemptsPersistAndTotpReplayIsRejected() throws Exception {
