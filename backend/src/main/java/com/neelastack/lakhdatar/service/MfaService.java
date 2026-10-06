@@ -36,6 +36,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Locale;
 
 /**
  * Enterprise TOTP MFA. Secrets are encrypted at rest and challenges are random, one-time and DB-backed,
@@ -100,12 +101,12 @@ public class MfaService {
         return new Enrollment(base32, uri, "data:image/png;base64," + Base64.getEncoder().encodeToString(png));
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ApiException.class)
     public User confirmEnrollment(String challengeToken, String code, String clientKey) {
         MfaChallenge c = lockedChallenge(challengeToken, clientKey, MfaChallenge.Type.ENROLLMENT);
-        User u = users.findById(c.getUserId()).filter(User::isEnabled).orElseThrow(this::invalidChallenge);
+        User u = users.findByIdForUpdate(c.getUserId()).filter(User::isEnabled).orElseThrow(this::invalidChallenge);
         if (u.getMfaSecretEnc() == null) throw invalidChallenge();
-        verifyCodeOrThrow(c, code, decrypt(u.getMfaSecretEnc()));
+        verifyCodeOrThrow(c, code, decrypt(u.getMfaSecretEnc()), null);
         u.setMfaEnabled(true);
         Instant now = Instant.now();
         users.save(u);
@@ -126,6 +127,7 @@ public class MfaService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "MFA_SELF_RESET_FORBIDDEN", "Use a separate administrator account to reset MFA");
         target.setMfaEnabled(false);
         target.setMfaSecretEnc(null);
+        target.setLastMfaTotpCounter(null);
         Instant now = Instant.now();
         users.save(target);
         challenges.invalidateActiveByUserId(target.getId(), now);
@@ -134,12 +136,14 @@ public class MfaService {
         EnterpriseLog.warn(log, "auth.mfa.admin_reset", "event.category", "security", "actor.user.id", actorUserId, "target.user.id", target.getId());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ApiException.class)
     public User verifyLogin(String challengeToken, String code, String clientKey) {
         MfaChallenge c = lockedChallenge(challengeToken, clientKey, MfaChallenge.Type.LOGIN);
-        User u = users.findById(c.getUserId()).filter(User::isEnabled).orElseThrow(this::invalidChallenge);
+        User u = users.findByIdForUpdate(c.getUserId()).filter(User::isEnabled).orElseThrow(this::invalidChallenge);
         if (!u.isMfaEnabled() || u.getMfaSecretEnc() == null) throw invalidChallenge();
-        verifyCodeOrThrow(c, code, decrypt(u.getMfaSecretEnc()));
+        long matchedCounter = verifyCodeOrThrow(c, code, decrypt(u.getMfaSecretEnc()), u.getLastMfaTotpCounter());
+        u.setLastMfaTotpCounter(matchedCounter);
+        users.save(u);
         c.setUsedAt(Instant.now());
         challenges.save(c);
         EnterpriseLog.info(log, "auth.mfa.login.completed", "event.category", "security", "user.id", u.getId());
@@ -158,13 +162,15 @@ public class MfaService {
         return c;
     }
 
-    private void verifyCodeOrThrow(MfaChallenge c, String code, String secret) {
+    private long verifyCodeOrThrow(MfaChallenge c, String code, String secret, Long lastUsedCounter) {
         c.setAttempts(c.getAttempts() + 1);
-        if (!validTotp(secret, code, Instant.now().getEpochSecond())) {
+        long matchedCounter = matchingTotpCounter(secret, code, Instant.now().getEpochSecond());
+        if (matchedCounter < 0 || (lastUsedCounter != null && matchedCounter <= lastUsedCounter)) {
             if (c.getAttempts() >= MAX_ATTEMPTS) c.setUsedAt(Instant.now());
             challenges.save(c);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_MFA_CODE", "The verification code is invalid or has expired");
         }
+        return matchedCounter;
     }
 
     private Challenge createChallenge(Long userId, MfaChallenge.Type type) {
@@ -222,13 +228,14 @@ public class MfaService {
         } catch (Exception e) { throw new IllegalStateException("Could not decrypt MFA secret", e); }
     }
 
-    private boolean validTotp(String secret, String code, long epochSeconds) {
-        if (code == null || !code.matches("\\d{6}")) return false;
+    private long matchingTotpCounter(String secret, String code, long epochSeconds) {
+        if (code == null || !code.matches("\\d{6}")) return -1;
         long counter = epochSeconds / 30;
         for (long delta = -1; delta <= 1; delta++) {
-            if (constantTimeEquals(totp(secret, counter + delta), code)) return true;
+            long candidate = counter + delta;
+            if (candidate >= 0 && constantTimeEquals(totp(secret, candidate), code)) return candidate;
         }
-        return false;
+        return -1;
     }
 
     private String totp(String base32Secret, long counter) {
@@ -259,7 +266,7 @@ public class MfaService {
     }
 
     private byte[] base32Decode(String s) {
-        String clean = s.replace("=", "").replace(" ", "").toUpperCase();
+        String clean = s.replace("=", "").replace(" ", "").toUpperCase(Locale.ROOT);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         int buffer = 0, bits = 0;
         for (char c : clean.toCharArray()) {

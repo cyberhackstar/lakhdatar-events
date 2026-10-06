@@ -76,6 +76,7 @@ import { OperationsDashboard } from '../../core/api/api.models';
           <div class="queue"><span>Expired holds</span><strong [class.warn]="d.health.queues.expiredReservations > 0">{{ d.health.queues.expiredReservations }}</strong><small>reservation cleanup candidates</small></div>
           <div class="queue"><span>Mail pending</span><strong [class.warn]="d.health.queues.mailPending > 0">{{ d.health.queues.mailPending }}</strong><small>pending / processing</small></div>
           <div class="queue"><span>Mail failed</span><strong [class.bad]="d.health.queues.mailFailed > 0">{{ d.health.queues.mailFailed }}</strong><small>delivery failures</small></div>
+          <div class="queue"><span>Event notices failed</span><strong [class.bad]="d.health.queues.eventNotificationFailed > 0">{{ d.health.queues.eventNotificationFailed }}</strong><small>cancellation/detail email failures</small></div>
         </div>
       </section>
 
@@ -137,6 +138,6 @@ export class OperationsCenterComponent implements OnInit, OnDestroy {
 
   businessState(d: OperationsDashboard): 'HEALTHY' | 'DEGRADED' {
     const q = d.health.queues;
-    return q.stalePayments > 0 || q.providerOrderRecoveryPending > 0 || q.pendingRefunds > 0 || q.webhookBacklog > 0 || q.webhookStuck > 0 || q.mailFailed > 0 ? 'DEGRADED' : 'HEALTHY';
+    return q.stalePayments > 0 || q.providerOrderRecoveryPending > 0 || q.pendingRefunds > 0 || q.webhookBacklog > 0 || q.webhookStuck > 0 || q.mailFailed > 0 || q.eventNotificationFailed > 0 ? 'DEGRADED' : 'HEALTHY';
   }
 }

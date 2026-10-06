@@ -167,6 +167,7 @@ class MultiEventCatalogIntegrationTest extends AbstractPostgresIntegrationTest {
         assertNotNull(events.findById(e.getId()).orElseThrow().getPublishedAt());
         management.transition(e.getPublicId(), EventManagementService.Transition.UNPUBLISH, actorId, "ADMIN");
         management.transition(e.getPublicId(), EventManagementService.Transition.CANCEL, actorId, "ADMIN");
+        assertEquals(Enums.EventStatus.CANCELLED, events.findById(e.getId()).orElseThrow().getStatus());
         assertThrows(ApiException.class, () -> management.publish(e.getPublicId(), actorId, "ADMIN"));
         management.transition(e.getPublicId(), EventManagementService.Transition.ARCHIVE, actorId, "ADMIN");
         assertEquals(Enums.EventStatus.ARCHIVED, events.findById(e.getId()).orElseThrow().getStatus());

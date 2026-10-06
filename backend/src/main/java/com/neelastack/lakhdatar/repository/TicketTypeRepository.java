@@ -3,6 +3,7 @@ import com.neelastack.lakhdatar.domain.Enums; import com.neelastack.lakhdatar.do
 public interface TicketTypeRepository extends JpaRepository<TicketType,Long>{
  Optional<TicketType> findByPublicId(UUID id);
  List<TicketType> findByEventIdOrderByPriceMinorUnitsAsc(Long eventId);
+ @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select t from TicketType t where t.eventId=:eventId order by t.id asc") List<TicketType> findByEventIdForUpdateOrderByIdAsc(@Param("eventId") Long eventId);
  @Query("select t.eventId, coalesce(sum(t.soldQuantity),0) from TicketType t where t.eventId in :eventIds group by t.eventId") List<Object[]> soldByEventIds(@Param("eventIds") Collection<Long> eventIds);
  @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select t from TicketType t where t.id=:id") Optional<TicketType> findByIdForUpdate(Long id);
  /** Per-event aggregate for catalogue cards: [eventId, minOnSalePrice, availableQuantity, totalQuantity, onSaleTypeCount, onSaleAvailableQuantity]. */

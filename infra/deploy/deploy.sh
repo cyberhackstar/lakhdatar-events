@@ -109,7 +109,7 @@ wait_for_backend_readiness() {
       print_backend_diagnostics
       return 1
     fi
-    if response="$(docker exec lakhdatar-backend wget -qO- --timeout=5 http://127.0.0.1:8080/actuator/health/readiness 2>/dev/null)"; then
+    if response="$(docker exec lakhdatar-backend wget -qO- --timeout=5 http://127.0.0.1:8081/actuator/health/readiness 2>/dev/null)"; then
       if [[ "$response" == *'"status":"UP"'* ]]; then
         echo "Backend readiness passed on attempt $attempt."
         return 0

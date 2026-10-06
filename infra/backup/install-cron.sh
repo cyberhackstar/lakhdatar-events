@@ -4,6 +4,11 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SCHEDULE="${BACKUP_CRON_SCHEDULE:-17 3 * * *}"
 RETENTION="${BACKUP_RETENTION_DAYS:-14}"
 SECONDARY="${SECONDARY_BACKUP_DIR:-}"
+BACKUP_REMOTE_REQUIRED="${BACKUP_REMOTE_REQUIRED:-true}"
+BACKUP_REMOTE_URI="${BACKUP_REMOTE_URI:-}"
+BACKUP_S3_ENDPOINT_URL="${BACKUP_S3_ENDPOINT_URL:-}"
+BACKUP_S3_SSE="${BACKUP_S3_SSE:-AES256}"
+BACKUP_S3_KMS_KEY_ID="${BACKUP_S3_KMS_KEY_ID:-}"
 mkdir -p "$ROOT/infra/backups"
 if [[ "${BACKUP_REMOTE_REQUIRED,,}" == "true" && -z "${BACKUP_REMOTE_URI:-}" ]]; then
   echo "ERROR: BACKUP_REMOTE_REQUIRED=true but BACKUP_REMOTE_URI is empty. Refusing to install a non-independent production backup schedule." >&2

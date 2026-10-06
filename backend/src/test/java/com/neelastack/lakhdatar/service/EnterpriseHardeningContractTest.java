@@ -14,7 +14,7 @@ class EnterpriseHardeningContractTest {
     void capacityMutationsLockTheParentEventAndDbHasAnInvariantBackstop() throws Exception {
         String service = read("src/main/java/com/neelastack/lakhdatar/service/EventManagementService.java");
         assertTrue(service.contains("events.findByIdForUpdate(managedEvent.getId())"));
-        assertTrue(service.contains("events.findByIdForUpdate(found.getEventId())"));
+        assertTrue(service.contains("events.findByIdForUpdate(t.getEventId())"));
         String migration = read("src/main/resources/db/migration/V20__enterprise_inventory_capacity_and_reservation_integrity.sql");
         assertTrue(migration.contains("FOR UPDATE"));
         assertTrue(migration.contains("trg_ticket_types_event_capacity"));
@@ -40,9 +40,9 @@ class EnterpriseHardeningContractTest {
         String admin = read("src/main/java/com/neelastack/lakhdatar/service/AdminService.java");
         assertTrue(admin.contains("setFetchSize(1000)"));
         String controller = read("src/main/java/com/neelastack/lakhdatar/controller/AdminController.java");
-        assertTrue(controller.contains("ResponseEntity<byte[]>"));
+        assertTrue(controller.contains("ResponseEntity<StreamingResponseBody>"));
         assertTrue(controller.contains("Content-Disposition"));
-        assertTrue(controller.contains("contentLength(body.length)"));
+        assertFalse(controller.contains("contentLength(body.length)"));
         String seo = read("src/main/java/com/neelastack/lakhdatar/controller/SeoController.java");
         assertTrue(seo.contains("SITEMAP_PAGE_SIZE = 10_000"));
         assertTrue(seo.contains("/sitemap-{page:[0-9]+}.xml"));

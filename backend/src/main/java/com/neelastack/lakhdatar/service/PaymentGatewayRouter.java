@@ -8,11 +8,11 @@ import org.slf4j.LoggerFactory; import org.springframework.core.env.Environment;
 @Component @RequiredArgsConstructor
 public class PaymentGatewayRouter {
     private static final Logger log = LoggerFactory.getLogger(PaymentGatewayRouter.class);
- private final List<PaymentGatewayProvider> providers; private final Environment environment;
+ private final List<PaymentGatewayProvider> providers; private final Environment environment; private final PaymentProviderGuard guard;
  public PaymentGatewayProvider forProvider(Enums.PaymentProvider p){
   PaymentGatewayProvider provider=providers.stream().filter(x->x.provider()==p).findFirst().orElse(null);
   if(provider==null){ EnterpriseLog.error(log, "payment.provider.unavailable", null, "event.category", "payment", "provider", p==null?"UNKNOWN":p.name()); throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE,"PAYMENT_PROVIDER_UNAVAILABLE","Selected payment provider is not configured"); }
-  return provider;
+  return guard.wrap(provider);
  }
  public PaymentGatewayProvider forPayment(com.neelastack.lakhdatar.domain.Payment p){return forProvider(p.getProvider());}
  public Enums.PaymentProvider defaultProvider(){

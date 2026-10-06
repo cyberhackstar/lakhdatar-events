@@ -52,4 +52,19 @@ class MigrationContractTest {
         org.junit.jupiter.api.Assertions.assertTrue(sql.contains("DROP CONSTRAINT IF EXISTS chk_event_booking_window"));
     }
 
+    @Test
+    void refundRecoveryConstraintValidationUsesValidPostgresSyntax() throws Exception {
+        String sql = Files.readString(Path.of("src/main/resources/db/migration/V33__enterprise_refund_recovery_backoff.sql"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("ALTER TABLE refunds\n    VALIDATE CONSTRAINT chk_refunds_next_attempt_after_created;"));
+        org.junit.jupiter.api.Assertions.assertFalse(sql.contains("VALIDATE CONSTRAINT chk_refunds_next_attempt_after_created ON refunds;"));
+    }
+
+    @Test
+    void authHashColumnsNormalizeToVariableWidthStrings() throws Exception {
+        String sql = Files.readString(Path.of("src/main/resources/db/migration/V41__normalize_auth_hash_columns.sql"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("ALTER COLUMN token_hash TYPE VARCHAR(64)"));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.contains("USING RTRIM(token_hash)"));
+        org.junit.jupiter.api.Assertions.assertEquals(2, sql.split("ALTER COLUMN token_hash TYPE VARCHAR\\(64\\)", -1).length - 1);
+    }
+
 }

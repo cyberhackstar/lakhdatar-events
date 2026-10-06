@@ -203,6 +203,9 @@ if (!haCompose.includes('security_opt: [no-new-privileges:true]') || !haCompose.
 if (!fs.existsSync(path.join(root, 'infra/loadtest/thousands.js'))) problems.push('thousands-user staging load profile missing');
 if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V36__enterprise_webhook_retry_backoff.sql'))) problems.push('enterprise webhook retry migration missing');
 if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V38__enterprise_mfa_session_proof.sql'))) problems.push('enterprise MFA session-proof migration missing');
+if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V39__enterprise_mfa_replay_and_constraint_validation.sql'))) problems.push('enterprise MFA replay/constraint migration missing');
+if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V40__enterprise_event_change_notifications.sql'))) problems.push('event notification outbox migration missing');
+if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V41__normalize_auth_hash_columns.sql'))) problems.push('auth hash column normalization migration missing');
 if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V37__enterprise_webhook_provider_discriminator.sql'))) problems.push('enterprise webhook provider migration missing');
 if (!read('backend/src/main/java/com/neelastack/lakhdatar/domain/PaymentWebhookEvent.java').includes('provider')) problems.push('payment webhook provider discriminator missing');
 if (!read('backend/src/main/java/com/neelastack/lakhdatar/service/WebhookService.java').includes('processingExecutor')) problems.push('Razorpay webhook asynchronous processor missing');

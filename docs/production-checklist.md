@@ -13,7 +13,7 @@
 
 ## Application
 
-- [ ] v2.0.15 enterprise release qualification checklist completed
+- [ ] v2.0.26 enterprise release qualification checklist completed
 - [ ] Phase 1 financial correctness, event cancellation/check-in race and refund recovery regression tests pass
 - [ ] Operations Health console shows DB/Redis/recovery queues as expected
 - [ ] Prometheus endpoint is reachable only through the private monitoring network

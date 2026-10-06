@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Tag;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -22,6 +23,12 @@ import org.testcontainers.utility.DockerImageName;
  */
 @Tag("integration")
 @SpringBootTest
+@TestPropertySource(properties = {
+        "app.jwt.secret=integration-test-jwt-secret-0123456789abcdefghijklmnopqrstuvwxyz",
+        "app.security.ticket-view-secret=integration-test-ticket-view-secret-0123456789abcdefghijklmnopqrstuvwxyz",
+        "app.qr.signing-secret=integration-test-qr-signing-secret-0123456789abcdefghijklmnopqrstuvwxyz",
+        "app.mfa.encryption-key=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+})
 @Testcontainers(disabledWithoutDocker = true)
 abstract class AbstractPostgresIntegrationTest {
 
@@ -38,6 +45,10 @@ abstract class AbstractPostgresIntegrationTest {
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
+        // Container-dependent properties are registered dynamically. Fixed cryptographic
+        // test values are supplied by the inherited @TestPropertySource above, so they
+        // override developer/CI environment variables while remaining test-only.
+
         if (POSTGRES == null) return;
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);

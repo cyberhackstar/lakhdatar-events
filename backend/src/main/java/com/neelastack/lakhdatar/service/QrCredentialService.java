@@ -8,7 +8,7 @@ import javax.crypto.Mac; import javax.crypto.spec.SecretKeySpec; import java.io.
 @Service
 public class QrCredentialService {
     private final byte[] secret; private final byte[] previousSecret; private final int imageSize;
-    private static final int MAX_PNG_CACHE_ENTRIES = 5000;
+    private static final int MAX_PNG_CACHE_ENTRIES = 1000;
     private final Map<String,String> pngCache = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
         @Override protected boolean removeEldestEntry(Map.Entry<String,String> eldest) { return size() > MAX_PNG_CACHE_ENTRIES; }
     });

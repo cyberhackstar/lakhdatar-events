@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -26,25 +27,34 @@ public class ReservationExpiryJob {
     private final DistributedLockService locks;
 
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
+    @Value("${app.reservation.sweep-batch-size:500}") private int batchSize = 500;
+    @Value("${app.reservation.sweep-max-batches:8}") private int maxBatches = 8;
 
     @Scheduled(fixedDelayString = "${app.reservation.sweep}")
     public void sweep() {
         if (!workerEnabled) return;
         locks.withLock("job:reservation-expiry", java.time.Duration.ofSeconds(45), () -> {
             long started = System.nanoTime();
-            var batch = reservations.findTop200ByStatusAndExpiresAtBeforeOrderByExpiresAtAsc(
-                    Enums.ReservationStatus.HELD, Instant.now());
-            EnterpriseLog.debug(log, "reservation.expiry.sweep.started", "event.category", "recovery", "batch.size", batch.size());
             int failed = 0;
-            for (var reservation : batch) {
-                try {
-                    service.expireReservationAndOrder(reservation.getId());
-                } catch (Exception ex) {
-                    failed++;
-                    EnterpriseLog.error(log, "reservation.expiry.failed", ex, "event.category", "recovery", "reservation.id", reservation.getId());
+            int processed = 0;
+            int batches = 0;
+            while (batches < Math.max(1, maxBatches)) {
+                var batch = reservations.findByStatusAndExpiresAtBeforeOrderByExpiresAtAsc(
+                        Enums.ReservationStatus.HELD, Instant.now(), PageRequest.of(0, Math.max(1, batchSize)));
+                if (batch.isEmpty()) break;
+                batches++;
+                for (var reservation : batch) {
+                    try {
+                        service.expireReservationAndOrder(reservation.getId());
+                        processed++;
+                    } catch (Exception ex) {
+                        failed++;
+                        EnterpriseLog.error(log, "reservation.expiry.failed", ex, "event.category", "recovery", "reservation.id", reservation.getId());
+                    }
                 }
+                if (batch.size() < Math.max(1, batchSize)) break;
             }
-            EnterpriseLog.info(log, "reservation.expiry.sweep.completed", "event.category", "recovery", "batch.size", batch.size(), "failed", failed, "duration.ms", (System.nanoTime()-started)/1_000_000L);
+            EnterpriseLog.info(log, "reservation.expiry.sweep.completed", "event.category", "recovery", "processed", processed, "batches", batches, "failed", failed, "duration.ms", (System.nanoTime()-started)/1_000_000L);
         });
     }
 }

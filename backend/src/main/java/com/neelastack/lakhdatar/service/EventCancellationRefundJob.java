@@ -28,6 +28,8 @@ public class EventCancellationRefundJob {
 
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
     @Value("${app.refund.max-attempts:8}") private int maxAttempts;
+    @Value("${app.refund.cancellation-batch-size:500}") private int batchSize;
+    @Value("${app.refund.cancellation-max-batches:4}") private int maxBatches;
 
     @Scheduled(fixedDelayString = "${app.refund.cancellation-sweep:30000}")
     public void sweep() {
@@ -37,17 +39,20 @@ public class EventCancellationRefundJob {
     private void sweepLocked() {
         long started = System.nanoTime();
         var statuses = List.of(Enums.PaymentStatus.CAPTURED.name(), Enums.PaymentStatus.COMPLETED.name(), Enums.PaymentStatus.REFUND_PENDING.name());
-        var candidates = payments.findCancelledEventRefundCandidates(
-                Enums.EventStatus.CANCELLED.name(), statuses, Math.max(1, maxAttempts), PageRequest.of(0, 100));
-        EnterpriseLog.debug(log, "refund.event_cancellation.sweep.started", "event.category", "recovery", "batch.size", candidates.size());
-        int failed = 0;
-        for (var payment : candidates) {
-            try {
-                refunds.queueCapturedPaymentRefundOnly(payment.getId(), "Event cancellation");
-            } catch (Exception ex) {
-                failed++; EnterpriseLog.warn(log, "refund.event_cancellation.queue_deferred", "event.category", "recovery", "payment.id", payment.getId(), "error.type", ex.getClass().getSimpleName());
+        int failed = 0, processed = 0, batches = 0;
+        while (batches++ < Math.max(1, maxBatches)) {
+            var candidates = payments.findCancelledEventRefundCandidates(
+                    Enums.EventStatus.CANCELLED.name(), statuses, Math.max(1, maxAttempts), PageRequest.of(0, Math.max(1, batchSize)));
+            if (candidates.isEmpty()) break;
+            for (var payment : candidates) {
+                try {
+                    refunds.queueCapturedPaymentRefundOnly(payment.getId(), "Event cancellation");
+                } catch (Exception ex) {
+                    failed++; EnterpriseLog.warn(log, "refund.event_cancellation.queue_deferred", "event.category", "recovery", "payment.id", payment.getId(), "error.type", ex.getClass().getSimpleName());
+                }
+                processed++;
             }
         }
-        EnterpriseLog.info(log, "refund.event_cancellation.sweep.completed", "event.category", "recovery", "batch.size", candidates.size(), "failed", failed, "duration.ms", (System.nanoTime()-started)/1_000_000L);
+        EnterpriseLog.info(log, "refund.event_cancellation.sweep.completed", "event.category", "recovery", "processed", processed, "batches", Math.min(batches, Math.max(1, maxBatches)), "failed", failed, "duration.ms", (System.nanoTime()-started)/1_000_000L);
     }
 }

@@ -30,6 +30,8 @@ test.describe('customer ticket access', () => {
     const token = required('E2E_TICKET_TOKEN');
     const response = await page.goto(`/ticket/${ticketId}#access=${encodeURIComponent(token)}`, { waitUntil: 'domcontentloaded' });
     expect(response.status()).toBe(200);
+    await page.waitForLoadState('networkidle');
     expect(page.url()).not.toContain('?access=');
+    expect(page.url()).not.toContain('#access=');
   });
 });

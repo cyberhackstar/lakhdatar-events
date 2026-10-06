@@ -20,6 +20,10 @@ request /robots.txt
 request /sitemap.xml
 request /sitemap-1.xml
 
+# Actuator must stay on the private management port and never be exposed through the public edge.
+actuator_status="$(curl -sk --max-time 15 -o /dev/null -w '%{http_code}' -H "Host: $PUBLIC_HOST" -H 'X-Forwarded-Proto: https' "$BASE_URL/actuator/prometheus")"
+[[ "$actuator_status" == "404" ]] || { echo "Public actuator endpoint is reachable: HTTP $actuator_status" >&2; exit 1; }
+
 # Verify key edge security headers without logging response bodies.
 headers_file="$(mktemp)"
 cookie_jar=""

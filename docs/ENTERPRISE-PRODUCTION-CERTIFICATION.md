@@ -2,7 +2,7 @@
 
 ## Certification boundary
 
-v2.0.15 is the enterprise-certification-gated release. The repository enforces a protected promotion boundary: a production deployment must use the exact SHA stored in the protected `ENTERPRISE_CERTIFIED_SHA` variable, and enterprise HA promotion additionally requires the HA topology preflight and signed image/provenance verification.
+v2.0.26 is the enterprise-certification-gated release. The repository enforces a protected promotion boundary: a production deployment must use the exact SHA stored in the protected `ENTERPRISE_CERTIFIED_SHA` variable, and enterprise HA promotion additionally requires the HA topology preflight and signed image/provenance verification.
 
 This document intentionally does not claim that HA failover, PITR, penetration testing, payment chaos, real paging, or load qualification has occurred in this repository's local environment. Those are target-environment evidence requirements.
 
@@ -11,7 +11,7 @@ This document intentionally does not claim that HA failover, PITR, penetration t
 1. `mvn -B -ntp clean verify` passes on Java 21.
 2. Angular `npm ci`, production build, and unit suite pass.
 3. Playwright desktop, Android Chrome, iOS Safari and staff scanner qualification pass against disposable staging data.
-4. Flyway V1–V37 passes on a fresh database and a V31 upgrade path.
+4. Flyway V1–V41 passes on a fresh database and a V31 upgrade path.
 5. Mandatory mixed load passes at the configured 1,000+ VU target, including checkout and check-in qualification.
 6. Immutable-image DAST passes with no unresolved release-blocking findings.
 7. HA failover across distinct application failure domains passes.

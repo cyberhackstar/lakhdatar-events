@@ -95,7 +95,7 @@ public class OrderService {
             EnterpriseLog.info(log, "order.checkout.idempotent_reuse", "event.category", "order", "order.id", o.getId(), "order.number", o.getOrderNumber());
             return new LocalCheckout(o.getId(), checkoutSessionToken);
         }
-        Event event=events.findByPublicIdForUpdate(request.eventId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"EVENT_NOT_FOUND","Event not found"));
+        Event event=events.findByPublicId(request.eventId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"EVENT_NOT_FOUND","Event not found"));
         Instant now = Instant.now();
         String bookingBlock = bookingBlockCode(event, now);
         if (bookingBlock != null)
@@ -114,14 +114,26 @@ public class OrderService {
         for(UUID id:ids){
             TicketType tt=ticketTypes.findByPublicId(id).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"TICKET_TYPE_NOT_FOUND","Ticket type not found"));
             if(!tt.getEventId().equals(event.getId())) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_CART","Ticket type does not belong to this event");
-            validateTicketType(tt,merged.get(id));
-            TicketType locked=reservationService.reserve(tt.getId(),merged.get(id)); lockedTypes.add(locked);
+            TicketType locked=reservationService.reserve(tt.getId(),merged.get(id));
+            // ReservationService locks the ticket-type row. Validate the locked snapshot, not the stale
+            // pre-lock entity, so price/status/quantity changes cannot bleed into the order.
+            validateTicketType(locked,merged.get(id));
+            lockedTypes.add(locked);
             total=Math.addExact(total,Math.multiplyExact(locked.getPriceMinorUnits(),merged.get(id)));
         }
         if(total<=0) throw new ApiException(HttpStatus.CONFLICT,"FREE_CHECKOUT_UNSUPPORTED","Zero-value checkout is not enabled for this deployment");
+        // Take the event lock only for the final inventory/order commit. This preserves the cancellation/update
+        // race guarantee without serializing all buyers on the same event row for the entire checkout transaction.
+        Event lockedEvent=events.findByIdForUpdate(event.getId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"EVENT_NOT_FOUND","Event not found"));
+        Instant commitNow = Instant.now();
+        String commitBookingBlock = bookingBlockCode(lockedEvent, commitNow);
+        if (commitBookingBlock != null) {
+            throw new ApiException(HttpStatus.CONFLICT, commitBookingBlock, bookingBlockMessage(commitBookingBlock));
+        }
         Instant expires=Instant.now().plus(props.reservation().hold());
-        Order order=new Order(); order.setOrderNumber(orderNumber()); order.setEventId(event.getId()); order.setCustomerName(request.customerName().trim());
-        order.setCustomerEmail(request.customerEmail().trim().toLowerCase(java.util.Locale.ROOT)); order.setCustomerPhone(normalizePhone(request.customerPhone())); order.setTotalMinorUnits(total); order.setCurrency(event.getCurrency());
+        Order order=new Order(); order.setOrderNumber(orderNumber()); order.setEventId(lockedEvent.getId()); order.setCustomerName(request.customerName().trim());
+        order.setCustomerEmail(request.customerEmail().trim().toLowerCase(java.util.Locale.ROOT)); order.setCustomerPhone(normalizePhone(request.customerPhone())); order.setTotalMinorUnits(total); order.setCurrency(lockedEvent.getCurrency());
+
         order.setStatus(Enums.OrderStatus.AWAITING_PAYMENT); order.setIdempotencyKey(request.idempotencyKey());
         String checkoutSessionToken = newCheckoutSessionToken();
         order.setCheckoutSessionHash(hashCheckoutSession(checkoutSessionToken));

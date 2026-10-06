@@ -4,6 +4,7 @@ import com.neelastack.lakhdatar.config.EnterpriseLog;
 
 import com.neelastack.lakhdatar.domain.Enums;
 import com.neelastack.lakhdatar.domain.Event;
+import com.neelastack.lakhdatar.domain.EventNotificationJob;
 import com.neelastack.lakhdatar.domain.Order;
 import com.neelastack.lakhdatar.domain.Ticket;
 import com.neelastack.lakhdatar.domain.TicketMailJob;
@@ -292,6 +293,59 @@ public class TicketMailService {
         } catch (Exception ex) {
             EnterpriseLog.warn(log, "mail.delivery.failed", "event.category", "email", "order.id", orderId,
                     "error.type", ex.getClass().getSimpleName());
+            return FAILED;
+        }
+    }
+
+    /** Durable event-change mail used by the event-notification outbox. No ticket token is embedded. */
+    public String sendEventNotification(EventNotificationJob job) {
+        if (!isConfigured()) return NOT_CONFIGURED;
+        try {
+            Order o = orders.findById(job.getOrderId()).orElse(null);
+            if (o == null || o.getEventId() == null || !o.getEventId().equals(job.getEventId())) {
+                EnterpriseLog.warn(log, "event.notification.order-mismatch", "event.category", "email",
+                        "event.notification.id", job.getId(), "order.id", job.getOrderId(), "event.id", job.getEventId());
+                return NO_TICKETS;
+            }
+            Event e = events.findById(o.getEventId()).orElse(null);
+            if (e == null || o.getCustomerEmail() == null || o.getCustomerEmail().isBlank()) return NO_TICKETS;
+
+            JavaMailSender s = sender.getIfAvailable();
+            MimeMessage msg = s.createMimeMessage();
+            MimeMessageHelper h = new MimeMessageHelper(msg, false, "UTF-8");
+            h.setFrom(from);
+            h.setTo(o.getCustomerEmail());
+
+            boolean cancelled = job.getKind() == EventNotificationJob.Kind.CANCELLED;
+            h.setSubject(cancelled ? "Important update: " + e.getName() + " has been cancelled" : "Important update: " + e.getName() + " has changed");
+
+            java.time.ZoneId zone;
+            try { zone = java.time.ZoneId.of(e.getTimezone()); } catch (Exception ignored) { zone = java.time.ZoneId.of("Asia/Kolkata"); }
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a", java.util.Locale.ENGLISH).withZone(zone);
+            String currentStart = e.getStartsAt() == null ? "Not available" : fmt.format(e.getStartsAt());
+            String oldStart = job.getOldStartsAt() == null ? "Not available" : fmt.format(job.getOldStartsAt());
+            String oldEnd = job.getOldEndsAt() == null ? "Not available" : fmt.format(job.getOldEndsAt());
+
+            StringBuilder html = new StringBuilder("<div style=\"font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#1a151b\">")
+                    .append("<h2 style=\"margin:0 0 12px\">").append(esc(e.getName())).append("</h2>");
+            if (cancelled) {
+                html.append("<p>Hi ").append(esc(o.getCustomerName())).append(", we’re sorry to inform you that this event has been cancelled.</p>")
+                        .append("<p>Your order <strong>").append(esc(o.getOrderNumber())).append("</strong> is no longer valid for entry. Any eligible payment refund is handled by our recovery workflow; you do not need to make another payment or submit another order.</p>");
+            } else {
+                html.append("<p>Hi ").append(esc(o.getCustomerName())).append(", the details of this event have been updated.</p>")
+                        .append("<p><strong>Current start:</strong> ").append(esc(currentStart)).append("</p>")
+                        .append("<p>Your order <strong>").append(esc(o.getOrderNumber())).append("</strong> remains the source of truth. Please open your ticket or use the recovery page before travelling to confirm the latest venue and event details.</p>")
+                        .append("<p style=\"font-size:12px;color:#6f6573\">Previous start: ").append(esc(oldStart)).append("; previous end: ").append(esc(oldEnd)).append(".</p>");
+            }
+            html.append("<p><a href=\"").append(esc(baseUrl)).append("/recover?order=").append(URLEncoder.encode(o.getOrderNumber(), StandardCharsets.UTF_8)).append("\">Open secure ticket recovery</a></p>")
+                    .append("<p style=\"font-size:12px;color:#6f6573\">This message does not contain a ticket credential. Never share passwords or one-time codes by email.</p>")
+                    .append("</div>");
+            h.setText(html.toString(), true);
+            s.send(msg);
+            EnterpriseLog.info(log, "event.notification.email.sent", "event.category", "email", "event.notification.kind", job.getKind().name(), "order.id", job.getOrderId());
+            return SENT;
+        } catch (Exception ex) {
+            EnterpriseLog.warn(log, "event.notification.email.failed", "event.category", "email", "event.notification.kind", job.getKind().name(), "order.id", job.getOrderId(), "error.type", ex.getClass().getSimpleName());
             return FAILED;
         }
     }

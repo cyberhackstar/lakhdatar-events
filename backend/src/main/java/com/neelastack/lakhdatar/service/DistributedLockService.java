@@ -29,13 +29,16 @@ public class DistributedLockService {
     public boolean withLock(String key, Duration ttl, Runnable action) {
         try (Handle handle = tryAcquire(key, ttl)) {
             if (!handle.acquired()) return false;
-            ScheduledFuture<?> heartbeat = handle.startRenewal(ttl);
-            try {
-                action.run();
-                return true;
-            } finally {
-                heartbeat.cancel(false);
-            }
+            action.run();
+            return true;
+        }
+    }
+
+    /** Result-bearing variant that keeps the lock heartbeat alive for the whole operation. */
+    public <T> java.util.Optional<T> withLockOptional(String key, Duration ttl, java.util.function.Supplier<T> action) {
+        try (Handle handle = tryAcquire(key, ttl)) {
+            if (!handle.acquired()) return java.util.Optional.empty();
+            return java.util.Optional.ofNullable(action.get());
         }
     }
 
@@ -44,12 +47,12 @@ public class DistributedLockService {
         String token = UUID.randomUUID().toString();
         try {
             Boolean acquired = redis.opsForValue().setIfAbsent("lk:lock:" + key, token, ttl);
-            if (Boolean.TRUE.equals(acquired)) return new Handle("lk:lock:" + key, token, true);
-            return new Handle("lk:lock:" + key, token, false);
+            if (Boolean.TRUE.equals(acquired)) return new Handle("lk:lock:" + key, token, true, ttl);
+            return new Handle("lk:lock:" + key, token, false, ttl);
         } catch (Exception ignored) {
             // Critical workflows must fail closed if the distributed lock backend is unavailable.
             // A process-local fallback is unsafe once more than one backend instance exists.
-            return new Handle("lk:lock:" + key, token, false);
+            return new Handle("lk:lock:" + key, token, false, ttl);
         }
     }
 
@@ -70,8 +73,10 @@ public class DistributedLockService {
         private final String key;
         private final String token;
         private final boolean acquired;
-        private Handle(String key, String token, boolean acquired) {
+        private final ScheduledFuture<?> heartbeat;
+        private Handle(String key, String token, boolean acquired, Duration ttl) {
             this.key = key; this.token = token; this.acquired = acquired;
+            this.heartbeat = acquired ? startRenewal(ttl) : null;
         }
 
         public boolean acquired() { return acquired; }
@@ -91,6 +96,7 @@ public class DistributedLockService {
         @Override
         public void close() {
             if (!acquired) return;
+            if (heartbeat != null) heartbeat.cancel(false);
             try { redis.execute(UNLOCK_SCRIPT, List.of(key), token); }
             catch (Exception ignored) { }
         }

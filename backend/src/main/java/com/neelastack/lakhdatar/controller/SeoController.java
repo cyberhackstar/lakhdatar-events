@@ -39,6 +39,8 @@ public class SeoController {
                 + "Disallow: /ticket/\n"
                 + "Disallow: /recover\n"
                 + "Disallow: /login\n"
+                + "Disallow: /setup/\n"
+                + "Disallow: /monitor\n"
                 + "Disallow: /api/\n\n"
                 + "Sitemap: " + base + "/sitemap.xml\n";
         return ResponseEntity.ok().cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic()).body(body);

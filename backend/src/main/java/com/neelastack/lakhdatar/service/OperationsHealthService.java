@@ -16,7 +16,7 @@ public class OperationsHealthService {
     private final StringRedisTemplate redis;
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
     @Value("${spring.application.name:lakhdatar-events-backend}") private String applicationName;
-    @Value("${spring.application.version:2.0.16}") private String applicationVersion;
+    @Value("${spring.application.version:2.0.20}") private String applicationVersion;
 
     public record Health(String application, String version, Instant checkedAt, Component database, Component redis,
                          Queues queues, long publishedEvents, long organizers, boolean workerEnabled) {}
@@ -24,7 +24,7 @@ public class OperationsHealthService {
     public record Queues(long pendingPayments, long stalePayments, long providerOrderRecoveryPending,
                          long pendingRefunds, long webhookBacklog, long webhookStuck,
                          long webhookDeadLetters, long refundManualReview,
-                         long heldReservations, long expiredReservations, long mailPending, long mailFailed) {}
+                         long heldReservations, long expiredReservations, long mailPending, long mailFailed, long eventNotificationPending, long eventNotificationFailed) {}
 
     public Health health() {
         Instant now = Instant.now();
@@ -73,7 +73,9 @@ public class OperationsHealthService {
         long expiredReservations = scalar("select count(*) from ticket_reservations where status='HELD' and expires_at <= now()");
         long mailPending = scalar("select count(*) from ticket_mail_jobs where status in ('PENDING','PROCESSING')");
         long mailFailed = scalar("select count(*) from ticket_mail_jobs where status='FAILED'");
-        return new Queues(pendingPayments, stalePayments, providerRecovery, pendingRefunds, webhookBacklog, webhookStuck, webhookDeadLetters, refundManualReview, heldReservations, expiredReservations, mailPending, mailFailed);
+        long eventNotificationPending = scalar("select count(*) from event_notification_jobs where status in ('PENDING','PROCESSING')");
+        long eventNotificationFailed = scalar("select count(*) from event_notification_jobs where status='FAILED'");
+        return new Queues(pendingPayments, stalePayments, providerRecovery, pendingRefunds, webhookBacklog, webhookStuck, webhookDeadLetters, refundManualReview, heldReservations, expiredReservations, mailPending, mailFailed, eventNotificationPending, eventNotificationFailed);
     }
 
     long jdbcScalar(String sql) { return scalar(sql); }

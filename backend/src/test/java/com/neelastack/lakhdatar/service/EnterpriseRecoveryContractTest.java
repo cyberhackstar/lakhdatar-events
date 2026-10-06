@@ -22,7 +22,8 @@ class EnterpriseRecoveryContractTest {
         String svc = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/EventManagementService.java"));
         String repo = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/repository/TicketRepository.java"));
         assertTrue(svc.contains("tickets.cancelIssuedForEvent(e.getId())"));
-        assertTrue(repo.contains("UPDATE tickets SET status='CANCELLED'"));
+        assertTrue(repo.contains("cancelIssuedForEvent"));
+        assertTrue(repo.toLowerCase(java.util.Locale.ROOT).contains("update tickets set status='cancelled'"));
         assertFalse(svc.contains("findByEventIdOrderByTicketNumberAsc(e.getId()).forEach"));
     }
 
@@ -86,9 +87,10 @@ class EnterpriseRecoveryContractTest {
         String mail = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/TicketMailService.java"));
         assertTrue(reset.contains("job:password-reset-cleanup"));
         assertTrue(mfa.contains("job:mfa-cleanup"));
-        assertTrue(mail.contains("job:mail-repair"));
-        assertTrue(mail.contains("job:mail-cleanup"));
-        assertTrue(mail.contains("job:mail-sweep"));
+        assertTrue(mail.contains("mail-delivery-repair-sweep"));
+        assertTrue(mail.contains("mail-delivery-cleanup-sweep"));
+        assertTrue(mail.contains("mail-delivery-sweep"));
+        assertTrue(mail.contains("findByIdForUpdate"));
     }
 
     @Test void paymentWebhooksAreProviderScopedAndDurablyRetryable() throws Exception {
@@ -110,6 +112,12 @@ class EnterpriseRecoveryContractTest {
         String mfaMigration = Files.readString(Path.of("src/main/resources/db/migration/V38__enterprise_mfa_session_proof.sql"));
         assertTrue(mfaMigration.contains("mfa_verified BOOLEAN NOT NULL DEFAULT FALSE"));
         assertTrue(mfaMigration.contains("idx_refresh_tokens_user_mfa"));
+        String mfaReplayMigration = Files.readString(Path.of("src/main/resources/db/migration/V39__enterprise_mfa_replay_and_constraint_validation.sql"));
+        String eventNotificationMigration = Files.readString(Path.of("src/main/resources/db/migration/V40__enterprise_event_change_notifications.sql"));
+        assertTrue(mfaReplayMigration.contains("last_mfa_totp_counter"));
+        assertTrue(mfaReplayMigration.contains("VALIDATE CONSTRAINT fk_ticket_reservations_order"));
+        assertTrue(eventNotificationMigration.contains("event_notification_jobs"));
+        assertTrue(eventNotificationMigration.contains("uk_event_notification_change"));
     }
 
     @Test void privilegedMfaHasAnEmergencyAdminRecoveryPath() throws Exception {

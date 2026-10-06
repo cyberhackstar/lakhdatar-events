@@ -45,7 +45,8 @@ class PaymentWebhookReleaseContractTest {
         String webhook = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/CashfreeWebhookService.java"));
         assertTrue(provider.contains("movePointRight(2).longValueExact()"));
         assertTrue(webhook.contains("movePointRight(2).longValueExact()"));
-        assertTrue(webhook.contains("String eventId = \"cashfree:\" + sha256(raw);"));
+        assertTrue(webhook.contains("String eventId = stableEventId(n, payloadHash);"));
+        assertTrue(webhook.contains("private String stableEventId(JsonNode n, String payloadHash)"));
     }
 
     @Test

@@ -3,6 +3,9 @@ const { defineConfig, devices } = require('@playwright/test');
 const baseURL = process.env.E2E_BASE_URL;
 if (!baseURL) throw new Error('E2E_BASE_URL is required');
 if (!/^https:\/\//i.test(baseURL)) throw new Error('E2E_BASE_URL must use HTTPS');
+if ((process.env.E2E_ENV || '').toLowerCase() !== 'staging') throw new Error('E2E_ENV=staging is required; browser qualification must never target production');
+const targetHost = new URL(baseURL).hostname.toLowerCase();
+if (targetHost === 'events.neelastack.com' || targetHost === 'www.events.neelastack.com') throw new Error('Refusing live production origin');
 
 module.exports = defineConfig({
   testDir: './tests',

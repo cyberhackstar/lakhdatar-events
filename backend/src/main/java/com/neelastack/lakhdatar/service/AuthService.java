@@ -52,8 +52,10 @@ public class AuthService {
         EnterpriseLog.debug(log, "auth.login.started", "event.category", "authentication");
         String normalizedEmail=email==null?"":email.trim().toLowerCase(java.util.Locale.ROOT);
         java.time.Duration window=java.time.Duration.ofSeconds(props.rateLimit().windowSeconds());
-        if(!rateLimits.allow("login-client:"+clientKey,props.rateLimit().loginPerWindow(),window)
-                || !rateLimits.allow("login-email:"+hash(normalizedEmail),Math.max(3,props.rateLimit().loginPerWindow()/2),window)) {
+        String normalizedClientKey = clientKey == null || clientKey.isBlank() ? "unknown" : clientKey;
+        String loginFingerprint = hash(normalizedEmail + "|" + normalizedClientKey);
+        if(!rateLimits.allow("login-client:"+normalizedClientKey,props.rateLimit().loginPerWindow(),window)
+                || !rateLimits.allow("login-combo:"+loginFingerprint,Math.max(5,props.rateLimit().loginPerWindow()/2),window)) {
             EnterpriseLog.warn(log, "auth.login.rate_limited", "event.category", "authentication", "error.code", "RATE_LIMITED");
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","Too many login attempts");
         }

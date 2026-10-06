@@ -36,6 +36,7 @@ public class EventManagementService {
     private final AppProperties props;
     private final PaymentRepository payments;
     private final PaymentGatewayRouter paymentGateways;
+    private final EventNotificationService eventNotifications;
 
     public record CreateTicketType(String name, String description, long priceMinorUnits, int totalQuantity,
                                    int minPerOrder, int maxPerOrder, Instant saleStartsAt, Instant saleEndsAt) {}
@@ -254,6 +255,11 @@ public class EventManagementService {
     @Transactional
     public void transition(UUID eventPublicId, Transition t, Long actorId, String role) {
         Event managedEvent = managed(eventPublicId, actorId, role);
+        // Inventory mutation paths use ticket-type -> event lock ordering. Cancellation must acquire
+        // the same locks in the same order so it cannot deadlock a concurrent hot checkout.
+        if (t == Transition.CANCEL) {
+            ticketTypes.findByEventIdForUpdateOrderByIdAsc(managedEvent.getId());
+        }
         Event e = events.findByIdForUpdate(managedEvent.getId()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         Enums.EventStatus from = e.getStatus();
         // Lifecycle endpoints are retry-safe: repeating a completed state is a no-op.
@@ -268,10 +274,15 @@ public class EventManagementService {
                 require(from == Enums.EventStatus.DRAFT || from == Enums.EventStatus.PUBLISHED || from == Enums.EventStatus.UNPUBLISHED, "This event can no longer be cancelled");
                 to = Enums.EventStatus.CANCELLED;
                 // Customer-facing ticket state must immediately reflect event cancellation.
-                // The event row is already locked, so this bulk update cannot race checkout/inventory
-                // mutations and avoids loading tens of thousands of tickets into Hibernate.
+                // The event row is already locked, so these bulk updates cannot race checkout/inventory
+                // mutations and avoid loading tens of thousands of tickets into Hibernate.
+                // Both repository bulk operations clear the persistence context. Therefore they must
+                // happen BEFORE assigning the final event status, otherwise the locked Event entity is
+                // detached and CANCELLED would never be flushed to the database.
                 int cancelledTickets = tickets.cancelIssuedForEvent(e.getId());
                 int releasedReservations = reservations.releaseHeldForEvent(e.getId());
+                e = events.findByIdForUpdate(managedEvent.getId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
                 EnterpriseLog.info(log, "event.cancellation.tickets_closed",
                         "event.category", "event", "event.id", e.getPublicId(),
                         "tickets.cancelled", cancelledTickets,
@@ -289,6 +300,11 @@ public class EventManagementService {
         }
         e.setStatus(to);
         audit.log(actorId, "EVENT_" + t.name(), "EVENT", e.getPublicId().toString(), from + "->" + to);
+        if (t == Transition.CANCEL) {
+            int queued = eventNotifications.queueCancellation(e.getId());
+            EnterpriseLog.info(log, "event.cancellation.notifications_queued",
+                    "event.category", "event", "event.id", e.getPublicId(), "notifications.queued", queued);
+        }
     }
 
     @Transactional
@@ -298,6 +314,9 @@ public class EventManagementService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         authorize(e, actorId, role);
         require(e.getStatus() != Enums.EventStatus.COMPLETED && e.getStatus() != Enums.EventStatus.ARCHIVED && e.getStatus() != Enums.EventStatus.CANCELLED, "This event can no longer be edited");
+        String previousBuyerSignature = buyerVisibleSignature(e);
+        Instant previousStartsAt = e.getStartsAt();
+        Instant previousEndsAt = e.getEndsAt();
         Instant previousEventEnd = e.getEndsAt() != null ? e.getEndsAt() : e.getStartsAt();
         boolean bookingEndExplicit = Boolean.TRUE.equals(r.clearBookingEndsAt()) || r.bookingEndsAt() != null;
         if (r.name() != null) { String n = r.name().trim(); if (n.length() < 3 || n.length() > 180) throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_EVENT", "Event name must be between 3 and 180 characters"); e.setName(n); }
@@ -349,6 +368,13 @@ public class EventManagementService {
             venues.save(v);
         }
         audit.log(actorId, "EVENT_UPDATED", "EVENT", e.getPublicId().toString(), null);
+        String currentBuyerSignature = buyerVisibleSignature(e);
+        if (!Objects.equals(previousBuyerSignature, currentBuyerSignature)) {
+            String changeKey = sha256Hex(previousBuyerSignature + "\n->\n" + currentBuyerSignature);
+            int queued = eventNotifications.queueDetailsChange(e.getId(), changeKey, previousStartsAt, previousEndsAt);
+            EnterpriseLog.info(log, "event.details_change.notifications_queued",
+                    "event.category", "event", "event.id", e.getPublicId(), "notifications.queued", queued);
+        }
     }
 
     @Transactional
@@ -373,11 +399,11 @@ public class EventManagementService {
     @Transactional
     public void updateTicketType(UUID ticketTypePublicId, UpdateTicketType r, Long actorId, String role) {
         TicketType found = ticketTypes.findByPublicId(ticketTypePublicId).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "TICKET_TYPE_NOT_FOUND", "Ticket type not found"));
-        // Lock the parent event before the ticket type so capacity edits serialize with both
-        // checkout inventory reservations and other admin inventory edits.
-        Event e = events.findByIdForUpdate(found.getEventId()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
-        authorize(e, actorId, role);
+        // Keep lock ordering identical to checkout: ticket type -> parent event. This prevents a
+        // ticket-type inventory edit from deadlocking a hot checkout while preserving event-wide capacity serialization.
         TicketType t = ticketTypes.findByIdForUpdate(found.getId()).orElseThrow();
+        Event e = events.findByIdForUpdate(t.getEventId()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
+        authorize(e, actorId, role);
         String name = r.name() != null ? r.name() : t.getName();
         long price = r.priceMinorUnits() != null ? r.priceMinorUnits() : t.getPriceMinorUnits();
         int total = r.totalQuantity() != null ? r.totalQuantity() : t.getTotalQuantity();
@@ -458,6 +484,26 @@ public class EventManagementService {
      * The organizer is never guessed. An explicit slug is required unless exactly one organizer is in scope
      * (a member of one organizer, or a platform with a single organizer). Members can only target their own organizer.
      */
+    private String buyerVisibleSignature(Event e) {
+        Venue v = e.getVenueId() == null ? null : venues.findById(e.getVenueId()).orElse(null);
+        return java.util.stream.Stream.of(
+                e.getName(), e.getStartsAt(), e.getEndsAt(), e.getTimezone(),
+                e.getBookingStartsAt(), e.getBookingEndsAt(), e.getTerms(), e.getRefundPolicy(), e.getAgeRestriction(),
+                v == null ? null : v.getName(), v == null ? null : v.getAddress(), v == null ? null : v.getCity(),
+                v == null ? null : v.getState(), v == null ? null : v.getCountry(), v == null ? null : v.getMapUrl())
+                .map(java.util.Objects::toString)
+                .collect(java.util.stream.Collectors.joining("\u001f"));
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is required", e);
+        }
+    }
+
     private Organizer resolveOrganizer(String slug, Long actorId, String role) {
         if (slug != null && !slug.isBlank())
             return organizers.findBySlug(slug.trim().toLowerCase(java.util.Locale.ROOT)).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORGANIZER_NOT_FOUND", "Organizer not found"));

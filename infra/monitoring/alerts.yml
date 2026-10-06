@@ -130,6 +130,13 @@ groups:
         labels: {severity: warning, service: mail}
         annotations:
           summary: Ticket mail failures exceed five jobs
+      - alert: LakhdatarEventNotificationFailures
+        expr: lakhdatar_event_notifications_failed > 0
+        for: 10m
+        labels: {severity: warning, service: mail}
+        annotations:
+          summary: Event-change notification delivery failures detected
+          description: Cancellation or buyer-visible event-change notification jobs have remained failed for ten minutes.
       - alert: LakhdatarReservationCleanupStalled
         expr: lakhdatar_reservations_expired > 25
         for: 10m

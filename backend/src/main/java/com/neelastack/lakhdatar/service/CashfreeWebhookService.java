@@ -70,14 +70,33 @@ public class CashfreeWebhookService {
         JsonNode n;
         try { n = mapper.readTree(raw); } catch (Exception e) { throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_WEBHOOK_BODY", "Webhook payload is invalid"); }
 
-        // The signature authenticates the exact raw body. The body hash is the idempotency key because
-        // Cashfree does not provide a stable event id on every payment/refund notification shape.
-        String eventId = "cashfree:" + sha256(raw);
-        persistIfAbsent(eventId, n.path("type").asText("unknown"), raw, sha256(raw));
+        // The signature authenticates the exact raw body. Persist the exact-body hash for audit, but
+        // derive the durable event key from Cashfree business identifiers so semantically identical
+        // retries are not duplicated merely because JSON formatting/order changed.
+        String payloadHash = sha256(raw);
+        String eventId = stableEventId(n, payloadHash);
+        persistIfAbsent(eventId, n.path("type").asText("unknown"), raw, payloadHash);
         PaymentWebhookEvent stored = events.findByProviderEventId(eventId).orElseThrow(() ->
                 new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "WEBHOOK_PERSISTENCE_FAILED", "Webhook could not be persisted"));
         if (stored.isProcessed()) return;
         dispatch(eventId);
+    }
+
+
+    private String stableEventId(JsonNode n, String payloadHash) {
+        JsonNode data = n.path("data");
+        JsonNode order = data.path("order");
+        JsonNode payment = data.path("payment");
+        JsonNode refund = data.path("refund");
+        String type = n.path("type").asText("unknown");
+        String orderId = order.path("order_id").asText("");
+        if (orderId.isBlank()) orderId = refund.path("order_id").asText("");
+        String paymentId = payment.path("cf_payment_id").asText("");
+        String refundId = refund.path("refund_id").asText("");
+        String eventTime = n.path("event_time").asText("");
+        String fingerprint = String.join("|", "CASHFREE", type, orderId, paymentId, refundId, eventTime);
+        if (orderId.isBlank() && paymentId.isBlank() && refundId.isBlank() && eventTime.isBlank()) fingerprint = payloadHash;
+        return "cashfree:" + sha256(fingerprint);
     }
 
     private boolean validTimestamp(String value) {

@@ -24,6 +24,14 @@ public record AppProperties(
         String publicBaseUrl
 ) {
     public record Jwt(String secret, Duration accessToken, Duration refreshToken, String issuer, String audience) {
+        @ConstructorBinding
+        public Jwt(String secret, Duration accessToken, Duration refreshToken, String issuer, String audience) {
+            this.secret = secret;
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+            this.issuer = issuer;
+            this.audience = audience;
+        }
         public Jwt(String secret, Duration accessToken, Duration refreshToken) {
             this(secret, accessToken, refreshToken, "neelastack-events", "neelastack-events-web");
         }
@@ -77,7 +85,25 @@ public record AppProperties(
                            long reconciliationAgeMs, long reconciliationSweepMs, long httpConnectTimeoutMs, long httpReadTimeoutMs) {}
     public record Cashfree(String appId, String secretKey, String baseUrl, String apiVersion,
                            long reconciliationAgeMs, long reconciliationSweepMs, long httpConnectTimeoutMs, long httpReadTimeoutMs, long webhookToleranceMs) {}
-    public record Payment(long reconciliationAgeMs, long reconciliationSweepMs) {}
+    public record Payment(long reconciliationAgeMs, long reconciliationSweepMs, int maxConcurrent, int failureThreshold,
+                          long bulkheadAcquireTimeoutMs, long circuitOpenSeconds) {
+        @ConstructorBinding
+        public Payment(long reconciliationAgeMs, long reconciliationSweepMs, int maxConcurrent, int failureThreshold,
+                       long bulkheadAcquireTimeoutMs, long circuitOpenSeconds) {
+            this.reconciliationAgeMs = reconciliationAgeMs;
+            this.reconciliationSweepMs = reconciliationSweepMs;
+            this.maxConcurrent = maxConcurrent;
+            this.failureThreshold = failureThreshold;
+            this.bulkheadAcquireTimeoutMs = bulkheadAcquireTimeoutMs;
+            this.circuitOpenSeconds = circuitOpenSeconds;
+        }
+        public Payment(long reconciliationAgeMs, long reconciliationSweepMs) {
+            this(reconciliationAgeMs, reconciliationSweepMs, 32, 5, 1000, 15);
+        }
+        public Payment(long reconciliationAgeMs, long reconciliationSweepMs, int maxConcurrent, int failureThreshold) {
+            this(reconciliationAgeMs, reconciliationSweepMs, maxConcurrent, failureThreshold, 1000, 15);
+        }
+    }
     public record InitialAdmin(boolean enabled, String setupToken) {}
     public record Cloudinary(String cloudName, String apiKey, String apiSecret, String folder, long maxBytes) {}
 }

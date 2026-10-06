@@ -156,9 +156,7 @@ public class RefundService {
         if (providerRefundId == null || providerRefundId.isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "REFUND_PROVIDER_ID_REQUIRED", "Provider refund identifier is required");
         }
-        var lock = locks.tryAcquire("refund-reconcile:" + paymentId, java.time.Duration.ofSeconds(60));
-        if (!lock.acquired()) throw new ApiException(HttpStatus.CONFLICT, "REFUND_RECONCILIATION_BUSY", "Refund reconciliation is already in progress");
-        try {
+        boolean acquired = locks.withLock("refund-reconcile:" + paymentId, java.time.Duration.ofMinutes(2), () -> {
             try {
                 tx.executeWithoutResult(status -> reconcileProviderRefundTx(paymentId, providerRefundId.trim(), providerStatus, amountMinor, providerReceipt));
             } catch (DataIntegrityViolationException ex) {
@@ -169,9 +167,8 @@ public class RefundService {
                     throw new ApiException(HttpStatus.CONFLICT, "REFUND_EVENT_MISMATCH", "Provider refund amount changed for an existing refund");
                 }
             }
-        } finally {
-            lock.close();
-        }
+        });
+        if (!acquired) throw new ApiException(HttpStatus.CONFLICT, "REFUND_RECONCILIATION_BUSY", "Refund reconciliation is already in progress");
     }
 
     private void reconcileProviderRefundTx(Long paymentId, String providerRefundId, String providerStatus, long amountMinor, String providerReceipt) {
@@ -321,12 +318,10 @@ public class RefundService {
         if (pending == null || pending.getStatus() == Enums.RefundStatus.COMPLETED) return;
         Payment payment = payments.findById(pending.getPaymentId()).orElse(null);
         if (payment == null || payment.getProviderOrderId() == null) return;
-        var lock = locks.tryAcquire("refund:" + payment.getId(), java.time.Duration.ofSeconds(90));
-        if (!lock.acquired()) return;
-        try {
+        locks.withLock("refund:" + payment.getId(), java.time.Duration.ofMinutes(3), () -> {
             EnterpriseLog.debug(log, "refund.processing.started", "event.category", "payment", "refund.id", pending.getPublicId(), "payment.id", payment.getId(), "refund.amount_minor", pending.getAmountMinor());
             finalizeFromProvider(pending.getId(), payment);
-        } finally { lock.close(); }
+        });
     }
 
     private void finalizeFromProvider(Long refundId, Payment payment) {
@@ -495,7 +490,7 @@ public class RefundService {
     }
 
     private boolean isFinancialRefundApprover(String role, Long organizerId, Long actorId) {
-        if ("ADMIN".equalsIgnoreCase(role) || "FINANCE".equalsIgnoreCase(role)) return true;
+        if ("ADMIN".equalsIgnoreCase(role)) return true;
         if (!"ORGANIZER".equalsIgnoreCase(role) || actorId == null) return false;
         return members.findByOrganizerIdAndUserId(organizerId, actorId)
                 .map(m -> "OWNER".equalsIgnoreCase(m.getRole()) || "FINANCE".equalsIgnoreCase(m.getRole()))

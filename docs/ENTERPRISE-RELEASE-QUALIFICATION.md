@@ -1,4 +1,4 @@
-# Enterprise release qualification — v2.0.15
+# Enterprise release qualification — v2.0.26
 
 This release is **enterprise-scale ready at the application architecture level**, but “BookMyShow-class” production availability is an infrastructure and operational claim that must be verified in the target environment.
 
@@ -6,7 +6,7 @@ This release is **enterprise-scale ready at the application architecture level**
 
 - Maven `clean verify` must pass with the complete integration-test profile.
 - Angular production build, unit tests, and browser E2E must pass; no release may certify with checkout/check-in E2E omitted.
-- All Flyway migrations V1–V38 must validate on a fresh database and an upgraded production-like database; the certification workflow executes both paths and retains the evidence artifact.
+- All Flyway migrations V1–V41 must validate on a fresh database and an upgraded production-like database; the certification workflow executes both paths and retains the evidence artifact.
 - Payment provider contract tests must cover Razorpay and Cashfree, including delayed/duplicate webhook recovery and failed-refund retry.
 - Ticket issuance and check-in concurrency tests must pass.
 - Public ticket PDF access must reject missing/invalid credentials.
@@ -57,10 +57,13 @@ Attach the CI run URL/commit, Maven test report, Angular build/test report, Dock
 
 The k6 suite writes one JSON summary per scenario under `loadtest-results/` when run with `infra/loadtest/run-suite.sh`. Preserve these files with the release CI artifact and record the target VM/DB/Redis sizing, commit SHA, timestamp, scenario settings and test-event identifier. Never attach customer or payment credentials to the artifact.
 
-## v2.0.15 go-live blockers
+## v2.0.26 go-live blockers
 
 The following are mandatory, not advisory: no failed refund may become permanently unqueryable for recovery; event cancellation/check-in must be concurrency-safe; large event cancellation must use bounded set-based database operations; webhook retry must be bounded and provider-scoped; privileged MFA must be enabled; and single-node production requires explicit risk acknowledgement.
 
 ## Production smoke invariant
 
 When `SMOKE_ENTERPRISE=true`, `production-smoke.sh` fails closed unless a dedicated issued ticket ID and ticket token are supplied. Ticket and PDF checks remain read-only and never perform admission or payment mutations.
+
+## 2.0.26 hardening
+The 2.0.26 candidate additionally qualifies Cashfree idempotency/webhook durability, MFA replay protection, streaming exports, private actuator isolation, checkout lock-ordering, reservation backlog draining and staging-only browser execution.

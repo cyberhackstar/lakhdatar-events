@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /** Read-only, bounded Loki query facade for the ADMIN Operations Center. */
 @Service
@@ -34,6 +35,10 @@ public class OperationsLogService {
     private static final List<String> ALLOWED_LEVELS = List.of("ALL", "TRACE", "DEBUG", "INFO", "WARN", "ERROR");
 
     private final ObjectMapper mapper;
+    private final HttpClient client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
+    private static final Pattern BEARER = Pattern.compile("(?i)(bearer\\s+)[A-Za-z0-9._~+\\-/=]+");
+    private static final Pattern EMAIL = Pattern.compile("(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b");
+    private static final Pattern PHONE = Pattern.compile("(?<!\\d)\\+?\\d[\\d .()\\-]{7,}\\d(?!\\d)");
     @Value("${app.observability.logs.enabled:true}") private boolean enabled;
     @Value("${app.observability.loki-url:http://loki:3100}") private String lokiUrl;
     @Value("${app.observability.log-query-timeout-ms:4000}") private long timeoutMs;
@@ -89,9 +94,6 @@ public class OperationsLogService {
                 "&end=" + end.toEpochMilli() * 1_000_000L +
                 "&limit=" + limit +
                 "&direction=backward";
-        HttpClient client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(Math.max(500, timeoutMs)))
-                .build();
         HttpRequest request = HttpRequest.newBuilder(URI.create(uri))
                 .timeout(Duration.ofMillis(Math.max(1000, timeoutMs)))
                 .header("Accept", "application/json")
@@ -138,7 +140,7 @@ public class OperationsLogService {
         String level = upper.contains(" ERROR ") || upper.startsWith("ERROR") ? "ERROR"
                 : upper.contains(" WARN ") || upper.startsWith("WARN") ? "WARN"
                 : upper.contains(" DEBUG ") || upper.startsWith("DEBUG") ? "DEBUG" : "INFO";
-        return new Parsed(level, "log.entry", truncate(raw));
+        return new Parsed(level, "log.entry", truncate(redactRaw(raw)));
     }
 
     /** Create an operator-friendly summary from a small allow-list of non-sensitive fields. */
@@ -201,6 +203,13 @@ public class OperationsLogService {
     private static int clamp(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
     private static String normalizeLevel(String value) { String x = value == null ? "INFO" : value.toUpperCase(Locale.ROOT); return ALLOWED_LEVELS.contains(x) && !"ALL".equals(x) ? x : "INFO"; }
     private static String enc(String value) { return URLEncoder.encode(value, StandardCharsets.UTF_8); }
+    private static String redactRaw(String value) {
+        if (value == null) return "";
+        String x = BEARER.matcher(value).replaceAll("$1[REDACTED]");
+        x = EMAIL.matcher(x).replaceAll("[REDACTED_EMAIL]");
+        x = PHONE.matcher(x).replaceAll("[REDACTED_PHONE]");
+        return x.replaceAll("(?i)(password|secret|token|api[_-]?key)\\s*[:=]\\s*[^,\\s]+", "$1=[REDACTED]");
+    }
     private static String truncate(String value) { if (value == null) return ""; return value.length() <= 900 ? value : value.substring(0, 900) + "…"; }
     private record Parsed(String level, String action, String message, String correlationId) {
         Parsed(String level, String action, String message) { this(level, action, message, null); }

@@ -75,6 +75,10 @@ server {
 
     location = /edge-health { access_log off; default_type text/plain; return 200 "ok\n"; }
 
+    # Actuator is bound to the private backend management port and must never be routable through the public edge.
+    location = /actuator { return 404; }
+    location ^~ /actuator/ { return 404; }
+
     location = / {
         if ($monitor_root_redirect) { return 302 /monitor$is_args$args; }
         proxy_pass http://web_pool;

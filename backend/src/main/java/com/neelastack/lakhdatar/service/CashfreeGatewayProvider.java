@@ -95,12 +95,13 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
             customer.put("customer_id", receipt);
             customer.put("customer_name", customerName == null || customerName.isBlank() ? "Customer" : customerName);
             customer.put("customer_email", customerEmail == null ? "" : customerEmail);
-            customer.put("customer_phone", customerPhone == null || customerPhone.isBlank() ? "9999999999" : customerPhone.replaceAll("\\D", ""));
+            String normalizedPhone = customerPhone == null ? "" : customerPhone.replaceAll("\\D", "");
+            if (!normalizedPhone.isBlank()) customer.put("customer_phone", normalizedPhone);
             var meta = body.putObject("order_meta");
             meta.put("return_url", props.publicBaseUrl() + "/payment/success?order_id={order_id}");
             meta.put("notify_url", props.publicBaseUrl() + "/api/v1/webhooks/cashfree");
             HttpRequest request = req("/orders")
-                    .header("x-request-id", UUID.randomUUID().toString())
+                    .header("x-idempotency-key", deterministicIdempotencyKey("order", receipt))
                     .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                     .build();
             JsonNode n = call(request);
@@ -160,13 +161,14 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
     }
 
     @Override public ProviderRefund refund(String paymentId, String orderId, long amount, String reason, String receipt, String key) {
+        String idempotencyKey = deterministicIdempotencyKey("refund", key == null || key.isBlank() ? receipt : key);
         try {
             var body = mapper.createObjectNode();
             body.put("refund_id", receipt);
             body.put("refund_amount", BigDecimal.valueOf(amount, 2));
             body.put("refund_note", reason == null ? "Event refund" : reason);
             HttpRequest request = req("/orders/" + enc(orderId) + "/refunds")
-                    .header("x-idempotency-key", key)
+                    .header("x-idempotency-key", idempotencyKey)
                     .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                     .build();
             JsonNode n = call(request);
@@ -197,6 +199,14 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
             if (e.status() == HttpStatus.NOT_FOUND) return Optional.empty();
             throw e;
         }
+    }
+
+
+    /** Cashfree requires a UUID-shaped idempotency key for safe retries. Derive it deterministically
+     * from our stable local request identity so a lost provider response can be replayed safely. */
+    private String deterministicIdempotencyKey(String operation, String stableKey) {
+        return UUID.nameUUIDFromBytes(("neelastack:cashfree:" + operation + ":" + stableKey)
+                .getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private long toMinorUnits(JsonNode node, String field) {

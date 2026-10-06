@@ -20,4 +20,5 @@ UPDATE refunds
    SET next_attempt_at = COALESCE(last_attempt_at, created_at)
  WHERE next_attempt_at IS NULL;
 
-VALIDATE CONSTRAINT chk_refunds_next_attempt_after_created ON refunds;
+ALTER TABLE refunds
+    VALIDATE CONSTRAINT chk_refunds_next_attempt_after_created;

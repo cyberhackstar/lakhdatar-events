@@ -40,6 +40,15 @@ public class ProductionConfigurationGuard {
         if (razorpayConfigured) { requireProviderCredential("RAZORPAY_KEY_SECRET", props.razorpay().keySecret()); requireSecret("RAZORPAY_WEBHOOK_SECRET", props.razorpay().webhookSecret()); requireNonBlank("RAZORPAY_KEY_ID", props.razorpay().keyId()); requireHttps("RAZORPAY_BASE_URL", props.razorpay().baseUrl()); }
         if (cashfreeConfigured) { requireProviderCredential("CASHFREE_SECRET_KEY", props.cashfree().secretKey()); requireNonBlank("CASHFREE_APP_ID", props.cashfree().appId()); requireHttps("CASHFREE_BASE_URL", props.cashfree().baseUrl()); }
         requireHttps("NEELASTACK_PUBLIC_URL", props.branding().neelastackPublicUrl());
+        requireNonBlank("MAIL_HOST", environment.getProperty("spring.mail.host"));
+        requireNonBlank("MAIL_FROM", environment.getProperty("app.mail.from"));
+        boolean smtpAuth = environment.getProperty("spring.mail.properties.mail.smtp.auth", Boolean.class, true);
+        if (smtpAuth) {
+            requireNonBlank("MAIL_USERNAME", environment.getProperty("spring.mail.username"));
+            requireProviderCredential("MAIL_PASSWORD", environment.getProperty("spring.mail.password"));
+        }
+        boolean startTls = environment.getProperty("spring.mail.properties.mail.smtp.starttls.enable", Boolean.class, true);
+        if (!startTls) throw new IllegalStateException("MAIL SMTP STARTTLS must be enabled in production");
         requireHttpsOrigins("CORS_ALLOWED_ORIGINS", props.cors().allowedOrigins());
         if (!props.security().refreshCookieSecure()) throw new IllegalStateException("AUTH_COOKIE_SECURE must be true in production");
         if (props.checkout().sessionTtl().isNegative() || props.checkout().sessionTtl().isZero() || props.checkout().sessionTtl().compareTo(java.time.Duration.ofHours(2)) > 0) throw new IllegalStateException("CHECKOUT_SESSION_TTL must be between >0 and 2 hours in production");

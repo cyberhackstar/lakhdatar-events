@@ -39,6 +39,8 @@ public class BusinessMetricsService {
     private final AtomicLong expiredReservations = new AtomicLong();
     private final AtomicLong mailPending = new AtomicLong();
     private final AtomicLong mailFailed = new AtomicLong();
+    private final AtomicLong eventNotificationPending = new AtomicLong();
+    private final AtomicLong eventNotificationFailed = new AtomicLong();
     private final AtomicLong publishableEvents = new AtomicLong();
     private final AtomicLong activeTicketTypes = new AtomicLong();
     private final AtomicLong checkIns15m = new AtomicLong();
@@ -75,6 +77,8 @@ public class BusinessMetricsService {
         gauge("lakhdatar.reservations.expired", expiredReservations, "Expired HELD reservations awaiting cleanup");
         gauge("lakhdatar.mail.pending", mailPending, "Pending/processing ticket mail jobs");
         gauge("lakhdatar.mail.failed", mailFailed, "Failed ticket mail jobs");
+        gauge("lakhdatar.event_notifications.pending", eventNotificationPending, "Pending/processing event-change notification jobs");
+        gauge("lakhdatar.event_notifications.failed", eventNotificationFailed, "Failed event-change notification jobs");
         gauge("lakhdatar.events.publishable", publishableEvents, "Draft or unpublished events that pass basic publication prerequisites");
         gauge("lakhdatar.ticket_types.active", activeTicketTypes, "Active ticket types");
         gauge("lakhdatar.checkins.last15m", checkIns15m, "Ticket check-ins during the last fifteen minutes");
@@ -111,6 +115,8 @@ public class BusinessMetricsService {
             expiredReservations.set(q.expiredReservations());
             mailPending.set(q.mailPending());
             mailFailed.set(q.mailFailed());
+            eventNotificationPending.set(q.eventNotificationPending());
+            eventNotificationFailed.set(q.eventNotificationFailed());
 
             publishableEvents.set(scalar("select count(*) from events e where e.status in ('DRAFT','UNPUBLISHED') and e.starts_at > now() and exists (select 1 from ticket_types t where t.event_id=e.id)"));
             activeTicketTypes.set(scalar("select count(*) from ticket_types where status='ACTIVE'"));

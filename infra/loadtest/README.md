@@ -53,3 +53,21 @@ Run `infra/loadtest/enterprise-gate.sh` for release qualification. It fails clos
 check-in, ticket PDF, operations, database invariant checks and the 1,000-user public-read profile
 all have the required staging credentials. Never point this gate at the live site or enable production
 checkout load.
+
+## Enterprise hot-sale qualification
+
+Use a dedicated staging event and payment-provider sandbox. Never point this test at production.
+
+```bash
+ENABLE_ENTERPRISE_CHECKOUT_LOAD=true \
+CHECKOUT_TARGET_RATE=100 \
+BASE_URL=https://staging.example.com \
+EVENT_ID=<staging-event-id> \
+TICKET_TYPE_ID=<staging-ticket-type-id> \
+./infra/loadtest/run-suite.sh
+```
+
+This exercises the expensive checkout path at a configurable arrival rate and accepts only explicit
+business/overload responses (`200/201/409/429/503`) as contract-valid. A `503` must be caused by
+intentional capacity protection or provider degradation, not hidden server errors; inspect the exported
+k6 report and application metrics before certifying a release.

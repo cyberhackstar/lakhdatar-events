@@ -1,5 +1,5 @@
-NEELASTACK EVENTS v2.0.16 ENTERPRISE PRODUCTION CANDIDATE
-Release: 2.0.16
-Changes: CHANGES-2.0.16.md
-Validation: VALIDATION-2.0.16.md
-Base: Enterprise hardening line 2.0.15 + CI test-scope correction
+NEELASTACK EVENTS v2.0.26 ENTERPRISE PRODUCTION CANDIDATE
+Release: 2.0.26
+Changes: CHANGES-2.0.26.md
+Validation: VALIDATION-2.0.26.md
+Base: v2.0.21 certification candidate + clean-database Flyway/regression gate fixes

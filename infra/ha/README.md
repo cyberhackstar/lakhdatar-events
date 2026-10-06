@@ -1,6 +1,6 @@
 # Enterprise HA reference architecture
 
-v2.0.15 is stateless at the HTTP/application tier and can run multiple backend and SSR instances. True high availability cannot be created by running more containers on the same Oracle VM; the VM remains a single failure domain.
+v2.0.24 is stateless at the HTTP/application tier and can run multiple backend and SSR instances. True high availability cannot be created by running more containers on the same Oracle VM; the VM remains a single failure domain.
 
 ## Recommended production topology
 

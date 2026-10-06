@@ -17,5 +17,5 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
     Optional<Refund> findByRazorpayRefundId(String id);
     Optional<Refund> findByProviderRefundId(String id);
     Optional<Refund> findByPaymentIdAndProviderRefundId(Long paymentId, String providerRefundId);
-    List<Refund> findTop100ByStatusInAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAsc(Collection<Enums.RefundStatus> statuses, Instant now);
+    List<Refund> findByStatusInAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAscCreatedAtAsc(Collection<Enums.RefundStatus> statuses, Instant now, org.springframework.data.domain.Pageable pageable);
 }

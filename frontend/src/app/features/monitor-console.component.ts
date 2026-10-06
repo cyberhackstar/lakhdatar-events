@@ -226,7 +226,7 @@ export class MonitorConsoleComponent implements OnInit, OnDestroy {
 
   overallState(d: OperationsDashboard): 'HEALTHY' | 'DEGRADED' {
     const q = d.health.queues;
-    return d.health.database.status !== 'UP' || d.health.redis.status !== 'UP' || q.stalePayments > 0 || q.providerOrderRecoveryPending > 0 || q.pendingRefunds > 0 || q.webhookBacklog > 0 || q.webhookStuck > 0 || q.mailFailed > 0 ? 'DEGRADED' : 'HEALTHY';
+    return d.health.database.status !== 'UP' || d.health.redis.status !== 'UP' || q.stalePayments > 0 || q.providerOrderRecoveryPending > 0 || q.pendingRefunds > 0 || q.webhookBacklog > 0 || q.webhookStuck > 0 || q.mailFailed > 0 || q.eventNotificationFailed > 0 ? 'DEGRADED' : 'HEALTHY';
   }
 
   incidents(d: OperationsDashboard): Incident[] {
@@ -240,6 +240,7 @@ export class MonitorConsoleComponent implements OnInit, OnDestroy {
     if (q.webhookStuck > 0) out.push({ severity:'WARNING', title:'Webhook workers appear stuck', detail:'Payment webhook work has exceeded the configured processing threshold and should be investigated with correlation logs.', count:q.webhookStuck });
     if (q.webhookBacklog > 0) out.push({ severity:'WARNING', title:'Webhook backlog detected', detail:'Unprocessed payment webhooks are waiting beyond the two-minute threshold.', count:q.webhookBacklog });
     if (q.mailFailed > 0) out.push({ severity:'WARNING', title:'Ticket mail failures', detail:'Ticket delivery jobs are in FAILED state. Investigate SMTP/provider logs without exposing attendee data.', count:q.mailFailed });
+    if (q.eventNotificationFailed > 0) out.push({ severity:'WARNING', title:'Event-change notification failures', detail:'Cancellation or buyer-visible event-change emails are in FAILED state. Investigate SMTP/provider delivery before declaring the communication queue healthy.', count:q.eventNotificationFailed });
     return out;
   }
 

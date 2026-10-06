@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class EventCancellationRefundContractTest {
     @Test void cancellationQueuesRefundWorkWithoutProviderCall() throws Exception {
@@ -22,7 +23,9 @@ class EventCancellationRefundContractTest {
         String repo = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/repository/EventRepository.java"));
         String order = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/OrderService.java"));
         assertTrue(repo.contains("findByPublicIdForUpdate"));
-        assertTrue(order.contains("events.findByPublicIdForUpdate(request.eventId())"));
+        assertTrue(order.contains("events.findByPublicId(request.eventId())"));
+        assertTrue(order.contains("events.findByIdForUpdate(event.getId())"));
+        assertFalse(order.contains("events.findByPublicIdForUpdate(request.eventId())"));
         assertTrue(order.contains("events.findByIdForUpdate(o.getEventId())"));
     }
 

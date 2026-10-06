@@ -357,8 +357,13 @@ public class AdminService {
 
     private String csv(String s) {
         String value = s == null ? "" : s;
-        String trimmed = value.stripLeading();
-        if (!trimmed.isEmpty() && "=+-@".indexOf(trimmed.charAt(0)) >= 0) value = "'" + value;
+        int i = 0;
+        while (i < value.length()) {
+            char ch = value.charAt(i);
+            if (Character.isWhitespace(ch) || Character.getType(ch) == Character.CONTROL) i++;
+            else break;
+        }
+        if (i < value.length() && "=+-@".indexOf(value.charAt(i)) >= 0) value = "'" + value;
         return "\"" + value.replace("\"", "\"\"") + "\"";
     }
 }
