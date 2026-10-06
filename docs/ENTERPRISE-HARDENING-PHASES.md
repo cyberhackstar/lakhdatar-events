@@ -1,4 +1,4 @@
-# Neelastack Events v2.0.13 — Enterprise hardening phases
+# Neelastack Events v2.0.14 — Enterprise hardening phases
 
 ## Phase 1 — Financial and event-state correctness
 

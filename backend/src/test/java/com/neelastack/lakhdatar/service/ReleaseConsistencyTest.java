@@ -18,7 +18,15 @@ class ReleaseConsistencyTest {
                 .matcher(pom).results().findFirst().orElseThrow().group(1);
         String npmVersion = Pattern.compile("\"version\"\\s*:\\s*\"([^\"]+)\"")
                 .matcher(packageJson).results().findFirst().orElseThrow().group(1);
+        String e2ePackageJson = Files.readString(Path.of("../e2e/package.json"));
+        String e2eVersion = Pattern.compile("\"version\"\\s*:\\s*\"([^\"]+)\"")
+                .matcher(e2ePackageJson).results().findFirst().orElseThrow().group(1);
+        String e2eLock = Files.readString(Path.of("../e2e/package-lock.json"));
+        String e2eLockVersion = Pattern.compile("\"version\"\\s*:\\s*\"([^\"]+)\"")
+                .matcher(e2eLock).results().findFirst().orElseThrow().group(1);
         assertEquals(version, pomVersion);
         assertEquals(version, npmVersion);
+        assertEquals(version, e2eVersion);
+        assertEquals(version, e2eLockVersion);
     }
 }

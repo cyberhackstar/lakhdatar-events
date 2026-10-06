@@ -1,8 +1,8 @@
-# v2.0.13 — CI compilation hotfix and release-gate hardening
+# v2.0.14 — CI compilation hotfix and release-gate hardening
 
 ## Release purpose
 
-v2.0.13 supersedes v2.0.12 after GitHub Actions exposed a Java syntax defect in `RefundService`.
+v2.0.14 supersedes v2.0.12 after GitHub Actions exposed a Java syntax defect in `RefundService`.
 
 ## Fixed
 

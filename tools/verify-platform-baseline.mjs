@@ -50,6 +50,9 @@ if (appConfigSource.includes('provideAnimationsAsync')) problems.push('deprecate
 if (!ci.includes('npm run verify:dependencies')) problems.push('frontend dependency lock verification missing from CI');
 if (!pom.includes('<artifactId>spring-boot-starter-parent</artifactId>\n    <version>4.0.8</version>')) problems.push('Spring Boot baseline mismatch');
 if (!pom.includes('<java.version>21</java.version>')) problems.push('Java baseline mismatch');
+if (!pom.includes('<lombok.version>1.18.48</lombok.version>')) problems.push('Lombok version baseline mismatch');
+if (!pom.includes('<proc>full</proc>')) problems.push('Java annotation processing must be explicitly enabled');
+if (!pom.includes('<artifactId>lombok</artifactId>\n              <version>${lombok.version}</version>')) problems.push('Lombok annotation processor version must be explicit');
 if (!pom.includes('<jjwt.version>0.13.0</jjwt.version>')) problems.push('JJWT baseline mismatch');
 if (!pom.includes('<testcontainers.version>1.21.4</testcontainers.version>')) problems.push('Testcontainers baseline mismatch');
 if (!pom.includes('<artifactId>testcontainers-bom</artifactId>')) problems.push('Testcontainers BOM import missing');

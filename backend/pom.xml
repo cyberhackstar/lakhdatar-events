@@ -12,13 +12,14 @@
 
   <groupId>com.neelastack</groupId>
   <artifactId>lakhdatar-events</artifactId>
-  <version>2.0.13</version>
+  <version>2.0.14</version>
   <name>Neelastack Event Platform</name>
   <description>Production event ticketing, Razorpay payments and secure QR check-in platform powered by Neelastack</description>
 
   <properties>
     <java.version>21</java.version>
     <maven.compiler.release>21</maven.compiler.release>
+    <lombok.version>1.18.48</lombok.version>
     <jjwt.version>0.13.0</jjwt.version>
     <zxing.version>3.5.3</zxing.version>
     <postgresql.version>42.7.12</postgresql.version>
@@ -136,7 +137,8 @@
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
-      <optional>true</optional>
+      <version>${lombok.version}</version>
+      <scope>provided</scope>
     </dependency>
 
     <dependency>
@@ -249,10 +251,14 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
           <release>${maven.compiler.release}</release>
+          <!-- Explicitly enable annotation processing for JDK 21+; Lombok generates the accessors
+               and constructors used throughout the application. -->
+          <proc>full</proc>
           <annotationProcessorPaths>
             <path>
               <groupId>org.projectlombok</groupId>
               <artifactId>lombok</artifactId>
+              <version>${lombok.version}</version>
             </path>
           </annotationProcessorPaths>
         </configuration>

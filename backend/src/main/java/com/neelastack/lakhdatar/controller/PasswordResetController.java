@@ -19,12 +19,12 @@ public class PasswordResetController {
     private final PasswordResetService service;
     private final ClientAddressService clientAddress;
 
-    public record RequestBody(@NotBlank @Email @Size(max=255) String email) {}
+    public record PasswordResetRequest(@NotBlank @Email @Size(max=255) String email) {}
     public record ResetBody(@NotBlank @Size(max=256) String token, @NotBlank @Size(min=12,max=128) String newPassword) {}
     public record Accepted(boolean accepted) {}
 
     @PostMapping("/request")
-    ResponseEntity<Accepted> request(@Valid @RequestBody RequestBody body, HttpServletRequest req) {
+    ResponseEntity<Accepted> request(@Valid @RequestBody PasswordResetRequest body, HttpServletRequest req) {
         var result = service.request(body.email(), clientAddress.resolve(req));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new Accepted(result.accepted()));
     }
