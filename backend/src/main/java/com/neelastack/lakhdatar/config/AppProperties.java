@@ -23,7 +23,11 @@ public record AppProperties(
         Cloudinary cloudinary,
         String publicBaseUrl
 ) {
-    public record Jwt(String secret, Duration accessToken, Duration refreshToken) {}
+    public record Jwt(String secret, Duration accessToken, Duration refreshToken, String issuer, String audience) {
+        public Jwt(String secret, Duration accessToken, Duration refreshToken) {
+            this(secret, accessToken, refreshToken, "neelastack-events", "neelastack-events-web");
+        }
+    }
     public record Security(String ticketViewSecret, boolean refreshCookieSecure, Duration ticketViewTtl, String ticketViewPreviousSecret) {
         @ConstructorBinding
         public Security(String ticketViewSecret, boolean refreshCookieSecure, Duration ticketViewTtl, String ticketViewPreviousSecret) {

@@ -162,7 +162,7 @@ public class PublicEventService {
     // ------------------------------------------------------------------ detail
 
     public EventView getBySlug(String slug) {
-        Event e = events.findBySlug(slug == null ? "" : slug.toLowerCase())
+        Event e = events.findBySlug(slug == null ? "" : slug.toLowerCase(java.util.Locale.ROOT))
                 .filter(x -> DETAIL_VISIBLE.contains(x.getStatus()))
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found"));
         Organizer o = organizers.findById(e.getOrganizerId()).orElse(null);

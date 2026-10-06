@@ -8,7 +8,6 @@ import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.MfaChallengeRepository;
 import com.neelastack.lakhdatar.repository.UserRepository;
 import com.neelastack.lakhdatar.repository.RefreshTokenRepository;
-import com.neelastack.lakhdatar.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,6 +55,7 @@ public class MfaService {
     private final RateLimitService rateLimits;
     private final AuditService audit;
     private final RefreshTokenRepository refreshTokens;
+    private final DistributedLockService distributedLocks;
 
     @Value("${app.mfa.encryption-key:}") private String encryptionKey;
     @Value("${app.mfa.required-for-privileged:false}") private boolean requiredForPrivileged;
@@ -107,7 +107,10 @@ public class MfaService {
         if (u.getMfaSecretEnc() == null) throw invalidChallenge();
         verifyCodeOrThrow(c, code, decrypt(u.getMfaSecretEnc()));
         u.setMfaEnabled(true);
+        Instant now = Instant.now();
         users.save(u);
+        // Existing sessions were not established with MFA proof. Force all other sessions through MFA.
+        refreshTokens.revokeAllActiveByUserId(u.getId(), now);
         c.setUsedAt(Instant.now());
         challenges.save(c);
         EnterpriseLog.info(log, "auth.mfa.enrollment.completed", "event.category", "security", "user.id", u.getId());

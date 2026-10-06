@@ -55,7 +55,7 @@ public class OrderService {
         long started = System.nanoTime();
         java.time.Duration checkoutWindow=java.time.Duration.ofSeconds(props.rateLimit().windowSeconds());
         String client = request.clientKey()==null?"unknown":request.clientKey();
-        String checkoutEmailKey = request.customerEmail()==null?"unknown":hashForRateLimit(request.customerEmail().trim().toLowerCase());
+        String checkoutEmailKey = request.customerEmail()==null?"unknown":hashForRateLimit(request.customerEmail().trim().toLowerCase(java.util.Locale.ROOT));
         if(!rateLimits.allow("checkout:"+client,props.rateLimit().publicCheckoutPerWindow(),checkoutWindow)
                 || !rateLimits.allow("checkout-email:"+checkoutEmailKey,Math.max(5,props.rateLimit().publicCheckoutPerWindow()/2),checkoutWindow))
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","Too many checkout attempts");
@@ -121,7 +121,7 @@ public class OrderService {
         if(total<=0) throw new ApiException(HttpStatus.CONFLICT,"FREE_CHECKOUT_UNSUPPORTED","Zero-value checkout is not enabled for this deployment");
         Instant expires=Instant.now().plus(props.reservation().hold());
         Order order=new Order(); order.setOrderNumber(orderNumber()); order.setEventId(event.getId()); order.setCustomerName(request.customerName().trim());
-        order.setCustomerEmail(request.customerEmail().trim().toLowerCase()); order.setCustomerPhone(normalizePhone(request.customerPhone())); order.setTotalMinorUnits(total); order.setCurrency(event.getCurrency());
+        order.setCustomerEmail(request.customerEmail().trim().toLowerCase(java.util.Locale.ROOT)); order.setCustomerPhone(normalizePhone(request.customerPhone())); order.setTotalMinorUnits(total); order.setCurrency(event.getCurrency());
         order.setStatus(Enums.OrderStatus.AWAITING_PAYMENT); order.setIdempotencyKey(request.idempotencyKey());
         String checkoutSessionToken = newCheckoutSessionToken();
         order.setCheckoutSessionHash(hashCheckoutSession(checkoutSessionToken));
@@ -670,7 +670,7 @@ public class OrderService {
 
     private boolean sameCheckoutRequest(Order o, CheckoutRequest request){
         if(!Objects.equals(o.getCustomerName(),request.customerName().trim())) return false;
-        if(!Objects.equals(o.getCustomerEmail(),request.customerEmail().trim().toLowerCase())) return false;
+        if(!Objects.equals(o.getCustomerEmail(),request.customerEmail().trim().toLowerCase(java.util.Locale.ROOT))) return false;
         if(!Objects.equals(normalizePhone(o.getCustomerPhone()),normalizePhone(request.customerPhone()))) return false;
         Event event=events.findByPublicId(request.eventId()).orElse(null);
         if(event==null || !Objects.equals(event.getId(),o.getEventId())) return false;

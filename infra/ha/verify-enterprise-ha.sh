@@ -7,7 +7,7 @@ set -euo pipefail
 : "${REDIS_EXTERNAL_HOST:?REDIS_EXTERNAL_HOST is required}"
 
 [[ "$PRODUCTION_TOPOLOGY" == "enterprise-ha" ]] || { echo 'Enterprise HA requires PRODUCTION_TOPOLOGY=enterprise-ha' >&2; exit 2; }
-[[ "$HA_NODE_COUNT" =~ ^[2-9][0-9]*$ ]] || { echo 'HA_NODE_COUNT must be at least 2' >&2; exit 2; }
+[[ "$HA_NODE_COUNT" == 2 ]] || { echo 'Current enterprise HA deployment requires exactly HA_NODE_COUNT=2; add real host provisioning before increasing the count' >&2; exit 2; }
 [[ "$DB_EXTERNAL_HOST" != localhost && "$DB_EXTERNAL_HOST" != 127.0.0.1 ]] || { echo 'Enterprise HA database must not be localhost' >&2; exit 2; }
 [[ "$REDIS_EXTERNAL_HOST" != localhost && "$REDIS_EXTERNAL_HOST" != 127.0.0.1 ]] || { echo 'Enterprise HA Redis must not be localhost' >&2; exit 2; }
 

@@ -1,4 +1,12 @@
 spring:
+  task:
+    scheduling:
+      pool:
+        size: ${SCHEDULER_POOL_SIZE:8}
+      thread-name-prefix: lakhdatar-scheduler-
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
   mail:
     # Empty host = no mail sender bean = email features stay off (ticket page + /recover still work).
     host: ${MAIL_HOST:}
@@ -16,7 +24,7 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   application:
     name: lakhdatar-events-backend
-    version: ${APP_VERSION:2.0.14}
+    version: ${APP_VERSION:2.0.15}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}
@@ -158,6 +166,8 @@ app:
     secret: ${JWT_SECRET:replace-with-a-long-random-secret-at-least-32-bytes}
     access-token: ${JWT_ACCESS_TOKEN:15m}
     refresh-token: ${JWT_REFRESH_TOKEN:14d}
+    issuer: ${JWT_ISSUER:neelastack-events}
+    audience: ${JWT_AUDIENCE:neelastack-events-web}
   security:
     ticket-view-secret: ${TICKET_VIEW_SECRET:replace-with-a-long-random-secret-at-least-32-bytes}
     ticket-view-previous-secret: ${TICKET_VIEW_SECRET_PREVIOUS:}

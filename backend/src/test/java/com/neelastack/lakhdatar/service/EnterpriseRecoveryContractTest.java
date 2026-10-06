@@ -107,6 +107,9 @@ class EnterpriseRecoveryContractTest {
         assertTrue(razor.contains("job:webhook-recovery:razorpay"));
         assertTrue(cashfree.contains("job:webhook-recovery:cashfree"));
         assertTrue(migration.contains("chk_payment_webhook_provider"));
+        String mfaMigration = Files.readString(Path.of("src/main/resources/db/migration/V38__enterprise_mfa_session_proof.sql"));
+        assertTrue(mfaMigration.contains("mfa_verified BOOLEAN NOT NULL DEFAULT FALSE"));
+        assertTrue(mfaMigration.contains("idx_refresh_tokens_user_mfa"));
     }
 
     @Test void privilegedMfaHasAnEmergencyAdminRecoveryPath() throws Exception {

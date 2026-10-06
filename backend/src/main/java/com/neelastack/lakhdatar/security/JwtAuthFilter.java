@@ -36,11 +36,19 @@ public class JwtAuthFilter extends OncePerRequestFilter {
       return;
      }
      String role=user.getRole().name();
-     if (mfaRequiredForPrivileged && isPrivileged(role) && !user.isMfaEnabled() && !isAllowedDuringMfaSetup(req.getRequestURI())) {
-      res.setStatus(403);res.setContentType("application/json");
-      res.getWriter().write("{\"status\":403,\"code\":\"MFA_SETUP_REQUIRED\",\"message\":\"Multi-factor authentication must be configured before continuing\"}");
-      return;
-     }UserPrincipal current=new UserPrincipal(user.getId(),user.getEmail(),role);var auth=new UsernamePasswordAuthenticationToken(current,null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));SecurityContextHolder.getContext().setAuthentication(auth);
+     if (mfaRequiredForPrivileged && isPrivileged(role)) {
+      if (!user.isMfaEnabled() && !isAllowedDuringMfaFlow(req.getRequestURI())) {
+       res.setStatus(403);res.setContentType("application/json");
+       res.getWriter().write("{\"status\":403,\"code\":\"MFA_SETUP_REQUIRED\",\"message\":\"Multi-factor authentication must be configured before continuing\"}");
+       return;
+      }
+      if (user.isMfaEnabled() && !token.mfaVerified() && !isAllowedDuringMfaFlow(req.getRequestURI())) {
+       res.setStatus(403);res.setContentType("application/json");
+       res.getWriter().write("{\"status\":403,\"code\":\"MFA_VERIFICATION_REQUIRED\",\"message\":\"MFA verification is required before continuing\"}");
+       return;
+      }
+     }
+     UserPrincipal current=new UserPrincipal(user.getId(),user.getEmail(),role,token.mfaVerified());var auth=new UsernamePasswordAuthenticationToken(current,null,List.of(new SimpleGrantedAuthority("ROLE_"+role)));SecurityContextHolder.getContext().setAuthentication(auth);
     }
    }
   }
@@ -49,14 +57,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
  private boolean isPrivileged(String role) {
   return "ADMIN".equals(role) || "ORGANIZER".equals(role) || "EVENT_MANAGER".equals(role) || "FINANCE".equals(role);
  }
- private boolean isAllowedDuringMfaSetup(String uri){
+ private boolean isAllowedDuringMfaFlow(String uri){
   if(uri==null) return false;
-  return uri.startsWith("/api/v1/auth/mfa/") || uri.startsWith("/api/v1/auth/") || uri.equals("/actuator/health") || uri.startsWith("/actuator/health/");
+  return uri.startsWith("/api/v1/auth/mfa/") || uri.equals("/actuator/health") || uri.startsWith("/actuator/health/");
  }
  private boolean isAllowedDuringPasswordChange(String uri){
   if(uri==null) return false;
-  return uri.equals("/actuator/health") || uri.startsWith("/actuator/health/") || uri.equals("/actuator/info")
-      || uri.equals("/actuator/prometheus") || uri.startsWith("/api/v1/auth/") || uri.startsWith("/api/v1/public/")
+  return uri.equals("/api/v1/auth/change-password") || uri.equals("/api/v1/auth/password-status")
+      || uri.startsWith("/api/v1/auth/mfa/") || uri.equals("/actuator/health") || uri.startsWith("/actuator/health/")
+      || uri.equals("/actuator/info") || uri.equals("/actuator/prometheus") || uri.startsWith("/api/v1/public/")
       || uri.startsWith("/api/v1/webhooks/") || uri.startsWith("/api/v1/setup/") || uri.equals("/robots.txt")
       || uri.equals("/sitemap.xml") || uri.startsWith("/sitemap-");
  }

@@ -1,14 +1,5 @@
-NEELASTACK EVENTS v2.0.14 ENTERPRISE PRODUCTION RELEASE MANIFEST
-Release: 2.0.14
-Status: ENTERPRISE-CERTIFICATION-GATED
-Changes: CHANGES-2.0.14.md
-Validation: VALIDATION-2.0.14.md
-Primary certification record: docs/ENTERPRISE-PRODUCTION-CERTIFICATION.md
-
-Production deployment policy:
-- Deploy exact immutable Git SHA only.
-- Enterprise HA promotion requires protected ENTERPRISE_CERTIFIED_SHA.
-- Signed container image and GitHub provenance verification is mandatory.
-- Privileged MFA is mandatory in production.
-- Enterprise HA requires at least two application failure-domain nodes and external/managed DB + Redis.
-- Production certification is issued only after target-environment evidence passes; source/static checks must never fabricate runtime/HA/DR/security evidence.
+NEELASTACK EVENTS v2.0.15 ENTERPRISE PRODUCTION CANDIDATE
+Release: 2.0.15
+Changes: CHANGES-2.0.15.md
+Validation: VALIDATION-2.0.15.md
+Certification policy: production promotion remains fail-closed until protected runtime qualification evidence is present.

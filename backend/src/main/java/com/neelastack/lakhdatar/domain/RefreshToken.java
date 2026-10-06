@@ -9,4 +9,5 @@ public class RefreshToken {
  @Column(name="revoked_at") private Instant revokedAt;
  @Column(name="created_at",updatable=false) private Instant createdAt=Instant.now();
  @Column(name="replaced_by_token_hash") private String replacedByTokenHash;
+ @Column(name="mfa_verified", nullable=false) private boolean mfaVerified = false;
 }

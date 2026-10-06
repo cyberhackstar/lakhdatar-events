@@ -69,7 +69,7 @@ public class PasswordResetService {
     /** Always returns the same logical success regardless of account existence or SMTP state. */
     @Transactional
     public RequestResult request(String email, String clientKey) {
-        String normalized = email == null ? "" : email.trim().toLowerCase();
+        String normalized = email == null ? "" : email.trim().toLowerCase(java.util.Locale.ROOT);
         if (!rateLimits.allow("password-reset-client:" + clientKey, 8, Duration.ofMinutes(15))
                 || !rateLimits.allow("password-reset-email:" + hash(normalized), 4, Duration.ofHours(1))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many password reset attempts");

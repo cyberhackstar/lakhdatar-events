@@ -50,7 +50,7 @@ public class AuthService {
 
     public AuthResult login(String email,String password,String clientKey){
         EnterpriseLog.debug(log, "auth.login.started", "event.category", "authentication");
-        String normalizedEmail=email==null?"":email.trim().toLowerCase();
+        String normalizedEmail=email==null?"":email.trim().toLowerCase(java.util.Locale.ROOT);
         java.time.Duration window=java.time.Duration.ofSeconds(props.rateLimit().windowSeconds());
         if(!rateLimits.allow("login-client:"+clientKey,props.rateLimit().loginPerWindow(),window)
                 || !rateLimits.allow("login-email:"+hash(normalizedEmail),Math.max(3,props.rateLimit().loginPerWindow()/2),window)) {
@@ -101,8 +101,18 @@ public class AuthService {
             EnterpriseLog.warn(log, "auth.refresh.rejected", "event.category", "authentication", "error.code", "ACCOUNT_DISABLED", "user.id", u.getId());
             throw new ApiException(HttpStatus.UNAUTHORIZED,"ACCOUNT_DISABLED","Account disabled");
         }
-        AuthResult r=issue(u);
-        current.setRevokedAt(Instant.now());
+        Instant now = Instant.now();
+        if (mfa.requiredFor(u.getRole()) && (!u.isMfaEnabled() || !current.isMfaVerified())) {
+            // A refresh token minted before MFA was enabled/verified must never bootstrap a new
+            // privileged session. Revoke only the presented token and force an interactive MFA login.
+            current.setRevokedAt(now);
+            refreshTokens.save(current);
+            EnterpriseLog.warn(log, "auth.refresh.mfa_reauth_required", "event.category", "security",
+                    "user.id", u.getId(), "user.role", u.getRole().name());
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "MFA_REAUTH_REQUIRED", "MFA verification is required for this privileged session");
+        }
+        AuthResult r=issue(u, current.isMfaVerified());
+        current.setRevokedAt(now);
         current.setReplacedByTokenHash(hash(r.refreshToken()));
         refreshTokens.save(current);
         EnterpriseLog.info(log, "auth.refresh.succeeded", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name());
@@ -139,8 +149,14 @@ public class AuthService {
         return issue(u);
     }
 
+    /** Backwards-compatible service entry point. Privileged users must use the authenticated proof-aware path. */
     @Transactional
     public AuthResult changePassword(Long userId,String current,String next){
+        return changePassword(userId, current, next, false);
+    }
+
+    @Transactional
+    public AuthResult changePassword(Long userId,String current,String next, boolean mfaVerified){
         java.time.Duration window=java.time.Duration.ofSeconds(props.rateLimit().windowSeconds());
         if(!rateLimits.allow("pwchange:"+userId,5,window))
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","Too many attempts");
@@ -150,6 +166,9 @@ public class AuthService {
         if(next==null||next.length()<12||next.length()>128)
             throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PASSWORD","New password must be between 12 and 128 characters");
         if(next.equals(current)) throw new ApiException(HttpStatus.BAD_REQUEST,"PASSWORD_REUSED","Choose a password different from the current one");
+        if (mfa.requiredFor(u.getRole()) && (!u.isMfaEnabled() || !mfaVerified)) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "MFA_REAUTH_REQUIRED", "MFA verification is required for this privileged session");
+        }
         u.setPasswordHash(encoder.encode(next));
         u.setMustChangePassword(false);
         users.save(u);
@@ -157,7 +176,7 @@ public class AuthService {
         refreshTokens.revokeAllActiveByUserId(u.getId(), changedAt);
         passwordResetTokens.invalidateUnusedByUserId(u.getId(), changedAt);
         EnterpriseLog.info(log, "auth.password.changed", "event.category", "authentication", "user.id", u.getId(), "user.role", u.getRole().name());
-        return issue(u);
+        return issue(u, mfaVerified);
     }
 
     @Transactional(readOnly = true)
@@ -178,18 +197,23 @@ public class AuthService {
         return h;
     }
 
-    private AuthResult issue(User u){
-        UserPrincipal p=new UserPrincipal(u.getId(),u.getEmail(),u.getRole().name());
+    private AuthResult issue(User u){ return issue(u, false); }
+
+    private AuthResult issue(User u, boolean mfaVerified){
+        UserPrincipal p=new UserPrincipal(u.getId(),u.getEmail(),u.getRole().name(),mfaVerified);
         String access=jwt.issueAccessToken(p);
         String raw=Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes(48));
-        RefreshToken rt=new RefreshToken(); rt.setUserId(u.getId()); rt.setTokenHash(hash(raw)); rt.setExpiresAt(Instant.now().plus(props.jwt().refreshToken()));
+        RefreshToken rt=new RefreshToken();
+        rt.setUserId(u.getId()); rt.setTokenHash(hash(raw));
+        rt.setExpiresAt(Instant.now().plus(props.jwt().refreshToken()));
+        rt.setMfaVerified(mfaVerified);
         refreshTokens.save(rt);
         return new AuthResult(access,raw,u.getRole().name(),u.getFullName(),false,false,null);
     }
     public AuthResult issueAfterMfa(Long userId) {
         User u = users.findById(userId).filter(User::isEnabled).orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Authentication required"));
         if (!u.isMfaEnabled() || !mfa.requiredFor(u.getRole())) throw new ApiException(HttpStatus.UNAUTHORIZED, "MFA_REQUIRED", "MFA verification required");
-        return issue(u);
+        return issue(u, true);
     }
 
     private byte[] randomBytes(int n){byte[] b=new byte[n];random.nextBytes(b);return b;}

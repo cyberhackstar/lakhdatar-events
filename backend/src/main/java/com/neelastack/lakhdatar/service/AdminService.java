@@ -331,7 +331,7 @@ public class AdminService {
 
     private void createUser(String email, String name, String password, Enums.UserRole targetRole,
                             Long actorId, String auditAction) {
-        String normalized = email.trim().toLowerCase();
+        String normalized = email.trim().toLowerCase(java.util.Locale.ROOT);
         if (users.findByEmailIgnoreCase(normalized).isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "USER_EXISTS", "User already exists");
         }

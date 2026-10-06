@@ -202,6 +202,7 @@ if (!haEdgeNginx.includes('keepalive 64;') || !haEdgeNginx.includes('keepalive 3
 if (!haCompose.includes('security_opt: [no-new-privileges:true]') || !haCompose.includes('cap_drop: [ALL]')) problems.push('HA web/edge hardening missing');
 if (!fs.existsSync(path.join(root, 'infra/loadtest/thousands.js'))) problems.push('thousands-user staging load profile missing');
 if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V36__enterprise_webhook_retry_backoff.sql'))) problems.push('enterprise webhook retry migration missing');
+if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V38__enterprise_mfa_session_proof.sql'))) problems.push('enterprise MFA session-proof migration missing');
 if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V37__enterprise_webhook_provider_discriminator.sql'))) problems.push('enterprise webhook provider migration missing');
 if (!read('backend/src/main/java/com/neelastack/lakhdatar/domain/PaymentWebhookEvent.java').includes('provider')) problems.push('payment webhook provider discriminator missing');
 if (!read('backend/src/main/java/com/neelastack/lakhdatar/service/WebhookService.java').includes('processingExecutor')) problems.push('Razorpay webhook asynchronous processor missing');

@@ -87,7 +87,12 @@ export class AuthService {
   }
 
   store(r: AuthResponse): void {
-    if (!r.accessToken) return;
+    // A successful credential check may intentionally return no access token while MFA is pending.
+    // Clear any stale browser session so a previous identity cannot survive a privileged re-auth flow.
+    if (!r.accessToken) {
+      this.clearLocalSession();
+      return;
+    }
     this.access = r.accessToken;
     try { localStorage.removeItem(LOGGED_OUT); } catch { /* optional storage */ }
     try { sessionStorage.setItem(ROLE, r.role); sessionStorage.setItem(NAME, r.fullName); } catch { /* access token remains memory-only */ }

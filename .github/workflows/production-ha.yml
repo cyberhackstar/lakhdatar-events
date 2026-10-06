@@ -44,7 +44,7 @@ jobs:
           [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a 40-character lowercase Git SHA'; exit 2; }
           [[ "$CERTIFIED_RELEASE_SHA" == "$RELEASE_SHA" ]] || { echo 'Release SHA is not the protected certified SHA'; exit 1; }
           [[ "$TOPOLOGY" == enterprise-ha ]] || { echo 'Certified HA promotion requires PRODUCTION_TOPOLOGY=enterprise-ha'; exit 1; }
-          [[ "$NODE_COUNT" =~ ^[2-9][0-9]*$ ]] || { echo 'HA_NODE_COUNT must be >= 2'; exit 1; }
+          [[ "$NODE_COUNT" == 2 ]] || { echo 'This HA promotion workflow deploys exactly HOST_A and HOST_B; HA_NODE_COUNT must be 2'; exit 1; }
           PRODUCTION_TOPOLOGY="$TOPOLOGY" HA_NODE_COUNT="$NODE_COUNT" DB_EXTERNAL_HOST="$DB_HOST" REDIS_EXTERNAL_HOST="$REDIS_HOST" HA_INGRESS_HEALTH_URL="$INGRESS_HEALTH_URL" infra/ha/verify-enterprise-ha.sh
       - name: Install Cosign
         uses: sigstore/cosign-installer@v4.1.2
@@ -96,6 +96,8 @@ jobs:
           printf '%s\n' "$HA_ENV_FILE" > "$tmp"
           grep -Eq '^PRODUCTION_TOPOLOGY=enterprise-ha$' "$tmp" || { echo 'HA_ENV_FILE must declare PRODUCTION_TOPOLOGY=enterprise-ha'; exit 1; }
           grep -Eq '^MFA_REQUIRED_FOR_PRIVILEGED=true$' "$tmp" || { echo 'HA_ENV_FILE must enable privileged MFA'; exit 1; }
+          grep -Eq '^JWT_ISSUER=.+$' "$tmp" || { echo 'HA_ENV_FILE must define JWT_ISSUER'; exit 1; }
+          grep -Eq '^JWT_AUDIENCE=.+$' "$tmp" || { echo 'HA_ENV_FILE must define JWT_AUDIENCE'; exit 1; }
           grep -Eq '^REDIS_SSL=true$' "$tmp" || { echo 'HA_ENV_FILE must enable Redis TLS'; exit 1; }
           grep -Eq '^DB_URL=.*://' "$tmp" || { echo 'HA_ENV_FILE must define DB_URL'; exit 1; }
           grep -Eq '^REDIS_HOST=.+$' "$tmp" || { echo 'HA_ENV_FILE must define REDIS_HOST'; exit 1; }

@@ -78,11 +78,11 @@ public class EventCatalogRepository {
             w.append(" and (lower(e.name) like :q or lower(coalesce(e.shortDescription,'')) like :q"
                     + " or lower(coalesce(v.name,'')) like :q or lower(coalesce(v.city,'')) like :q"
                     + " or lower(e.category) like :q)");
-            p.put("q", "%" + escapeLike(c.q().trim().toLowerCase()) + "%");
+            p.put("q", "%" + escapeLike(c.q().trim().toLowerCase(java.util.Locale.ROOT)) + "%");
         }
-        if (notBlank(c.category())) { w.append(" and lower(e.category) = :category"); p.put("category", c.category().trim().toLowerCase()); }
-        if (notBlank(c.city())) { w.append(" and lower(v.city) = :city"); p.put("city", c.city().trim().toLowerCase()); }
-        if (notBlank(c.organizerSlug())) { w.append(" and o.slug = :organizer"); p.put("organizer", c.organizerSlug().trim().toLowerCase()); }
+        if (notBlank(c.category())) { w.append(" and lower(e.category) = :category"); p.put("category", c.category().trim().toLowerCase(java.util.Locale.ROOT)); }
+        if (notBlank(c.city())) { w.append(" and lower(v.city) = :city"); p.put("city", c.city().trim().toLowerCase(java.util.Locale.ROOT)); }
+        if (notBlank(c.organizerSlug())) { w.append(" and o.slug = :organizer"); p.put("organizer", c.organizerSlug().trim().toLowerCase(java.util.Locale.ROOT)); }
         if (c.featured() != null) { w.append(" and e.featured = :featured"); p.put("featured", c.featured()); }
         if (c.from() != null) { w.append(" and e.startsAt >= :from"); p.put("from", c.from()); }
         if (c.to() != null) { w.append(" and e.startsAt < :to"); p.put("to", c.to()); }

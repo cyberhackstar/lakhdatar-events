@@ -56,7 +56,7 @@ public class AuthController {
     @PostMapping("/change-password")
     ResponseEntity<Response> changePassword(@Valid @RequestBody ChangePasswordBody b, Authentication a, HttpServletRequest req) {
         UserPrincipal u = (UserPrincipal) a.getPrincipal();
-        var r = auth.changePassword(u.userId(), b.currentPassword(), b.newPassword());
+        var r = auth.changePassword(u.userId(), b.currentPassword(), b.newPassword(), u.mfaVerified());
         return authResponse(r, req).body(toResponse(r));
     }
 

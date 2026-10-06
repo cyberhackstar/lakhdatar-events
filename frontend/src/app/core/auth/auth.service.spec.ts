@@ -56,6 +56,22 @@ describe('AuthService enterprise auth lifecycle', () => {
     expect(auth.role()).toBeNull();
   });
 
+  it('clears any stale session when login pauses for MFA', () => {
+    auth.mfaVerify('old-challenge', '123456').subscribe();
+    const oldReq = http.expectOne('/api/v1/auth/mfa/verify');
+    oldReq.flush(sessionResponse);
+    expect(auth.accessToken()).toBe('access-123');
+
+    auth.login('admin@example.com', 'correct-password').subscribe();
+    const loginReq = http.expectOne('/api/v1/auth/login');
+    loginReq.flush({
+      accessToken: '', refreshToken: '', tokenType: 'Bearer', role: 'ADMIN', fullName: 'Admin',
+      mfaRequired: true, mfaSetupRequired: false, mfaChallengeToken: 'challenge-new'
+    });
+    expect(auth.accessToken()).toBeNull();
+    expect(auth.role()).toBeNull();
+  });
+
   it('stores the session only after MFA verification issues real tokens', () => {
     auth.mfaVerify('challenge-123', '123456').subscribe();
     const req = http.expectOne('/api/v1/auth/mfa/verify');

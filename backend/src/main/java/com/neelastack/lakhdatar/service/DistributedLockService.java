@@ -22,7 +22,7 @@ public class DistributedLockService {
             "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end", Long.class);
 
     private final StringRedisTemplate redis;
-    private final ScheduledExecutorService renewer = Executors.newSingleThreadScheduledExecutor(new LockRenewalThreadFactory());
+    private final ScheduledExecutorService renewer = Executors.newScheduledThreadPool(4, new LockRenewalThreadFactory());
 
     public DistributedLockService(StringRedisTemplate redis) { this.redis = redis; }
 

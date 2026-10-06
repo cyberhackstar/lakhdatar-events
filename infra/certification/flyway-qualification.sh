@@ -7,14 +7,22 @@ set -Eeuo pipefail
 # 3) validate the final schema and prove the latest version is installed with no failed migrations.
 : "${POSTGRES_IMAGE:?POSTGRES_IMAGE must be a pinned postgres image digest (e.g. postgres:17-alpine@sha256:...)}"
 : "${FLYWAY_IMAGE:?FLYWAY_IMAGE must be a pinned Flyway image digest (e.g. flyway/flyway:...@sha256:...)}"
-: "${EXPECTED_LATEST_MIGRATION:?EXPECTED_LATEST_MIGRATION is required (e.g. 37)}"
+EXPECTED_LATEST_MIGRATION="${EXPECTED_LATEST_MIGRATION:-}"
 
 [[ "$POSTGRES_IMAGE" == *@sha256:* ]] || { echo 'POSTGRES_IMAGE must be pinned by digest' >&2; exit 2; }
 [[ "$FLYWAY_IMAGE" == *@sha256:* ]] || { echo 'FLYWAY_IMAGE must be pinned by digest' >&2; exit 2; }
-[[ "$EXPECTED_LATEST_MIGRATION" =~ ^[0-9]+$ ]] || { echo 'EXPECTED_LATEST_MIGRATION must be numeric' >&2; exit 2; }
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIGRATIONS="$ROOT/backend/src/main/resources/db/migration"
+LATEST_MIGRATION="$(find "$MIGRATIONS" -maxdepth 1 -type f -name 'V*_*.sql' -printf '%f\n' | sed -n 's/^V\([0-9][0-9]*\)__.*/\1/p' | sort -n | tail -1)"
+[[ "$LATEST_MIGRATION" =~ ^[0-9]+$ ]] || { echo 'Unable to determine latest Flyway migration from source tree' >&2; exit 2; }
+if [[ -n "$EXPECTED_LATEST_MIGRATION" ]]; then
+  [[ "$EXPECTED_LATEST_MIGRATION" =~ ^[0-9]+$ ]] || { echo 'EXPECTED_LATEST_MIGRATION must be numeric' >&2; exit 2; }
+  [[ "$EXPECTED_LATEST_MIGRATION" == "$LATEST_MIGRATION" ]] || { echo "EXPECTED_LATEST_MIGRATION=$EXPECTED_LATEST_MIGRATION is stale; source tree latest migration is V$LATEST_MIGRATION" >&2; exit 2; }
+else
+  EXPECTED_LATEST_MIGRATION="$LATEST_MIGRATION"
+fi
+
+
 REPORT_DIR="${REPORT_DIR:-$ROOT/certification-evidence/database}"
 NETWORK="lk-db-cert-${GITHUB_RUN_ID:-local}-$$"
 CONTAINER="lk-db-cert-${GITHUB_RUN_ID:-local}-$$"

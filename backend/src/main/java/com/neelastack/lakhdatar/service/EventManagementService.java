@@ -8,6 +8,8 @@ import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class EventManagementService {
+    private static final Logger log = LoggerFactory.getLogger(EventManagementService.class);
     private final EventRepository events;
     private final OrganizerRepository organizers;
     private final EventManagerAssignmentRepository managerAssignments;
@@ -457,7 +460,7 @@ public class EventManagementService {
      */
     private Organizer resolveOrganizer(String slug, Long actorId, String role) {
         if (slug != null && !slug.isBlank())
-            return organizers.findBySlug(slug.trim().toLowerCase()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORGANIZER_NOT_FOUND", "Organizer not found"));
+            return organizers.findBySlug(slug.trim().toLowerCase(java.util.Locale.ROOT)).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORGANIZER_NOT_FOUND", "Organizer not found"));
         List<Organizer> mine = organizers.findAll().stream()
                 .filter(x -> eventAccess.canManage(actorId, role, x.getId()))
                 .toList();

@@ -100,7 +100,7 @@ public class ManagerTicketService {
         o.setEventId(event.getId());
         o.setUserId(actor.userId());
         o.setCustomerName(r.attendeeName().trim());
-        o.setCustomerEmail(r.attendeeEmail().trim().toLowerCase());
+        o.setCustomerEmail(r.attendeeEmail().trim().toLowerCase(java.util.Locale.ROOT));
         o.setCustomerPhone(r.attendeePhone() == null ? null : r.attendeePhone().trim());
         o.setTotalMinorUnits(0L);
         o.setCurrency(event.getCurrency());

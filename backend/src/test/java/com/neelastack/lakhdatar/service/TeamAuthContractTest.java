@@ -55,6 +55,8 @@ class TeamAuthContractTest {
         when(props.rateLimit().windowSeconds()).thenReturn(60);
         when(props.rateLimit().loginPerWindow()).thenReturn(10);
         when(props.jwt().refreshToken()).thenReturn(Duration.ofDays(14));
+        when(props.jwt().issuer()).thenReturn("neelastack-events");
+        when(props.jwt().audience()).thenReturn("neelastack-events-web");
     }
 
     private User staff(boolean enabled) {

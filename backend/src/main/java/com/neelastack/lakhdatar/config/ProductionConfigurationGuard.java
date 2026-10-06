@@ -26,6 +26,8 @@ public class ProductionConfigurationGuard {
         if ("change-me".equals(dbPassword) || dbPassword.length() < 12)
             throw new IllegalStateException("DB_PASSWORD must be a unique password of at least 12 characters in production");
         requireSecret("JWT_SECRET", props.jwt().secret());
+        requireSafeJwtClaim("JWT_ISSUER", props.jwt().issuer());
+        requireSafeJwtClaim("JWT_AUDIENCE", props.jwt().audience());
         requireSecret("TICKET_VIEW_SECRET", props.security().ticketViewSecret());
         requireSecret("QR_SIGNING_SECRET", props.qr().signingSecret());
         if (present(props.security().ticketViewPreviousSecret())) requireSecret("TICKET_VIEW_SECRET_PREVIOUS", props.security().ticketViewPreviousSecret());
@@ -83,6 +85,11 @@ public class ProductionConfigurationGuard {
         return false;
     }
 
+    private void requireSafeJwtClaim(String name, String value) {
+        requireNonBlank(name, value);
+        if (value.length() > 200 || value.chars().anyMatch(Character::isWhitespace))
+            throw new IllegalStateException(name + " must be a non-blank value without whitespace and no longer than 200 characters");
+    }
     private void requireSecret(String name, String value) {
         requireNonBlank(name, value);
         if (value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 32 || value.startsWith("replace-with-") || value.startsWith("change-me"))

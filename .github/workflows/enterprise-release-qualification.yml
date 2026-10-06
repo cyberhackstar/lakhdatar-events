@@ -53,7 +53,7 @@ jobs:
         env:
           POSTGRES_IMAGE: ${{ vars.POSTGRES_CERTIFICATION_IMAGE }}
           FLYWAY_IMAGE: ${{ vars.FLYWAY_CERTIFICATION_IMAGE }}
-          EXPECTED_LATEST_MIGRATION: '37'
+          EXPECTED_LATEST_MIGRATION: '38'
           UPGRADE_BASELINE_MIGRATION: '31'
         run: ./infra/certification/flyway-qualification.sh
       - name: Upload database evidence

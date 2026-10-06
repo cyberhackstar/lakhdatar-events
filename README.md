@@ -1,10 +1,10 @@
-# v2.0.14 — Enterprise Financial Recovery + Security + Resilience
+# v2.0.15 — Enterprise Financial Recovery + Security + Resilience
 
 This release continues the enterprise hardening program with financial recovery correctness, event/check-in concurrency protection, durable payment webhook processing, privileged MFA, password recovery, backup/DR controls, deployment safety and release qualification gates.
 
 ## Enterprise production status
 
-v2.0.14 is the **enterprise-production certification-gated release**. Production HA promotion is fail-closed on the protected certified Git SHA, signed image provenance, HA topology, privileged MFA, external database/Redis, and protected certification evidence.
+v2.0.15 is the **enterprise-production certification-gated release**. Production HA promotion is fail-closed on the protected certified Git SHA, signed image provenance, HA topology, privileged MFA, external database/Redis, and protected certification evidence.
 
 The repository must never self-declare a runtime/HA/DR/security certification result that has not actually been executed and reviewed in the target environment. See `docs/ENTERPRISE-PRODUCTION-CERTIFICATION.md`.
 
@@ -132,7 +132,7 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 
 
 ## Current release
-**v2.0.14** is the current release. See `CHANGES-2.0.14.md`, `VALIDATION-2.0.14.md`, and `RELEASE-MANIFEST.txt`. Historical v1.9.x and v2.0.x validation records are retained for traceability.
+**v2.0.15** is the current release. See `CHANGES-2.0.15.md`, `VALIDATION-2.0.15.md`, and `RELEASE-MANIFEST.txt`. Historical v1.9.x and v2.0.x validation records are retained for traceability.
 
 
 ### Deployment dotenv safety
