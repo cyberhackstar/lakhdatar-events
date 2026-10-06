@@ -1,5 +1,5 @@
-NEELASTACK EVENTS v2.0.15 ENTERPRISE PRODUCTION CANDIDATE
-Release: 2.0.15
-Changes: CHANGES-2.0.15.md
-Validation: VALIDATION-2.0.15.md
-Certification policy: production promotion remains fail-closed until protected runtime qualification evidence is present.
+NEELASTACK EVENTS v2.0.16 ENTERPRISE PRODUCTION CANDIDATE
+Release: 2.0.16
+Changes: CHANGES-2.0.16.md
+Validation: VALIDATION-2.0.16.md
+Base: Enterprise hardening line 2.0.15 + CI test-scope correction

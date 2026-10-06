@@ -81,6 +81,7 @@ class ProductionHardeningV206ContractTest {
         assertTrue(edge.contains("if ($is_monitor_host = 1) { return 404; }"));
         assertFalse(lock.contains("void-elements-2.0.2.tgz"));
         assertFalse(lock.contains("http-errors-2.0.2.tgz"));
+        String version = Files.readString(Path.of("../VERSION")).trim();
         String manifest = Files.readString(Path.of("../RELEASE-MANIFEST.txt"));
         assertTrue(manifest.contains("Release: " + version));
         assertTrue(Files.isRegularFile(Path.of("src/main/java/com/neelastack/lakhdatar/service/OperationsLogService.java")));
