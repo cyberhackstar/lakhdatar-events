@@ -1,6 +1,6 @@
 # Fixed project name so this stack can never collide with other Compose projects on the same VM
 # (the default name would be derived from the "infra" directory).
-name: lakhdatar-events
+name: lakhdatar-events-staging
 
 services:
   postgres:
@@ -10,7 +10,7 @@ services:
         max-size: "10m"
         max-file: "5"
     image: postgres:16-alpine
-    container_name: lakhdatar-postgres
+    container_name: lakhdatar-staging-postgres
     restart: unless-stopped
     ulimits:
       nofile:
@@ -22,12 +22,12 @@ services:
     mem_limit: 2g
     cpus: "2.0"
     environment:
-      POSTGRES_DB: lakhdatar
+      POSTGRES_DB: lakhdatar_staging
       POSTGRES_USER: lakhdatar
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
-      - lakhdatar_pg_data:/var/lib/postgresql/data
-    networks: [lakhdatar_net]
+      - lakhdatar_pg_data_staging:/var/lib/postgresql/data
+    networks: [lakhdatar_staging_net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lakhdatar -d lakhdatar"]
       interval: 10s
@@ -40,7 +40,7 @@ services:
         max-size: "10m"
         max-file: "5"
     image: redis:7-alpine
-    container_name: lakhdatar-redis
+    container_name: lakhdatar-staging-redis
     restart: unless-stopped
     ulimits:
       nofile:
@@ -65,18 +65,18 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
 
-    # The password is read from the container environment ($$ is Compose's escape for a literal $),
-    # so it never appears in the Compose-rendered command line, `docker inspect`, or the process list.
+    # $$ escapes the variable so Compose passes the literal shell expansion to the container.
+    # The secret is still present in container environment metadata; protect Docker access accordingly.
     command:
       - sh
       - -c
       - exec redis-server --appendonly yes --maxmemory 1024mb --maxmemory-policy noeviction --requirepass "$$REDIS_PASSWORD"
 
     volumes:
-      - lakhdatar_redis_data:/data
+      - lakhdatar_redis_data_staging:/data
 
     networks:
-      - lakhdatar_net
+      - lakhdatar_staging_net
 
     healthcheck:
       test:
@@ -95,7 +95,7 @@ services:
         max-size: "10m"
         max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-backend:${IMAGE_TAG}
-    container_name: lakhdatar-backend
+    container_name: lakhdatar-staging-backend
     restart: unless-stopped
     ulimits:
       nofile:
@@ -111,21 +111,21 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=128m
     environment:
-      APP_ENV: production
+      APP_ENV: staging
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-lakhdatar-events-backend}
       DEFAULT_PAYMENT_PROVIDER: ${DEFAULT_PAYMENT_PROVIDER:-CASHFREE}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.26,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.26,deployment.environment=staging}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
-      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
-      OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.0}
+      OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-false}
       OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}
-      OPS_LOGS_ENABLED: ${OPS_LOGS_ENABLED:-true}
-      LOKI_URL: ${LOKI_URL:-http://loki:3100}
+      OPS_LOGS_ENABLED: ${OPS_LOGS_ENABLED:-false}
+      LOKI_URL: ${LOKI_URL:-http://localhost:3100}
       LOG_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-INFO}
       LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
       LOG_LEVEL_SERVICE: ${LOG_LEVEL_SERVICE:-INFO}
-      SPRING_PROFILES_ACTIVE: prod
-      DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/lakhdatar}
+      SPRING_PROFILES_ACTIVE: staging
+      DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/lakhdatar_staging}
       DB_USERNAME: ${DB_USERNAME:-lakhdatar}
       DB_PASSWORD: ${DB_PASSWORD}
       REDIS_HOST: ${REDIS_HOST:-redis}
@@ -213,8 +213,8 @@ services:
       CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER:-neelastack-events}
       CLOUDINARY_MAX_BYTES: ${CLOUDINARY_MAX_BYTES:-5242880}
       NEELASTACK_PUBLIC_URL: ${NEELASTACK_PUBLIC_URL:-https://neelastack.com}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://events.neelastack.com}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://events.neelastack.com}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://staging-events.neelastack.com}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://staging-events.neelastack.com}
       MAIL_HOST: ${MAIL_HOST:-}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
@@ -229,7 +229,7 @@ services:
       BOOTSTRAP_ENABLED: ${BOOTSTRAP_ENABLED:-false}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-    networks: [lakhdatar_net]
+    networks: [lakhdatar_staging_net]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -246,7 +246,7 @@ services:
         max-size: "10m"
         max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-web:${IMAGE_TAG}
-    container_name: lakhdatar-web
+    container_name: lakhdatar-staging-web
     restart: unless-stopped
     ulimits:
       nofile:
@@ -265,13 +265,13 @@ services:
       NODE_ENV: production
       PORT: "3000"
       SSR_API_BASE_URL: http://backend:8080/api/v1
-      NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-events.neelastack.com,monitor.neelastack.com}
+      NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-staging-events.neelastack.com}
       NG_TRUST_PROXY_HEADERS: ${NG_TRUST_PROXY_HEADERS:-X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO}
       KEEP_ALIVE_TIMEOUT_MS: ${KEEP_ALIVE_TIMEOUT_MS:-60000}
       HEADERS_TIMEOUT_MS: ${HEADERS_TIMEOUT_MS:-65000}
       REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-30000}
     depends_on: {backend: {condition: service_healthy}}
-    networks: [lakhdatar_net]
+    networks: [lakhdatar_staging_net]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/healthz >/dev/null"]
       interval: 15s
@@ -285,7 +285,7 @@ services:
         max-size: "10m"
         max-file: "5"
     image: ${IMAGE_NAMESPACE}/lakhdatar-edge:${IMAGE_TAG}
-    container_name: lakhdatar-edge
+    container_name: lakhdatar-staging-edge
     restart: unless-stopped
     ulimits:
       nofile:
@@ -305,9 +305,9 @@ services:
     depends_on:
       web: {condition: service_healthy}
       backend: {condition: service_healthy}
-    networks: [lakhdatar_net]
-    # Cloudflare Tunnel target: http://localhost:4002 (loopback only). Other apps on this VM keep their own ports and are never touched.
-    ports: ["127.0.0.1:4002:8080"]
+    networks: [lakhdatar_staging_net]
+    # Cloudflare Tunnel target: http://localhost:4003 (loopback only). Other apps on this VM keep their own ports and are never touched.
+    ports: ["127.0.0.1:4003:8080"]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/edge-health >/dev/null"]
       interval: 15s
@@ -316,10 +316,10 @@ services:
       retries: 12
 
 networks:
-  lakhdatar_net:
-    name: lakhdatar_net
+  lakhdatar_staging_net:
+    name: lakhdatar_staging_net
 volumes:
-  lakhdatar_pg_data:
-    name: lakhdatar_pg_data
-  lakhdatar_redis_data:
-    name: lakhdatar_redis_data
+  lakhdatar_pg_data_staging:
+    name: lakhdatar_pg_data_staging
+  lakhdatar_redis_data_staging:
+    name: lakhdatar_redis_data_staging

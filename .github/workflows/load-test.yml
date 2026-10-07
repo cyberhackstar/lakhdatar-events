@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: 'Staging base URL, e.g. https://staging-events.example.com'
+        description: 'HTTPS staging base URL'
         required: true
+        default: https://staging-events.neelastack.com
         type: string
       test:
         description: 'k6 scenario'
@@ -23,30 +24,12 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v7
-      - name: Guard the 1,000-user profile to staging only
-        if: inputs.test == 'thousands.js'
+      - name: Validate exact staging target
         env:
           BASE_URL: ${{ inputs.base_url }}
         run: |
           set -euo pipefail
-          case "$BASE_URL" in
-            https://events.neelastack.com|https://events.neelastack.com/*|http://events.neelastack.com|http://events.neelastack.com/*)
-              echo "::error::thousands.js must never run against the live events.neelastack.com site"
-              exit 1
-              ;;
-          esac
-      - name: Guard enterprise gate to staging only
-        if: inputs.test == 'enterprise-gate'
-        env:
-          BASE_URL: ${{ inputs.base_url }}
-        run: |
-          set -euo pipefail
-          case "$BASE_URL" in
-            https://events.neelastack.com|https://events.neelastack.com/*|http://events.neelastack.com|http://events.neelastack.com/*)
-              echo "::error::enterprise-gate must never run against the live events.neelastack.com site"
-              exit 1
-              ;;
-          esac
+          test "$BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Staging Load Test must target https://staging-events.neelastack.com'; exit 2; }
       - name: Run enterprise staging gate
         if: inputs.test == 'enterprise-gate'
         env:
@@ -76,7 +59,7 @@ jobs:
           BURST_RATE_3: ${{ secrets.LOADTEST_BURST_RATE_3 || '250' }}
           ENABLE_CHECKOUT_LOAD: "true"
           ALLOW_PRODUCTION_CHECKOUT_LOAD: "false"
-        run: ./infra/loadtest/enterprise-gate.sh
+        run: bash ./infra/loadtest/enterprise-gate.sh
       - name: Run pinned k6 test
         if: inputs.test != 'enterprise-gate'
         env:
@@ -103,7 +86,7 @@ jobs:
           THOUSANDS_MAX_VUS: ${{ vars.LOADTEST_THOUSANDS_MAX_VUS || '1000' }}
           THOUSANDS_RAMP: ${{ vars.LOADTEST_THOUSANDS_RAMP || '2m' }}
           THOUSANDS_HOLD: ${{ vars.LOADTEST_THOUSANDS_HOLD || '3m' }}
-        run: ./infra/loadtest/run.sh '${{ inputs.test }}'
+        run: bash ./infra/loadtest/run.sh '${{ inputs.test }}'
       - name: Upload k6 summaries
         if: always()
         uses: actions/upload-artifact@v4.6.2

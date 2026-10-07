@@ -67,3 +67,7 @@ When `SMOKE_ENTERPRISE=true`, `production-smoke.sh` fails closed unless a dedica
 
 ## 2.0.26 hardening
 The 2.0.26 candidate additionally qualifies Cashfree idempotency/webhook durability, MFA replay protection, streaming exports, private actuator isolation, checkout lock-ordering, reservation backlog draining and staging-only browser execution.
+
+## Staging origin
+
+The repository-provided staging deployment profile uses `https://staging-events.neelastack.com`. Deploy the exact release SHA with `Staging Deploy` before running browser, load and DAST qualification.

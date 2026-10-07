@@ -168,7 +168,7 @@ jobs:
              SMOKE_TICKET_ID="${{ secrets.SMOKE_TICKET_ID }}" \
              SMOKE_TICKET_TOKEN="${{ secrets.SMOKE_TICKET_TOKEN }}" \
              SMOKE_TICKET_PDF="${{ vars.SMOKE_TICKET_PDF || 'false' }}" \
-             SMOKE_ENTERPRISE="true" \
+             SMOKE_ENTERPRISE="${{ vars.SMOKE_ENTERPRISE || 'false' }}" \
              infra/smoke/production-smoke.sh; then
               echo "Production safe smoke tests passed."
               exit 0

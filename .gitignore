@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.staging.example
 # Safe committed HA configuration template (contains placeholders only).
 !infra/
 !infra/ha/

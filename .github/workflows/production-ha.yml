@@ -45,7 +45,7 @@ jobs:
           [[ "$CERTIFIED_RELEASE_SHA" == "$RELEASE_SHA" ]] || { echo 'Release SHA is not the protected certified SHA'; exit 1; }
           [[ "$TOPOLOGY" == enterprise-ha ]] || { echo 'Certified HA promotion requires PRODUCTION_TOPOLOGY=enterprise-ha'; exit 1; }
           [[ "$NODE_COUNT" == 2 ]] || { echo 'This HA promotion workflow deploys exactly HOST_A and HOST_B; HA_NODE_COUNT must be 2'; exit 1; }
-          PRODUCTION_TOPOLOGY="$TOPOLOGY" HA_NODE_COUNT="$NODE_COUNT" DB_EXTERNAL_HOST="$DB_HOST" REDIS_EXTERNAL_HOST="$REDIS_HOST" HA_INGRESS_HEALTH_URL="$INGRESS_HEALTH_URL" infra/ha/verify-enterprise-ha.sh
+          PRODUCTION_TOPOLOGY="$TOPOLOGY" HA_NODE_COUNT="$NODE_COUNT" DB_EXTERNAL_HOST="$DB_HOST" REDIS_EXTERNAL_HOST="$REDIS_HOST" HA_INGRESS_HEALTH_URL="$INGRESS_HEALTH_URL" bash infra/ha/verify-enterprise-ha.sh
       - name: Install Cosign
         uses: sigstore/cosign-installer@v4.1.2
       - name: Authenticate release runner to GHCR
@@ -165,7 +165,7 @@ jobs:
           SMOKE_TICKET_TOKEN: ${{ secrets.SMOKE_TICKET_TOKEN }}
           SMOKE_TICKET_PDF: ${{ vars.SMOKE_TICKET_PDF || 'false' }}
           SMOKE_ENTERPRISE: 'true'
-        run: infra/smoke/production-smoke.sh
+        run: bash infra/smoke/production-smoke.sh
       - name: Logout from GHCR on both nodes
         if: always()
         env:

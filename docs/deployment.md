@@ -57,3 +57,7 @@ curl -fsS https://events.neelastack.com/sitemap.xml
 ## Production deployment smoke contract
 
 The local edge smoke tests use the canonical public Host and HTTPS forwarded-protocol headers. Do not replace them with `Host: 127.0.0.1`; Angular SSR host validation can correctly reject that synthetic production-inaccurate request with HTTP 400.
+
+## Staging deployment
+
+Use the isolated `staging-events.neelastack.com` profile in [docs/STAGING-ENVIRONMENT.md](STAGING-ENVIRONMENT.md). Production remains on `events.neelastack.com` / loopback `4002`; staging uses separate containers, network, PostgreSQL/Redis volumes and loopback `4003`.

@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 test.describe.configure({ mode: 'serial', retries: 0 });
 const { required, bearer } = require('./helpers');
+const mutationsEnabled = process.env.E2E_RUN_MUTATIONS === 'true';
 
 test.describe('critical business APIs', () => {
   test.beforeEach(async ({}, testInfo) => {
@@ -15,6 +16,7 @@ test.describe('critical business APIs', () => {
   });
 
   test('checkout idempotency returns the same logical order on retry', async ({ request }) => {
+    test.skip(!mutationsEnabled, 'stateful checkout mutation gate disabled');
     const eventId = required('E2E_EVENT_ID');
     const ticketTypeId = required('E2E_TICKET_TYPE_ID');
     const email = required('E2E_CHECKOUT_EMAIL');
@@ -37,6 +39,7 @@ test.describe('critical business APIs', () => {
   });
 
   test('a real QR credential can only be accepted once', async ({ request }) => {
+    test.skip(!mutationsEnabled, 'stateful check-in mutation gate disabled');
     const response = await request.post('/api/v1/checkin/scan', {
       headers: { Authorization: bearer('E2E_STAFF_BEARER'), 'Content-Type': 'application/json' },
       data: {

@@ -1,0 +1,8 @@
+# Dedicated staging ingress for Neelastack Events.
+# Add this rule to the Cloudflare Tunnel that runs on the staging host/VM.
+# Production remains events.neelastack.com -> http://localhost:4002.
+# Staging uses a separate application/DB/Redis stack on loopback port 4003.
+ingress:
+  - hostname: staging-events.neelastack.com
+    service: http://localhost:4003
+  - service: http_status:404

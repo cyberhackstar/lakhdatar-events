@@ -3,6 +3,8 @@
 ingress:
   - hostname: events.neelastack.com
     service: http://localhost:4002
+  - hostname: staging-events.neelastack.com
+    service: http://localhost:4003
   - hostname: monitor.neelastack.com
     service: http://localhost:4002
   # ...existing rules for the other apps stay here...

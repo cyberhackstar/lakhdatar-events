@@ -78,7 +78,7 @@ jobs:
           SMOKE_TICKET_TOKEN: ${{ secrets.SMOKE_TICKET_TOKEN }}
           SMOKE_TICKET_PDF: ${{ vars.SMOKE_TICKET_PDF || 'false' }}
           SMOKE_ENTERPRISE: 'true'
-        run: infra/smoke/production-smoke.sh
+        run: bash infra/smoke/production-smoke.sh
       - name: Clean SSH material
         if: always()
         run: rm -f deploy_key known_a known_b

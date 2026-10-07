@@ -2,6 +2,12 @@
 
 This release continues the enterprise hardening program with financial recovery correctness, event/check-in concurrency protection, durable payment webhook processing, privileged MFA, password recovery, backup/DR controls, deployment safety and release qualification gates.
 
+## Isolated staging environment
+
+GitHub Actions now includes a manual `Staging Deploy` workflow that verifies the signed CI images and deploys the exact release SHA to `/home/ubuntu/apps/lakhdatar-events-staging`. The staging profile is intentionally separate from production and listens on loopback port `4003`.
+
+The repository includes a separate `staging-events.neelastack.com` deployment profile for disposable E2E, k6 load and DAST qualification. Staging uses its own PostgreSQL/Redis volumes and loopback edge port `4003`; it must never use production credentials or data. See [docs/STAGING-ENVIRONMENT.md](docs/STAGING-ENVIRONMENT.md).
+
 ## Enterprise production status
 
 v2.0.26 is the **enterprise-production certification-gated release**. Production HA promotion is fail-closed on the protected certified Git SHA, signed image provenance, HA topology, privileged MFA, external database/Redis, and protected certification evidence.
