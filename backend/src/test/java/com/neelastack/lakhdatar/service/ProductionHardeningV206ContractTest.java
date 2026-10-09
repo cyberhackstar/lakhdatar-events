@@ -38,6 +38,9 @@ class ProductionHardeningV206ContractTest {
 
     @Test
     void releaseVersionMatchesAllBuildManifests() throws Exception {
+        String haEdge = Files.readString(Path.of("../infra/ha/nginx-ha.conf.example"));
+        assertTrue(haEdge.contains("location = /api/v1/public/events {"), "HA NGINX must preserve the slashless public catalog API route");
+        assertTrue(haEdge.contains("location ^~ /api/v1/public/events/ {"));
         String version = Files.readString(Path.of("../VERSION")).trim();
         String pom = Files.readString(Path.of("pom.xml"));
         String pkg = Files.readString(Path.of("../frontend/package.json"));
@@ -72,15 +75,19 @@ class ProductionHardeningV206ContractTest {
         assertTrue(edge.contains("limit_conn per_ip 1000;"));
         assertTrue(edge.contains("$cookie_lk_refresh"));
         assertTrue(edge.contains("$cookie_ld_checkout"));
-        assertTrue(lock.contains("\"node_modules/void-elements\": {\n      \"version\": \"2.0.1\""));
-        assertTrue(lock.contains("\"node_modules/http-errors\": {\n      \"version\": \"2.0.1\""));
-        assertTrue(lock.contains("\"node_modules/inherits\": {\n      \"version\": \"2.0.4\""));
+        // The lockfile must not contain any known vulnerable tarball references. Some
+        // packages (such as void-elements) may legitimately disappear from the tree when
+        // upstream dependency graphs change, so the contract must not require unused entries.
         assertFalse(lock.contains("inherits-2.0.5.tgz"));
-        assertTrue(edge.contains("location ^~ /api/v1/admin/ops/"));
-        assertTrue(edge.contains("location = /api/v1/admin/ops/logs"));
-        assertTrue(edge.contains("if ($is_monitor_host = 1) { return 404; }"));
         assertFalse(lock.contains("void-elements-2.0.2.tgz"));
         assertFalse(lock.contains("http-errors-2.0.2.tgz"));
+        assertFalse(lock.contains("hasown-2.0.5.tgz"));
+        assertFalse(lock.contains("colorette-2.0.21.tgz"));
+        assertTrue(edge.contains("location ^~ /api/v1/admin/ops/"));
+        assertTrue(edge.contains("location = /api/v1/public/events {"), "slashless public catalog API route must be exact to prevent NGINX auto-redirects");
+        assertTrue(edge.contains("location ^~ /api/v1/public/events/ {"));
+        assertTrue(edge.contains("location = /api/v1/admin/ops/logs"));
+        assertTrue(edge.contains("if ($is_monitor_host = 1) { return 404; }"));
         String version = Files.readString(Path.of("../VERSION")).trim();
         String manifest = Files.readString(Path.of("../RELEASE-MANIFEST.txt"));
         assertTrue(manifest.contains("Release: " + version));

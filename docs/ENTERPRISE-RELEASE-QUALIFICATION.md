@@ -1,4 +1,4 @@
-# Enterprise release qualification — v2.0.26
+# Enterprise release qualification — v2.0.35
 
 This release is **enterprise-scale ready at the application architecture level**, but “BookMyShow-class” production availability is an infrastructure and operational claim that must be verified in the target environment.
 
@@ -57,7 +57,7 @@ Attach the CI run URL/commit, Maven test report, Angular build/test report, Dock
 
 The k6 suite writes one JSON summary per scenario under `loadtest-results/` when run with `infra/loadtest/run-suite.sh`. Preserve these files with the release CI artifact and record the target VM/DB/Redis sizing, commit SHA, timestamp, scenario settings and test-event identifier. Never attach customer or payment credentials to the artifact.
 
-## v2.0.26 go-live blockers
+## v2.0.35 go-live blockers
 
 The following are mandatory, not advisory: no failed refund may become permanently unqueryable for recovery; event cancellation/check-in must be concurrency-safe; large event cancellation must use bounded set-based database operations; webhook retry must be bounded and provider-scoped; privileged MFA must be enabled; and single-node production requires explicit risk acknowledgement.
 
@@ -65,8 +65,8 @@ The following are mandatory, not advisory: no failed refund may become permanent
 
 When `SMOKE_ENTERPRISE=true`, `production-smoke.sh` fails closed unless a dedicated issued ticket ID and ticket token are supplied. Ticket and PDF checks remain read-only and never perform admission or payment mutations.
 
-## 2.0.26 hardening
-The 2.0.26 candidate additionally qualifies Cashfree idempotency/webhook durability, MFA replay protection, streaming exports, private actuator isolation, checkout lock-ordering, reservation backlog draining and staging-only browser execution.
+## 2.0.35 hardening
+The 2.0.35 candidate additionally qualifies Cashfree idempotency/webhook durability, MFA replay protection, streaming exports, private actuator isolation, checkout lock-ordering, reservation backlog draining and staging-only browser execution.
 
 ## Staging origin
 

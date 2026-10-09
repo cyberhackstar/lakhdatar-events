@@ -1,5 +1,6 @@
 import 'zone.js';
 import 'zone.js/testing';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -44,7 +45,7 @@ describe('AuthService enterprise auth lifecycle', () => {
 
   it('never stores blank access tokens returned for a pending MFA challenge', () => {
     auth.login('admin@example.com', 'correct-password').subscribe(result => {
-      expect(result.mfaRequired).toBeTrue();
+      expect(result.mfaRequired).toBe(true);
       expect(result.accessToken).toBe('');
     });
     const req = http.expectOne('/api/v1/auth/login');
@@ -83,7 +84,7 @@ describe('AuthService enterprise auth lifecycle', () => {
   });
 
   it('uses a fragment-safe password recovery API contract', () => {
-    auth.requestPasswordReset('user@example.com').subscribe(result => expect(result.accepted).toBeTrue());
+    auth.requestPasswordReset('user@example.com').subscribe(result => expect(result.accepted).toBe(true));
     const request = http.expectOne('/api/v1/auth/password-reset/request');
     expect(request.request.body).toEqual({ email: 'user@example.com' });
     request.flush({ accepted: true });

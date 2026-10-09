@@ -4,7 +4,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPORT_DIR="${REPORT_DIR:-$PROJECT_ROOT/loadtest-results}"
 mkdir -p "$REPORT_DIR"
-IMAGE="${K6_IMAGE:-grafana/k6:2.2.0}"
+IMAGE="${K6_IMAGE:-grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6}"
 BASE_URL="${BASE_URL:?Set BASE_URL to staging/load-test host}"
 run(){ local name="$1"; echo "=== k6: $name ==="; docker run --rm -i --net=host -v "$REPORT_DIR:/results" \
   -e BASE_URL="$BASE_URL" \

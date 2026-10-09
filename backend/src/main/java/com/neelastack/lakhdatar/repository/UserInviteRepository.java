@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -19,6 +20,7 @@ public interface UserInviteRepository extends JpaRepository<UserInvite, Long> {
     boolean existsByUserIdAndUsedAtIsNullAndExpiresAtAfter(Long userId, Instant now);
 
     /** Closes every still-open invite of a user (a new invite was issued, or the user was deactivated). */
+    @Transactional
     @Modifying
     @Query("update UserInvite i set i.usedAt = :now where i.userId = :userId and i.usedAt is null")
     int closeOpenInvites(@Param("userId") Long userId, @Param("now") Instant now);

@@ -1,10 +1,12 @@
 {
   "name": "neelastack-events-e2e",
-  "version": "2.0.26",
+  "version": "2.0.35",
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "test": "playwright test"
+    "test": "node ./node_modules/playwright/cli.js test",
+    "playwright": "node ./node_modules/playwright/cli.js",
+    "install:chromium": "node ./node_modules/playwright/cli.js install chromium"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

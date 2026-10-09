@@ -1,45 +1,45 @@
 {
   "name": "lakhdatar-events-frontend",
-  "version": "2.0.26",
+  "version": "2.0.35",
   "private": true,
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test --watch=false --browsers=ChromeHeadless",
+    "test": "ng test --watch=false",
     "verify:baseline": "node ../tools/verify-platform-baseline.mjs",
-    "verify:dependencies": "node ../tools/verify-frontend-lock.mjs"
+    "verify:dependencies": "node ../tools/verify-frontend-lock.mjs",
+    "test:unit": "ng test --watch=false",
+    "audit:high": "npm audit --audit-level=high",
+    "bootstrap:dependencies": "node ./bootstrap-dependencies.mjs",
+    "audit:runtime": "npm audit --omit=dev --audit-level=high",
+    "doctor:dependencies": "node ./doctor-dependencies.mjs"
   },
   "dependencies": {
-    "@angular/common": "^20.3.30",
-    "@angular/compiler": "^20.3.30",
-    "@angular/core": "^20.3.30",
-    "@angular/forms": "^20.3.30",
-    "@angular/platform-browser": "^20.3.30",
-    "@angular/platform-server": "^20.3.30",
-    "@angular/router": "^20.3.30",
-    "@angular/ssr": "^20.3.36",
-    "express": "^4.22.2",
+    "@angular/common": "20.3.33",
+    "@angular/compiler": "20.3.33",
+    "@angular/core": "20.3.33",
+    "@angular/forms": "20.3.33",
+    "@angular/platform-browser": "20.3.33",
+    "@angular/platform-server": "20.3.33",
+    "@angular/router": "20.3.33",
+    "@angular/ssr": "20.3.39",
+    "express": "4.22.2",
     "html5-qrcode": "2.3.8",
-    "rxjs": "~7.8.1",
-    "tslib": "^2.8.0",
-    "zone.js": "~0.15.0"
+    "rxjs": "7.8.2",
+    "tslib": "2.8.1",
+    "zone.js": "0.15.1"
   },
   "devDependencies": {
-    "@angular/build": "^20.3.36",
-    "@angular/cli": "^20.3.36",
-    "@angular/compiler-cli": "^20.3.30",
-    "@types/express": "^4.17.21",
-    "@types/jasmine": "~5.1.0",
-    "@types/node": "^22.9.0",
-    "jasmine-core": "~5.4.0",
-    "karma": "~6.4.0",
-    "karma-chrome-launcher": "~3.2.0",
-    "karma-coverage": "~2.2.0",
-    "karma-jasmine": "~5.1.0",
-    "karma-jasmine-html-reporter": "~2.1.0",
-    "typescript": "~5.9.3"
+    "@angular/build": "20.3.33",
+    "@angular/cli": "20.3.33",
+    "@angular/compiler-cli": "20.3.33",
+    "@types/express": "4.17.21",
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3",
+    "jsdom": "29.1.1",
+    "vitest": "3.2.7"
   },
   "overrides": {
     "qs": "6.16.0",
@@ -48,6 +48,11 @@
       "inherits": "2.0.4"
     },
     "hasown": "2.0.4",
-    "inherits": "2.0.4"
+    "inherits": "2.0.4",
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "tinypool": "2.2.0"
+  },
+  "engines": {
+    "node": ">=22.19.0 <23 || >=24.0.0 <25"
   }
 }

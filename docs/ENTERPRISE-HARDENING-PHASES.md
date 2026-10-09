@@ -1,4 +1,4 @@
-# Neelastack Events v2.0.26 — Enterprise hardening phases
+# Neelastack Events v2.0.35 — Enterprise hardening phases
 
 ## Phase 1 — Financial and event-state correctness
 

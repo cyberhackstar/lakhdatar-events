@@ -147,6 +147,9 @@ class EnterpriseScaleContractTest {
         assertTrue(controller.contains("X-Ticket-Token"));
         assertTrue(controller.contains("/tickets/{ticketId}/pdf"));
         assertTrue(pdf.contains("No customer bearer token is ever embedded in the PDF"));
+        assertTrue(pdf.contains("PDImageXObject.createFromByteArray"));
+        assertTrue(pdf.contains("Ticket QR image is missing or invalid"));
+        assertFalse(pdf.contains("LosslessFactory.createFromImage"));
     }
     @Test
     void productionBrowserNeverTargetsPublicBackendPortAndCashfreeReturnIsRecoverable() throws Exception {

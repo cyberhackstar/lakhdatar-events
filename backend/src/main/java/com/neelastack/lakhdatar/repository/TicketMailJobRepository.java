@@ -4,6 +4,7 @@ import com.neelastack.lakhdatar.domain.TicketMailJob;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.*;
@@ -20,5 +21,6 @@ public interface TicketMailJobRepository extends JpaRepository<TicketMailJob, Lo
 
     long countByStatusIn(Collection<TicketMailJob.Status> statuses);
 
+    @Transactional
     long deleteByStatusInAndUpdatedAtBefore(Collection<TicketMailJob.Status> statuses, Instant cutoff);
 }

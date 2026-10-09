@@ -34,11 +34,16 @@ jobs:
       - name: Verify frontend dependency lock before install
         working-directory: frontend
         run: npm run verify:dependencies
+      - name: Frontend full dependency security audit
+        working-directory: frontend
+        # DevDependencies participate in the build/test supply chain and are therefore audited
+        # separately from the production runtime dependency audit below.
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm audit --audit-level=high
       - name: Frontend production dependency audit
         working-directory: frontend
-        # Audit only dependencies that are shipped at runtime. The development toolchain
-        # contains known-unfixed advisories in Karma/npm registry tooling that do not ship
-        # in the production SSR image (the Docker build prunes devDependencies).
+        # Audit the dependency tree that is actually shipped in the production SSR image.
+        # The Docker runtime stage installs only production dependencies; the full build/test
+        # supply chain is audited separately immediately above.
         run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm audit --omit=dev --audit-level=high
       - name: Filesystem vulnerability and misconfiguration scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

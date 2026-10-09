@@ -5,6 +5,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -18,6 +19,7 @@ public interface EventNotificationJobRepository extends JpaRepository<EventNotif
     List<EventNotificationJob> findTop500ByStatusInAndNextAttemptAtBeforeOrderByCreatedAtAsc(
             List<EventNotificationJob.Status> statuses, Instant now);
 
+    @Transactional
     @Modifying(flushAutomatically = true)
     @Query(value = """
             insert into event_notification_jobs
@@ -38,6 +40,7 @@ public interface EventNotificationJobRepository extends JpaRepository<EventNotif
                         @Param("oldStartsAt") Instant oldStartsAt,
                         @Param("oldEndsAt") Instant oldEndsAt);
 
+    @Transactional
     @Modifying
     @Query("delete from EventNotificationJob j where j.status in :statuses and j.updatedAt < :cutoff")
     long deleteHistory(@Param("statuses") List<EventNotificationJob.Status> statuses, @Param("cutoff") Instant cutoff);

@@ -29,22 +29,28 @@ const stagingWorkflow = read('.github/workflows/staging.yml');
 const version = read('VERSION').trim();
 
 const expected = {
-  '@angular/common':'^20.3.30', '@angular/compiler':'^20.3.30',
-  '@angular/core':'^20.3.30', '@angular/forms':'^20.3.30', '@angular/platform-browser':'^20.3.30',
-  '@angular/platform-server':'^20.3.30', '@angular/router':'^20.3.30',
-  '@angular/ssr':'^20.3.36', rxjs:'~7.8.1', tslib:'^2.8.0', 'zone.js':'~0.15.0'
+  '@angular/common':'20.3.33', '@angular/compiler':'20.3.33',
+  '@angular/core':'20.3.33', '@angular/forms':'20.3.33', '@angular/platform-browser':'20.3.33',
+  '@angular/platform-server':'20.3.33', '@angular/router':'20.3.33',
+  '@angular/ssr':'20.3.39', rxjs:'7.8.2', tslib:'2.8.1', 'zone.js':'0.15.1'
 };
-const supportedExpressSpecs = new Set(['^4.22.2', '^5.2.1']);
-const supportedExpressTypesSpecs = new Set(['^4.17.21', '^5.0.6']);
+const supportedExpressSpecs = new Set(['4.22.2', '^4.22.2', '^5.2.1']);
+const supportedExpressTypesSpecs = new Set(['4.17.21', '^4.17.21', '^5.0.6']);
 const problems=[];
 for (const [name, spec] of Object.entries(expected)) if (pkg.dependencies[name] !== spec) problems.push(`frontend ${name}: expected ${spec}, got ${pkg.dependencies[name]}`);
 if (!supportedExpressSpecs.has(pkg.dependencies.express)) problems.push(`frontend express: expected one of ${[...supportedExpressSpecs].join(', ')}, got ${pkg.dependencies.express}`);
 if (!supportedExpressTypesSpecs.has(pkg.devDependencies['@types/express'])) problems.push(`@types/express: expected one of ${[...supportedExpressTypesSpecs].join(', ')}, got ${pkg.devDependencies['@types/express']}`);
-if (pkg.devDependencies['@angular/build'] !== '^20.3.36') problems.push('@angular/build baseline mismatch');
-if (pkg.devDependencies['@angular/cli'] !== '^20.3.36') problems.push('@angular/cli baseline mismatch');
-if (pkg.devDependencies['@angular/compiler-cli'] !== '^20.3.30') problems.push('@angular/compiler-cli baseline mismatch');
-if (pkg.devDependencies['@types/node'] !== '^22.9.0') problems.push('@types/node baseline mismatch');
-if (pkg.devDependencies.typescript !== '~5.9.3') problems.push('typescript baseline mismatch');
+if (pkg.devDependencies['@angular/build'] !== '20.3.33') problems.push('@angular/build baseline mismatch');
+if (pkg.devDependencies['@angular/cli'] !== '20.3.33') problems.push('@angular/cli baseline mismatch');
+if (pkg.devDependencies['@angular/compiler-cli'] !== '20.3.33') problems.push('@angular/compiler-cli baseline mismatch');
+if (pkg.devDependencies['@types/node'] !== '22.20.5') problems.push('@types/node baseline mismatch');
+if (pkg.devDependencies.typescript !== '5.9.3') problems.push('typescript baseline mismatch');
+
+if (pkg.devDependencies?.vitest !== '3.2.7') problems.push('Vitest baseline mismatch');
+if (pkg.devDependencies?.jsdom !== '29.1.1') problems.push('jsdom baseline mismatch');
+if (pkg.devDependencies?.karma) problems.push('Karma must not be a frontend dev dependency');
+if (angular.projects?.['lakhdatar-events-frontend']?.architect?.test?.options?.runner !== 'vitest') problems.push('Angular unit-test runner baseline mismatch');
+if (!ci.includes('npm audit --audit-level=high')) problems.push('CI full frontend dependency audit missing');
 if (pkg.overrides?.qs !== '6.16.0') problems.push('qs override mismatch');
 if (pkg.overrides?.piscina !== '5.3.2') problems.push('piscina security override mismatch');
 if (pkg.overrides?.['http-errors@2.0.1']?.inherits !== '2.0.4') problems.push('http-errors inherits override mismatch');
@@ -123,12 +129,13 @@ if (!prodCompose.includes('REDIS_DATABASE: ${REDIS_DATABASE:-0}')) problems.push
 if (prodCompose.includes('REDIS_URL:')) problems.push('production Redis URL must not override explicit authentication properties');
 if (deploy.includes('/actuator/health >/dev/null')) problems.push('legacy aggregate backend health gate must not be used');
 if (!prodCompose.includes('start_period: 90s')) problems.push('production backend healthcheck startup period mismatch');
-if (read('.nvmrc').trim() !== '24') problems.push('Node runtime baseline mismatch');
+if (read('.nvmrc').trim() !== '22.19.0') problems.push('Node runtime baseline mismatch');
 if (!prodCompose.includes('NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-events.neelastack.com,monitor.neelastack.com}')) problems.push('Angular SSR allowed-host baseline missing');
 if (!prodCompose.includes('NG_TRUST_PROXY_HEADERS: ${NG_TRUST_PROXY_HEADERS:-X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO}')) problems.push('Angular SSR trusted-proxy baseline missing');
 if (!ci.includes('NG_ALLOWED_HOSTS=127.0.0.1,localhost,events.neelastack.com,monitor.neelastack.com')) problems.push('CI SSR test host allowlist baseline missing');
 const edgeNginx = read('edge/nginx.conf');
 if (!edgeNginx.includes('absolute_redirect off;')) problems.push('edge NGINX must keep canonical redirects relative so the internal :8080 port is never exposed');
+if (!edgeNginx.includes('location = /api/v1/public/events {')) problems.push('edge NGINX must have an exact slashless public catalog route to prevent auto-redirecting /api/v1/public/events to /api/v1/public/events/');
 const checkoutSource = read('frontend/src/app/features/checkout/checkout.component.ts');
 const scannerSource = read('frontend/src/app/features/scanner/scanner.component.ts');
 const apiServiceSource = read('frontend/src/app/core/api/api.service.ts');
@@ -193,6 +200,8 @@ if (!prodCompose.includes('nofile:') || !prodCompose.includes('soft: 65536') || 
 if (!prodCompose.includes('OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}')) problems.push('production OTLP metrics toggle missing');
 const haCompose = read('infra/ha/docker-compose.ha.example.yml');
 const haEdgeNginx = read('infra/ha/nginx-ha.conf.example');
+if (!haEdgeNginx.includes('location = /api/v1/public/events {')) problems.push('HA NGINX must have an exact slashless public catalog route');
+
 if (!haCompose.includes('SERVER_TOMCAT_MAX_THREADS: ${SERVER_TOMCAT_MAX_THREADS:-200}')) problems.push('HA Tomcat capacity baseline missing');
 if (!haCompose.includes('KEEP_ALIVE_TIMEOUT_MS: ${KEEP_ALIVE_TIMEOUT_MS:-60000}')) problems.push('HA SSR keep-alive baseline missing');
 if (!haEdgeNginx.includes('absolute_redirect off;')) problems.push('HA NGINX must keep canonical redirects relative so the internal :8080 port is never exposed');
@@ -239,7 +248,7 @@ if (!fs.existsSync(path.join(root, 'infra/loadtest/enterprise-gate.sh'))) proble
 if (!loadtestWorkflow.includes('enterprise-gate')) problems.push('load-test workflow must expose enterprise gate');
 if (!loadtestWorkflow.includes("Staging Load Test must target https://staging-events.neelastack.com") && !loadtestWorkflow.includes('thousands.js must never run against the live events.neelastack.com site')) problems.push('thousands-user workflow production guard missing');
 const lockText = read('frontend/package-lock.json');
-if (!lockText.includes('"node_modules/void-elements": {\n      "version": "2.0.1"')) problems.push('frontend lockfile void-elements must resolve to 2.0.1');
+if (lockText.includes('"node_modules/void-elements"') && !lockText.includes('"node_modules/void-elements": {\n      "version": "2.0.1"')) problems.push('frontend lockfile void-elements must resolve to 2.0.1 when present');
 if (!lockText.includes('"node_modules/http-errors": {\n      "version": "2.0.1"')) problems.push('frontend lockfile http-errors must resolve to 2.0.1');
 if (lockText.includes('void-elements-2.0.2.tgz') || lockText.includes('http-errors-2.0.2.tgz')) problems.push('stale invalid frontend lockfile tarball versions remain');
 if (!edgeNginx.includes('https://static.cloudflareinsights.com')) problems.push('Cloudflare Web Analytics CSP script source missing');

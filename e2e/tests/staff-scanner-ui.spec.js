@@ -17,13 +17,13 @@ test.describe('staff scanner browser qualification', () => {
     await expect(page.locator('.scanner')).toBeVisible();
     await expect(page.locator('.online, .offline-banner')).toBeVisible();
     await expect(page.locator('footer')).toContainText('Server-authoritative validation');
-    await expect(page.locator('#qr-reader, .state-card')).toBeVisible();
+    await expect(page.locator('#qr-reader:visible, .state-card:visible').first()).toBeVisible();
 
     const cameraFallback = page.getByRole('button', { name: /manual entry/i });
     if (await cameraFallback.isVisible().catch(() => false)) {
       await cameraFallback.click();
       await expect(page.getByRole('dialog')).toBeVisible();
-      await expect(page.getByLabel('Ticket code')).toHaveAttribute('maxlength', '512');
+      await expect(page.getByRole('dialog', { name: 'Enter ticket code' }).getByRole('textbox', { name: 'Ticket code' })).toHaveAttribute('maxlength', '512');
     }
   });
 });

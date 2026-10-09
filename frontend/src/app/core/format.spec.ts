@@ -1,12 +1,13 @@
 import 'zone.js';
 import 'zone.js/testing';
+import { describe, expect, it } from 'vitest';
 import { canBook, rupees, safeImage, toAbsoluteUrl } from './format';
 
 describe('format utilities', () => {
   it('recognizes bookable sales states', () => {
-    expect(canBook('AVAILABLE')).toBeTrue();
-    expect(canBook('SELLING_FAST')).toBeTrue();
-    expect(canBook('SOLD_OUT')).toBeFalse();
+    expect(canBook('AVAILABLE')).toBe(true);
+    expect(canBook('SELLING_FAST')).toBe(true);
+    expect(canBook('SOLD_OUT')).toBe(false);
   });
 
   it('formats INR minor units', () => {

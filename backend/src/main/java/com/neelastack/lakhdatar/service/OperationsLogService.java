@@ -152,9 +152,9 @@ public class OperationsLogService {
         add(details, "status", textAt(json, "http.status_code", null, "http", "status_code", "status"));
         add(details, "duration", durationValue(json));
         add(details, "outcome", textAt(json, "event.outcome", null, "event", "outcome", "outcome"));
-        add(details, "error", textAt(json, "error.code", null, "error", "code"));
-        add(details, "errorType", textAt(json, "error.type", null, "error", "type"));
-        add(details, "provider", textAt(json, "provider", null));
+        add(details, "error", firstTextAt(json, "error.code", "failure.code", null, "error", "code"));
+        add(details, "errorType", firstTextAt(json, "error.type", "failure.type", null, "error", "type"));
+        add(details, "provider", firstTextAt(json, "provider.name", "provider", null));
         add(details, "providerPath", textAt(json, "provider.path", null, "provider", "path"));
         add(details, "order", textAt(json, "order.number", null, "order", "number"));
         add(details, "payment", textAt(json, "payment.status", null, "payment", "status"));
@@ -165,6 +165,12 @@ public class OperationsLogService {
         add(details, "batch", textAt(json, "batch.size", null, "batch", "size"));
         add(details, "failed", textAt(json, "batch.failed", null, "batch", "failed"));
         return details.isEmpty() ? truncate(message) : truncate(message + " · " + String.join(" · ", details));
+    }
+
+    private static String firstTextAt(JsonNode json, String primary, String secondary, String fallback, String... nestedPath) {
+        String value = textAt(json, primary, null, nestedPath);
+        if (value != null && !value.isBlank()) return value;
+        return textAt(json, secondary, fallback, nestedPath);
     }
 
     private static String textAt(JsonNode json, String first, String fallback, String... nestedPath) {

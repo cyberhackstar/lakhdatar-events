@@ -3,6 +3,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 : "${BASE_URL:?BASE_URL is required}"
+[[ "$BASE_URL" == 'https://staging-events.neelastack.com' ]] || { echo 'Enterprise load gate must target https://staging-events.neelastack.com' >&2; exit 2; }
 : "${EVENT_ID:?EVENT_ID is required}"
 : "${TICKET_TYPE_ID:?TICKET_TYPE_ID is required}"
 : "${STAFF_BEARER:?STAFF_BEARER is required}"

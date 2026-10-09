@@ -34,3 +34,8 @@ Thumbs.db
 hs_err_pid*.log
 replay_pid*.log
 *.hprof
+/e2e/node_modules/
+/e2e/playwright-report/
+/e2e/test-results/
+/frontend/.angular/cache/
+/edge/nginx.conf.bak-*

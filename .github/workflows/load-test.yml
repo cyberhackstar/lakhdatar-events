@@ -30,11 +30,38 @@ jobs:
         run: |
           set -euo pipefail
           test "$BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Staging Load Test must target https://staging-events.neelastack.com'; exit 2; }
+        shell: bash
+      - name: Validate enterprise load-test credentials
+        if: inputs.test == 'enterprise-gate'
+        env:
+          LOADTEST_EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
+          LOADTEST_TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
+          LOADTEST_TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
+          LOADTEST_ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
+          LOADTEST_ADMIN_EVENT_ID: ${{ secrets.LOADTEST_ADMIN_EVENT_ID }}
+          LOADTEST_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          LOADTEST_TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
+          LOADTEST_STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
+          LOADTEST_GATE: ${{ secrets.LOADTEST_GATE }}
+          LOADTEST_CHECKIN_QR_TOKENS: ${{ secrets.LOADTEST_CHECKIN_QR_TOKENS }}
+          LOADTEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
+          LOADTEST_DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in LOADTEST_EVENT_SLUG LOADTEST_TICKET_ID LOADTEST_TICKET_TOKEN LOADTEST_ADMIN_BEARER LOADTEST_ADMIN_EVENT_ID LOADTEST_EVENT_ID LOADTEST_TICKET_TYPE_ID LOADTEST_STAFF_BEARER LOADTEST_GATE LOADTEST_CHECKIN_QR_TOKENS LOADTEST_IDEMPOTENCY_KEY LOADTEST_DATABASE_URL; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required staging load-test environment secrets: %s\n' "${missing[*]}" >&2
+            exit 2
+          fi
       - name: Run enterprise staging gate
         if: inputs.test == 'enterprise-gate'
         env:
           BASE_URL: ${{ inputs.base_url }}
-          K6_IMAGE: grafana/k6:2.2.0
+          K6_IMAGE: "grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6"
           EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
           TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
           TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
@@ -64,7 +91,7 @@ jobs:
         if: inputs.test != 'enterprise-gate'
         env:
           BASE_URL: ${{ inputs.base_url }}
-          K6_IMAGE: grafana/k6:2.2.0
+          K6_IMAGE: "grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6"
           EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
           TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
           TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}

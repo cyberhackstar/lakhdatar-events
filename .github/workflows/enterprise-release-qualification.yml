@@ -54,8 +54,8 @@ jobs:
           fetch-depth: 1
       - name: Enterprise Flyway fresh-and-upgrade qualification
         env:
-          POSTGRES_IMAGE: ${{ vars.POSTGRES_CERTIFICATION_IMAGE }}
-          FLYWAY_IMAGE: ${{ vars.FLYWAY_CERTIFICATION_IMAGE }}
+          POSTGRES_IMAGE: "${{ vars.POSTGRES_CERTIFICATION_IMAGE || 'postgres:17-alpine@sha256:f02121de6f74d30d8a94cd1d9584125e2178d7e6c377d8130112d4e52d867995' }}"
+          FLYWAY_IMAGE: "${{ vars.FLYWAY_CERTIFICATION_IMAGE || 'flyway/flyway:13.8.0-alpine@sha256:533745f3b566788a3ba7e5bb238a4596cf96a3a4c4531b5efca20962ef5ff3b8' }}"
           EXPECTED_LATEST_MIGRATION: '41'
           UPGRADE_BASELINE_MIGRATION: '31'
         run: bash ./infra/certification/flyway-qualification.sh
@@ -94,7 +94,7 @@ jobs:
           fetch-depth: 1
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Frontend dependency install
@@ -128,6 +128,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$E2E_BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Enterprise release qualification must target https://staging-events.neelastack.com'; exit 2; }
+        shell: bash
       - name: Run browser qualification
         working-directory: e2e
         env:
@@ -171,10 +172,37 @@ jobs:
         run: |
           set -euo pipefail
           test "$BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Enterprise load qualification must target https://staging-events.neelastack.com'; exit 2; }
+      - name: Validate mandatory load-test credentials
+        env:
+          LOADTEST_EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
+          LOADTEST_TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
+          LOADTEST_TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
+          LOADTEST_ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
+          LOADTEST_ADMIN_EVENT_ID: ${{ secrets.LOADTEST_ADMIN_EVENT_ID }}
+          LOADTEST_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          LOADTEST_TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
+          LOADTEST_STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
+          LOADTEST_GATE: ${{ secrets.LOADTEST_GATE }}
+          LOADTEST_CHECKIN_QR_TOKENS: ${{ secrets.LOADTEST_CHECKIN_QR_TOKENS }}
+          LOADTEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
+          LOADTEST_DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in LOADTEST_EVENT_SLUG LOADTEST_TICKET_ID LOADTEST_TICKET_TOKEN LOADTEST_ADMIN_BEARER LOADTEST_ADMIN_EVENT_ID LOADTEST_EVENT_ID LOADTEST_TICKET_TYPE_ID LOADTEST_STAFF_BEARER LOADTEST_GATE LOADTEST_CHECKIN_QR_TOKENS LOADTEST_IDEMPOTENCY_KEY LOADTEST_DATABASE_URL; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required staging load-test environment secrets: %s\n' "${missing[*]}" >&2
+            echo 'Configure these as GitHub Environment secrets under Settings -> Environments -> staging.' >&2
+            exit 2
+          fi
+          echo 'Mandatory staging load-test secrets are configured.'
       - name: Run mandatory mixed load qualification
         env:
           BASE_URL: ${{ inputs.staging_url }}
-          K6_IMAGE: ${{ vars.K6_IMAGE || 'grafana/k6:2.2.0' }}
+          K6_IMAGE: "${{ vars.K6_IMAGE || 'grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6' }}"
           EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
           TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
           TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
@@ -216,7 +244,7 @@ jobs:
       - name: Run immutable-image DAST
         env:
           BASE_URL: ${{ inputs.staging_url }}
-          ZAP_IMAGE: ${{ secrets.ZAP_IMAGE }}
+          ZAP_IMAGE: "${{ secrets.ZAP_IMAGE || 'zaproxy/zap-stable:2.17.0@sha256:781a2bdaea47324e7bab583e2263f21d257b0aee61ed51521a5be45f5f5081ef' }}"
         run: bash ./infra/security/dast-staging.sh
       - name: Upload DAST evidence
         if: always()

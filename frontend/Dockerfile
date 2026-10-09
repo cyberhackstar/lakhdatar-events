@@ -18,7 +18,6 @@ COPY --from=build /build/dist/frontend ./dist/frontend
 COPY --from=build /build/package*.json ./
 # The SSR server externalizes Node dependencies such as Express; install production dependencies in the runtime image.
 RUN npm ci --omit=dev --no-audit --no-fund \
-    && npm cache clean --force \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
     && chown -R node:node /app
 USER node

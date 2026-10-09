@@ -24,6 +24,7 @@ jobs:
       - name: Validate staging target
         env:
           E2E_BASE_URL: ${{ vars.STAGING_PUBLIC_URL || 'https://staging-events.neelastack.com' }}
+        shell: bash
         run: |
           set -euo pipefail
           if [ "$E2E_BASE_URL" = 'https://events.neelastack.com' ]; then
@@ -34,7 +35,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: e2e/package-lock.json
       - name: Install Playwright
@@ -49,6 +50,8 @@ jobs:
           E2E_BASE_URL: ${{ vars.STAGING_PUBLIC_URL || 'https://staging-events.neelastack.com' }}
           E2E_ADMIN_BEARER: ${{ secrets.E2E_ADMIN_BEARER }}
           E2E_STAFF_BEARER: ${{ secrets.E2E_STAFF_BEARER }}
+          E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+          E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
           E2E_EVENT_ID: ${{ secrets.E2E_EVENT_ID }}
           E2E_TICKET_TYPE_ID: ${{ secrets.E2E_TICKET_TYPE_ID }}
           E2E_CHECKOUT_EMAIL: ${{ secrets.E2E_CHECKOUT_EMAIL }}

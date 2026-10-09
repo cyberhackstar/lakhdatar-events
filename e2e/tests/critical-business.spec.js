@@ -50,7 +50,9 @@ test.describe('critical business APIs', () => {
     });
     expect(response.status()).toBe(200);
     const first = await response.json();
-    expect(first.result).toBeTruthy();
+    expect(first.result).toBe('ACCEPTED');
+    expect(first.ticketPosition).toBeGreaterThanOrEqual(1);
+    expect(first.orderTicketCount).toBeGreaterThanOrEqual(first.ticketPosition);
 
     const secondResponse = await request.post('/api/v1/checkin/scan', {
       headers: { Authorization: bearer('E2E_STAFF_BEARER'), 'Content-Type': 'application/json' },

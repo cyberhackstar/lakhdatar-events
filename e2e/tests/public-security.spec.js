@@ -10,6 +10,15 @@ test.describe('public surface and security headers', () => {
     expect(headers['x-frame-options']).toBeTruthy();
     expect(headers['strict-transport-security']).toBeTruthy();
 
+    // The Spring endpoint is canonicalized WITHOUT a trailing slash. maxRedirects=0
+    // deliberately catches an NGINX auto-redirect instead of masking it.
+    const catalogApi = await request.get('/api/v1/public/events?page=0&size=12', { maxRedirects: 0 });
+    expect(catalogApi.status()).toBe(200);
+    const catalogBody = await catalogApi.json();
+    expect(catalogBody.page).toBe(0);
+    expect(catalogBody.size).toBe(12);
+    expect(Array.isArray(catalogBody.items)).toBeTruthy();
+
     const catalog = await request.get('/events');
     expect(catalog.status()).toBe(200);
     await page.goto('/events', { waitUntil: 'domcontentloaded' });

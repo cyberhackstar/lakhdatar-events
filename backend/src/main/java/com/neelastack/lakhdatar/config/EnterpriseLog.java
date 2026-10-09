@@ -34,7 +34,10 @@ public final class EnterpriseLog {
     public static void error(Logger log, String action, Throwable error, Object... fields) {
         LoggingEventBuilder builder = log.atError().setMessage(action);
         builder.addKeyValue("event.action", action);
-        add(builder, fields);
+        // Spring Boot ECS owns the top-level `error` structured field when a throwable
+        // is attached with setCause(). Never add user-supplied error.* keys alongside
+        // that field or the structured encoder will attempt to write `error` twice.
+        add(builder, fields, error != null);
         if (error != null) builder.setCause(error);
         builder.log();
     }
@@ -47,11 +50,38 @@ public final class EnterpriseLog {
     }
 
     private static void add(LoggingEventBuilder builder, Object... fields) {
+        add(builder, fields, false);
+    }
+
+    private static void add(LoggingEventBuilder builder, Object[] fields, boolean throwablePresent) {
         if (fields == null) return;
+
+        // Spring Boot's ECS encoder materializes dotted keys such as
+        // `provider.path` as a nested `provider` object. A scalar `provider`
+        // key in the same event therefore collides with that nested object and
+        // can throw "Duplicate nested pairs added under 'provider'" while
+        // logging the original provider failure. Preserve the human-readable
+        // provider value under `provider.name` whenever a sibling `provider.*`
+        // field is present.
+        boolean providerHasNestedFields = false;
+        for (int i = 0; i + 1 < fields.length; i += 2) {
+            Object keyObject = fields[i];
+            if (keyObject != null && String.valueOf(keyObject).startsWith("provider.")) {
+                providerHasNestedFields = true;
+                break;
+            }
+        }
+
         for (int i = 0; i + 1 < fields.length; i += 2) {
             Object keyObject = fields[i];
             if (keyObject == null) continue;
             String key = String.valueOf(keyObject);
+            if (throwablePresent && key.startsWith("error.")) {
+                key = "failure." + key.substring("error.".length());
+            }
+            if (providerHasNestedFields && "provider".equals(key)) {
+                key = "provider.name";
+            }
             builder.addKeyValue(key, sanitize(key, fields[i + 1]));
         }
     }
@@ -62,7 +92,8 @@ public final class EnterpriseLog {
         if (normalized.contains("password") || normalized.contains("token") || normalized.contains("secret")
                 || normalized.contains("authorization") || normalized.contains("cookie") || normalized.contains("signature")
                 || normalized.contains("credential") || normalized.contains("email") || normalized.contains("phone")
-                || normalized.contains("customer.name") || normalized.contains("attendee") || normalized.contains("error.message")) {
+                || normalized.contains("customer.name") || normalized.contains("attendee")
+                || normalized.contains("error.message") || normalized.contains("failure.message")) {
             return "[REDACTED]";
         }
         if (normalized.contains("request.body") || normalized.contains("response.body") || normalized.endsWith(".payload")) {

@@ -1,5 +1,7 @@
-NEELASTACK EVENTS v2.0.26 ENTERPRISE PRODUCTION CANDIDATE
-Release: 2.0.26
-Changes: CHANGES-2.0.26.md
-Validation: VALIDATION-2.0.26.md
-Base: v2.0.21 certification candidate + clean-database Flyway/regression gate fixes
+NEELASTACK EVENTS v2.0.35 ENTERPRISE PRODUCTION RELEASE CANDIDATE — LOCAL QUALIFICATION FIX 2
+Release: 2.0.35
+Changes: CHANGES-2.0.35-LOCAL-QUALIFICATION-FIXES-2.md
+Validation: VALIDATION-2.0.35-LOCAL-QUALIFICATION-FIXES-2.md
+Primary fixes: Windows-safe npm bootstrap/doctor, structured logging provider collision guard, canonical slashless public catalog routing, resilient scanner E2E qualification, robust scheduled-transaction contract qualification
+Lockfile policy: generate and commit frontend/package-lock.json on a networked host; do not fabricate offline
+No credentials or environment secrets are embedded in this release.

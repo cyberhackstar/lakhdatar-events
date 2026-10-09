@@ -11,6 +11,8 @@ test.describe('customer ticket access', () => {
     expect(valid.status()).toBe(200);
     const ticket = await valid.json();
     expect(ticket.ticketNumber).toBeTruthy();
+    expect(ticket.ticketPosition).toBeGreaterThanOrEqual(1);
+    expect(ticket.orderTicketCount).toBeGreaterThanOrEqual(ticket.ticketPosition);
 
     const invalid = await request.get(`/api/v1/public/tickets/${ticketId}`, {
       headers: { 'X-Ticket-Token': `${token}tampered` },

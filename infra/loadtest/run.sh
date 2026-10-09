@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE="${K6_IMAGE:-grafana/k6:2.2.0}"
+IMAGE="${K6_IMAGE:-grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6}"
 TEST="${1:-catalog.js}"
 if [ "$TEST" = "suite" ]; then exec "$SCRIPT_DIR/run-suite.sh"; fi
 [ -f "$SCRIPT_DIR/$TEST" ] || { echo "Unknown test: $TEST" >&2; exit 2; }

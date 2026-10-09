@@ -68,7 +68,7 @@ public interface PaymentWebhookEventRepository extends JpaRepository<PaymentWebh
            SET processing = FALSE,
                last_error = 'stale-processing-reset',
                dead_letter = CASE WHEN attempt_count >= :maxAttempts THEN TRUE ELSE dead_letter END,
-               next_attempt_at = CASE WHEN attempt_count >= :maxAttempts THEN NULL ELSE :retryAt END
+               next_attempt_at = CASE WHEN attempt_count >= :maxAttempts THEN NULL ELSE CAST(:retryAt AS timestamptz) END
          WHERE provider = :provider
            AND processed = FALSE
            AND processing = TRUE

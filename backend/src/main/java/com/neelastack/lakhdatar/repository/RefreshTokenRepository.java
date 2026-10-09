@@ -10,6 +10,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken,Long>
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from RefreshToken r where r.tokenHash=:hash")
     Optional<RefreshToken> findByTokenHashForUpdate(String hash);
+    @Transactional
     @Modifying
     @Query("update RefreshToken r set r.revokedAt=:now where r.userId=:userId and r.revokedAt is null")
     int revokeAllActiveByUserId(Long userId, Instant now);

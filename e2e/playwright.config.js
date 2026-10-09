@@ -2,10 +2,24 @@ const { defineConfig, devices } = require('@playwright/test');
 
 const baseURL = process.env.E2E_BASE_URL;
 if (!baseURL) throw new Error('E2E_BASE_URL is required');
-if (!/^https:\/\//i.test(baseURL)) throw new Error('E2E_BASE_URL must use HTTPS');
-if ((process.env.E2E_ENV || '').toLowerCase() !== 'staging') throw new Error('E2E_ENV=staging is required; browser qualification must never target production');
-const targetHost = new URL(baseURL).hostname.toLowerCase();
-if (targetHost === 'events.neelastack.com' || targetHost === 'www.events.neelastack.com') throw new Error('Refusing live production origin');
+const e2eEnv = (process.env.E2E_ENV || '').toLowerCase();
+const target = new URL(baseURL);
+const targetHost = target.hostname.toLowerCase();
+if (targetHost === 'events.neelastack.com' || targetHost === 'www.events.neelastack.com') {
+  throw new Error('Refusing live production origin');
+}
+if (e2eEnv === 'staging') {
+  if (target.protocol !== 'https:') throw new Error('Staging E2E_BASE_URL must use HTTPS');
+  if (targetHost !== 'staging-events.neelastack.com') {
+    throw new Error('Staging browser qualification must target https://staging-events.neelastack.com');
+  }
+} else if (e2eEnv === 'local') {
+  if (!['localhost', '127.0.0.1'].includes(targetHost)) {
+    throw new Error('Local E2E must target localhost or 127.0.0.1');
+  }
+} else {
+  throw new Error('E2E_ENV must be either local or staging');
+}
 
 module.exports = defineConfig({
   testDir: './tests',

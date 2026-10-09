@@ -2,7 +2,7 @@
 
 ## Certification boundary
 
-v2.0.26 is the enterprise-certification-gated release. The repository enforces a protected promotion boundary: a production deployment must use the exact SHA stored in the protected `ENTERPRISE_CERTIFIED_SHA` variable, and enterprise HA promotion additionally requires the HA topology preflight and signed image/provenance verification.
+v2.0.35 is the enterprise-certification-gated release. The repository enforces a protected promotion boundary: a production deployment must use the exact SHA stored in the protected `ENTERPRISE_CERTIFIED_SHA` variable, and enterprise HA promotion additionally requires the HA topology preflight and signed image/provenance verification.
 
 This document intentionally does not claim that HA failover, PITR, penetration testing, payment chaos, real paging, or load qualification has occurred in this repository's local environment. Those are target-environment evidence requirements.
 

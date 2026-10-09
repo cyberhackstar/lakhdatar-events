@@ -71,6 +71,12 @@ class PaymentWebhookReleaseContractTest {
         assertTrue(source.contains("record(Enums.CheckInResult.WRONG_EVENT, \"Ticket belongs to a different event\", t, r, e.getId(), 0, 0, false)"));
     }
     @org.junit.jupiter.api.Test
+    void staleWebhookRetryTimestampIsExplicitlyBoundAsPostgresTimestampWithTimeZone() throws Exception {
+        String repo = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/repository/PaymentWebhookEventRepository.java"));
+        assertTrue(repo.contains("CAST(:retryAt AS timestamptz)"));
+    }
+
+    @org.junit.jupiter.api.Test
     void forcedPasswordChangeDoesNotBlockPublicOrWebhookEndpointsEvenWithBearerToken() throws Exception {
         String source = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/security/JwtAuthFilter.java"));
         assertTrue(source.contains("isAllowedDuringPasswordChange"));

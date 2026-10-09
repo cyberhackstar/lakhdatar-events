@@ -5,8 +5,8 @@ set -Eeuo pipefail
 # 1) migrate a completely empty database to the latest schema;
 # 2) migrate a second empty database only to the pre-enterprise baseline and then upgrade it;
 # 3) validate the final schema and prove the latest version is installed with no failed migrations.
-: "${POSTGRES_IMAGE:?POSTGRES_IMAGE must be a pinned postgres image digest (e.g. postgres:17-alpine@sha256:...)}"
-: "${FLYWAY_IMAGE:?FLYWAY_IMAGE must be a pinned Flyway image digest (e.g. flyway/flyway:...@sha256:...)}"
+POSTGRES_IMAGE="${POSTGRES_IMAGE:-postgres:17-alpine@sha256:f02121de6f74d30d8a94cd1d9584125e2178d7e6c377d8130112d4e52d867995}"
+FLYWAY_IMAGE="${FLYWAY_IMAGE:-flyway/flyway:13.8.0-alpine@sha256:533745f3b566788a3ba7e5bb238a4596cf96a3a4c4531b5efca20962ef5ff3b8}"
 EXPECTED_LATEST_MIGRATION="${EXPECTED_LATEST_MIGRATION:-}"
 
 [[ "$POSTGRES_IMAGE" == *@sha256:* ]] || { echo 'POSTGRES_IMAGE must be pinned by digest' >&2; exit 2; }
