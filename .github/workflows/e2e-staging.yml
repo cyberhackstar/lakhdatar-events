@@ -9,62 +9,137 @@ on:
         default: false
         type: boolean
   schedule:
-    - cron: '30 21 * * 1-5'
+    - cron: "30 21 * * 1-5"
 
 permissions:
   contents: read
 
+# Prevent overlapping runs from consuming the same staging test data.
+concurrency:
+  group: enterprise-e2e-staging
+  cancel-in-progress: false
+
 jobs:
   e2e:
+    name: Staging browser qualification
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 30
+
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
       - name: Validate staging target
         env:
           E2E_BASE_URL: ${{ vars.STAGING_PUBLIC_URL || 'https://staging-events.neelastack.com' }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ "$E2E_BASE_URL" = 'https://events.neelastack.com' ]; then
-            echo 'Refusing live production origin' >&2
+
+          if [[ "$E2E_BASE_URL" == "https://events.neelastack.com" ||
+                "$E2E_BASE_URL" == "https://www.events.neelastack.com" ]]; then
+            echo "Refusing to run E2E tests against production." >&2
             exit 2
           fi
-          test "$E2E_BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Enterprise E2E must target https://staging-events.neelastack.com' >&2; exit 2; }
-      - name: Setup Node
+
+          if [[ "$E2E_BASE_URL" != "https://staging-events.neelastack.com" ]]; then
+            echo "E2E tests must target https://staging-events.neelastack.com." >&2
+            exit 2
+          fi
+
+          echo "Staging target validated."
+
+      - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: e2e/package-lock.json
-      - name: Install Playwright
+
+      - name: Install E2E dependencies
         working-directory: e2e
         run: npm ci
+
+      - name: Install Playwright browsers and system dependencies
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium webkit
+
       - name: Run enterprise browser gate
         working-directory: e2e
         env:
-          CI: 'true'
+          CI: "true"
           E2E_ENV: staging
           E2E_RUN_MUTATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mutations || false }}
           E2E_BASE_URL: ${{ vars.STAGING_PUBLIC_URL || 'https://staging-events.neelastack.com' }}
+
+          # Dedicated staging test credentials and fixtures.
           E2E_ADMIN_BEARER: ${{ secrets.E2E_ADMIN_BEARER }}
           E2E_STAFF_BEARER: ${{ secrets.E2E_STAFF_BEARER }}
           E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
           E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
+
           E2E_EVENT_ID: ${{ secrets.E2E_EVENT_ID }}
           E2E_TICKET_TYPE_ID: ${{ secrets.E2E_TICKET_TYPE_ID }}
           E2E_CHECKOUT_EMAIL: ${{ secrets.E2E_CHECKOUT_EMAIL }}
-          E2E_IDEMPOTENCY_KEY: ${{ secrets.E2E_IDEMPOTENCY_KEY }}
+
           E2E_TICKET_ID: ${{ secrets.E2E_TICKET_ID }}
           E2E_TICKET_TOKEN: ${{ secrets.E2E_TICKET_TOKEN }}
           E2E_QR_TOKEN: ${{ secrets.E2E_QR_TOKEN }}
           E2E_GATE: ${{ secrets.E2E_GATE }}
-        run: npm test -- --reporter=line
-      - name: Upload Playwright report
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$E2E_RUN_MUTATIONS" == "true" ]]; then
+            echo "Full E2E suite requested. Validating required staging fixtures."
+
+            required_secrets=(
+              E2E_ADMIN_BEARER
+              E2E_STAFF_BEARER
+              E2E_STAFF_EMAIL
+              E2E_STAFF_PASSWORD
+              E2E_EVENT_ID
+              E2E_TICKET_TYPE_ID
+              E2E_CHECKOUT_EMAIL
+              E2E_TICKET_ID
+              E2E_TICKET_TOKEN
+              E2E_QR_TOKEN
+              E2E_GATE
+            )
+
+            missing_secrets=()
+
+            for name in "${required_secrets[@]}"; do
+              if [[ -z "${!name:-}" ]]; then
+                missing_secrets+=("$name")
+              fi
+            done
+
+            if ((${#missing_secrets[@]})); then
+              echo "Cannot run the full E2E suite. Configure these secrets in the staging environment:" >&2
+              printf ' - %s\n' "${missing_secrets[@]}" >&2
+              exit 2
+            fi
+
+            # Generate a unique key for this run. The test reuses it for
+            # its first checkout request and its idempotent retry.
+            export E2E_IDEMPOTENCY_KEY="$(cat /proc/sys/kernel/random/uuid)"
+
+            echo "Running the complete Playwright E2E suite."
+            npm test
+          else
+            echo "Running public security smoke tests only."
+            echo "No checkout or check-in mutations will be requested by this test command."
+
+            npm test -- tests/public-security.spec.js
+          fi
+
+      - name: Upload Playwright HTML report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: enterprise-e2e-report
+          name: enterprise-e2e-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: e2e/playwright-report/
           if-no-files-found: ignore
+          retention-days: 14
