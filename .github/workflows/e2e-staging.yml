@@ -63,7 +63,7 @@ jobs:
 
       - name: Install Playwright browsers and system dependencies
         working-directory: e2e
-        run: npx playwright install --with-deps chromium webkit
+        run: npm run playwright -- install --with-deps chromium webkit
 
       - name: Run enterprise browser gate
         working-directory: e2e
