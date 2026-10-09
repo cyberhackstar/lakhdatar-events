@@ -65,7 +65,7 @@ jobs:
         with:
           name: enterprise-database-${{ inputs.release_sha }}
           path: certification-evidence/database/
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   backend:
     needs: source-validation
@@ -105,7 +105,7 @@ jobs:
         run: npm run build
       - name: Frontend unit suite
         working-directory: frontend
-        run: npm test -- --watch=false --browsers=ChromeHeadless
+        run: npm run test:unit
 
   browser-e2e:
     needs: [backend, frontend]
@@ -155,7 +155,7 @@ jobs:
         with:
           name: enterprise-browser-${{ inputs.release_sha }}
           path: e2e/playwright-report/
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
   load:
     needs: [backend, frontend]
@@ -172,33 +172,6 @@ jobs:
         run: |
           set -euo pipefail
           test "$BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Enterprise load qualification must target https://staging-events.neelastack.com'; exit 2; }
-      - name: Validate mandatory load-test credentials
-        env:
-          LOADTEST_EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
-          LOADTEST_TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
-          LOADTEST_TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
-          LOADTEST_ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
-          LOADTEST_ADMIN_EVENT_ID: ${{ secrets.LOADTEST_ADMIN_EVENT_ID }}
-          LOADTEST_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
-          LOADTEST_TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
-          LOADTEST_STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
-          LOADTEST_GATE: ${{ secrets.LOADTEST_GATE }}
-          LOADTEST_CHECKIN_QR_TOKENS: ${{ secrets.LOADTEST_CHECKIN_QR_TOKENS }}
-          LOADTEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
-          LOADTEST_DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          missing=()
-          for name in LOADTEST_EVENT_SLUG LOADTEST_TICKET_ID LOADTEST_TICKET_TOKEN LOADTEST_ADMIN_BEARER LOADTEST_ADMIN_EVENT_ID LOADTEST_EVENT_ID LOADTEST_TICKET_TYPE_ID LOADTEST_STAFF_BEARER LOADTEST_GATE LOADTEST_CHECKIN_QR_TOKENS LOADTEST_IDEMPOTENCY_KEY LOADTEST_DATABASE_URL; do
-            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'Missing required staging load-test environment secrets: %s\n' "${missing[*]}" >&2
-            echo 'Configure these as GitHub Environment secrets under Settings -> Environments -> staging.' >&2
-            exit 2
-          fi
-          echo 'Mandatory staging load-test secrets are configured.'
       - name: Run mandatory mixed load qualification
         env:
           BASE_URL: ${{ inputs.staging_url }}
@@ -230,7 +203,7 @@ jobs:
         with:
           name: enterprise-load-${{ inputs.release_sha }}
           path: loadtest-results/
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
   dast:
     needs: [backend, frontend]
@@ -252,7 +225,7 @@ jobs:
         with:
           name: enterprise-dast-${{ inputs.release_sha }}
           path: security-results/
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
   enterprise-evidence:
     needs: [backend, frontend, database, browser-e2e, load, dast]

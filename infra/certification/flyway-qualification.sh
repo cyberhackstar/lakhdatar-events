@@ -51,7 +51,11 @@ for _ in $(seq 1 60); do
 done
 docker exec "$CONTAINER" pg_isready -U postgres -d postgres >/dev/null
 
-docker exec "$CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE lk_fresh; CREATE DATABASE lk_upgrade;' >/dev/null
+# PostgreSQL forbids CREATE DATABASE inside a transaction block. Issue each
+# statement separately so psql does not wrap multiple statements in one implicit
+# transaction (the prior command failed before Flyway ran).
+docker exec "$CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE lk_fresh' >/dev/null
+docker exec "$CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE lk_upgrade' >/dev/null
 
 flyway() {
   local db="$1"; shift
