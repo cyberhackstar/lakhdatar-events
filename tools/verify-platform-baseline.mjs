@@ -1,258 +1,778 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(scriptDir, '..');
-const read = p => fs.readFileSync(path.join(root, p), 'utf8');
-const pkg = JSON.parse(read('frontend/package.json'));
-const lock = JSON.parse(read('frontend/package-lock.json'));
-const pom = read('backend/pom.xml');
-const angular = JSON.parse(read('frontend/angular.json'));
-const styles = read('frontend/src/styles.css');
-const index = read('frontend/src/index.html');
-const dockerfile = read('frontend/Dockerfile');
-const frontendServer = read('frontend/src/server.ts');
-const monitorComponent = read('frontend/src/app/features/monitor-console.component.ts');
-const backendDockerfile = read('backend/Dockerfile');
-const edgeDockerfile = read('edge/Dockerfile');
-const edgeEntrypoint = read('edge/edge-entrypoint.sh');
-const ci = read('.github/workflows/ci.yml');
-const deploy = read('infra/deploy/deploy.sh');
-const prodSmoke = read('infra/smoke/production-smoke.sh');
-const prodCompose = read('infra/docker-compose.prod.yml');
-const stagingCompose = read('infra/docker-compose.staging.yml');
-const stagingDeploy = read('infra/deploy/deploy-staging.sh');
-const stagingSmoke = read('infra/smoke/staging-smoke.sh');
-const stagingCloudflare = read('infra/cloudflare/config.staging.example.yml');
-const stagingWorkflow = read('.github/workflows/staging.yml');
-const version = read('VERSION').trim();
+const root = path.resolve(scriptDir, "..");
+const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const pkg = JSON.parse(read("frontend/package.json"));
+const lock = JSON.parse(read("frontend/package-lock.json"));
+const pom = read("backend/pom.xml");
+const angular = JSON.parse(read("frontend/angular.json"));
+const styles = read("frontend/src/styles.css");
+const index = read("frontend/src/index.html");
+const dockerfile = read("frontend/Dockerfile");
+const frontendServer = read("frontend/src/server.ts");
+const monitorComponent = read(
+  "frontend/src/app/features/monitor-console.component.ts",
+);
+const backendDockerfile = read("backend/Dockerfile");
+const edgeDockerfile = read("edge/Dockerfile");
+const edgeEntrypoint = read("edge/edge-entrypoint.sh");
+const ci = read(".github/workflows/ci.yml");
+const deploy = read("infra/deploy/deploy.sh");
+const prodSmoke = read("infra/smoke/production-smoke.sh");
+const prodCompose = read("infra/docker-compose.prod.yml");
+const stagingCompose = read("infra/docker-compose.staging.yml");
+const stagingDeploy = read("infra/deploy/deploy-staging.sh");
+const stagingSmoke = read("infra/smoke/staging-smoke.sh");
+const stagingCloudflare = read("infra/cloudflare/config.staging.example.yml");
+const stagingWorkflow = read(".github/workflows/staging.yml");
+const version = read("VERSION").trim();
 
 const expected = {
-  '@angular/common':'20.3.33', '@angular/compiler':'20.3.33',
-  '@angular/core':'20.3.33', '@angular/forms':'20.3.33', '@angular/platform-browser':'20.3.33',
-  '@angular/platform-server':'20.3.33', '@angular/router':'20.3.33',
-  '@angular/ssr':'20.3.39', rxjs:'7.8.2', tslib:'2.8.1', 'zone.js':'0.15.1'
+  "@angular/common": "20.3.33",
+  "@angular/compiler": "20.3.33",
+  "@angular/core": "20.3.33",
+  "@angular/forms": "20.3.33",
+  "@angular/platform-browser": "20.3.33",
+  "@angular/platform-server": "20.3.33",
+  "@angular/router": "20.3.33",
+  "@angular/ssr": "20.3.39",
+  rxjs: "7.8.2",
+  tslib: "2.8.1",
+  "zone.js": "0.15.1",
 };
-const supportedExpressSpecs = new Set(['4.22.2', '^4.22.2', '^5.2.1']);
-const supportedExpressTypesSpecs = new Set(['4.17.21', '^4.17.21', '^5.0.6']);
-const problems=[];
-for (const [name, spec] of Object.entries(expected)) if (pkg.dependencies[name] !== spec) problems.push(`frontend ${name}: expected ${spec}, got ${pkg.dependencies[name]}`);
-if (!supportedExpressSpecs.has(pkg.dependencies.express)) problems.push(`frontend express: expected one of ${[...supportedExpressSpecs].join(', ')}, got ${pkg.dependencies.express}`);
-if (!supportedExpressTypesSpecs.has(pkg.devDependencies['@types/express'])) problems.push(`@types/express: expected one of ${[...supportedExpressTypesSpecs].join(', ')}, got ${pkg.devDependencies['@types/express']}`);
-if (pkg.devDependencies['@angular/build'] !== '20.3.33') problems.push('@angular/build baseline mismatch');
-if (pkg.devDependencies['@angular/cli'] !== '20.3.33') problems.push('@angular/cli baseline mismatch');
-if (pkg.devDependencies['@angular/compiler-cli'] !== '20.3.33') problems.push('@angular/compiler-cli baseline mismatch');
-if (pkg.devDependencies['@types/node'] !== '22.20.5') problems.push('@types/node baseline mismatch');
-if (pkg.devDependencies.typescript !== '5.9.3') problems.push('typescript baseline mismatch');
+const supportedExpressSpecs = new Set(["4.22.2", "^4.22.2", "^5.2.1"]);
+const supportedExpressTypesSpecs = new Set(["4.17.21", "^4.17.21", "^5.0.6"]);
+const problems = [];
+for (const [name, spec] of Object.entries(expected))
+  if (pkg.dependencies[name] !== spec)
+    problems.push(
+      `frontend ${name}: expected ${spec}, got ${pkg.dependencies[name]}`,
+    );
+if (!supportedExpressSpecs.has(pkg.dependencies.express))
+  problems.push(
+    `frontend express: expected one of ${[...supportedExpressSpecs].join(", ")}, got ${pkg.dependencies.express}`,
+  );
+if (!supportedExpressTypesSpecs.has(pkg.devDependencies["@types/express"]))
+  problems.push(
+    `@types/express: expected one of ${[...supportedExpressTypesSpecs].join(", ")}, got ${pkg.devDependencies["@types/express"]}`,
+  );
+if (pkg.devDependencies["@angular/build"] !== "20.3.33")
+  problems.push("@angular/build baseline mismatch");
+if (pkg.devDependencies["@angular/cli"] !== "20.3.33")
+  problems.push("@angular/cli baseline mismatch");
+if (pkg.devDependencies["@angular/compiler-cli"] !== "20.3.33")
+  problems.push("@angular/compiler-cli baseline mismatch");
+if (pkg.devDependencies["@types/node"] !== "22.20.5")
+  problems.push("@types/node baseline mismatch");
+if (pkg.devDependencies.typescript !== "5.9.3")
+  problems.push("typescript baseline mismatch");
 
-if (pkg.devDependencies?.vitest !== '3.2.7') problems.push('Vitest baseline mismatch');
-if (pkg.devDependencies?.jsdom !== '29.1.1') problems.push('jsdom baseline mismatch');
-if (pkg.devDependencies?.karma) problems.push('Karma must not be a frontend dev dependency');
-if (angular.projects?.['lakhdatar-events-frontend']?.architect?.test?.options?.runner !== 'vitest') problems.push('Angular unit-test runner baseline mismatch');
-if (!ci.includes('npm audit --audit-level=high')) problems.push('CI full frontend dependency audit missing');
-if (pkg.overrides?.qs !== '6.16.0') problems.push('qs override mismatch');
-if (pkg.overrides?.piscina !== '5.3.2') problems.push('piscina security override mismatch');
-if (pkg.overrides?.['http-errors@2.0.1']?.inherits !== '2.0.4') problems.push('http-errors inherits override mismatch');
-if (pkg.dependencies['@angular/animations']) problems.push('deprecated Angular animations package must not be a direct dependency');
-if (pkg.dependencies['@angular/platform-browser-dynamic']) problems.push('deprecated Angular platform-browser-dynamic package must not be a direct dependency');
-const appConfigSource = read('frontend/src/app/app.config.ts');
-if (appConfigSource.includes('provideAnimationsAsync')) problems.push('deprecated Angular animations provider must not be configured');
-if (!ci.includes('npm run verify:dependencies')) problems.push('frontend dependency lock verification missing from CI');
-if (!pom.includes('<artifactId>spring-boot-starter-parent</artifactId>\n    <version>4.0.8</version>')) problems.push('Spring Boot baseline mismatch');
-if (!pom.includes('<java.version>21</java.version>')) problems.push('Java baseline mismatch');
-if (!pom.includes('<lombok.version>1.18.48</lombok.version>')) problems.push('Lombok version baseline mismatch');
-if (!pom.includes('<proc>full</proc>')) problems.push('Java annotation processing must be explicitly enabled');
-if (!pom.includes('<artifactId>lombok</artifactId>\n              <version>${lombok.version}</version>')) problems.push('Lombok annotation processor version must be explicit');
-if (!pom.includes('<jjwt.version>0.13.0</jjwt.version>')) problems.push('JJWT baseline mismatch');
-if (!pom.includes('<testcontainers.version>1.21.4</testcontainers.version>')) problems.push('Testcontainers baseline mismatch');
-if (!pom.includes('<artifactId>testcontainers-bom</artifactId>')) problems.push('Testcontainers BOM import missing');
-if (!pom.includes('<artifactId>postgresql</artifactId>\n      <scope>test</scope>')) problems.push('Testcontainers PostgreSQL test dependency mismatch');
-if (!pom.includes('<artifactId>junit-jupiter</artifactId>\n      <scope>test</scope>')) problems.push('Testcontainers JUnit integration dependency mismatch');
-if (!pom.includes('<artifactId>spring-boot-starter-webmvc</artifactId>')) problems.push('Spring MVC starter mismatch');
-if (!pom.includes('<artifactId>spring-boot-jackson2</artifactId>')) problems.push('Jackson2 starter missing');
-if (!pom.includes('<postgresql.version>42.7.12</postgresql.version>')) problems.push('PostgreSQL driver baseline mismatch');
-if (version !== pkg.version) problems.push('release version mismatch between VERSION and package.json');
-if (version !== lock.version) problems.push('release version mismatch between VERSION and package-lock.json');
-if (lock.packages?.['']?.version !== version) problems.push('release version mismatch in package-lock root package');
-if (!pom.includes(`<artifactId>lakhdatar-events</artifactId>\n  <version>${version}</version>`)) problems.push('release version mismatch in Maven project');
-if (angular.projects?.['lakhdatar-events-frontend']?.architect?.build?.builder !== '@angular/build:application') problems.push('Angular application builder mismatch');
-if (!styles.includes('input,select,textarea{font-size:16px') && !styles.includes('input, select, textarea { font-size: 16px')) problems.push('iOS input zoom guard missing');
-if (!index.includes('name="viewport"') || !index.includes('width=device-width')) problems.push('viewport metadata missing');
-if (!dockerfile.includes('node:24-alpine3.22')) problems.push('frontend Docker Node baseline mismatch');
-if ((dockerfile.match(/apk upgrade --no-cache/g) || []).length < 2) problems.push('frontend Docker Alpine security upgrade missing from build and runtime stages');
-if (!edgeDockerfile.includes('FROM nginx:1.27-alpine')) problems.push('edge Docker NGINX baseline mismatch');
-if (!edgeDockerfile.includes('apk upgrade --no-cache')) problems.push('edge Docker Alpine security upgrade missing');
-if (!edgeDockerfile.includes('pid /tmp/nginx.pid;')) problems.push('edge Docker must relocate the base NGINX pid file to /tmp');
-if (edgeDockerfile.includes('daemon off; pid /tmp/nginx.pid;')) problems.push('edge Docker must not pass a duplicate pid directive through nginx -g');
-if (!edgeDockerfile.includes('COPY edge-entrypoint.sh /usr/local/bin/edge-entrypoint.sh')) problems.push('edge startup validation entrypoint missing');
-if (!edgeDockerfile.includes('ENTRYPOINT ["/usr/local/bin/edge-entrypoint.sh"]')) problems.push('edge Docker entrypoint contract mismatch');
-if (!edgeEntrypoint.includes('mkdir -p /var/cache/nginx/public-cache')) problems.push('public-cache startup directory guard missing');
-if (!edgeDockerfile.includes("grep -Fq 'pid /tmp/nginx.pid;'")) problems.push('edge Docker build-time pid regression guard missing');
-if (!ci.includes('npm audit --omit=dev --audit-level=high')) problems.push('CI production dependency audit mismatch');
-if (!ci.includes('npm ci --omit=dev --ignore-scripts --no-audit --no-fund')) problems.push('CI production dependency install mismatch');
-if (!ci.includes('node-version-file: .nvmrc')) problems.push('CI Node baseline file mismatch');
-if (!ci.includes('fetch-depth: 0')) problems.push('CI secret-scan history depth mismatch');
-if (ci.includes('actions/dependency-review-action@')) problems.push('Unsupported dependency-review job must not run until GitHub dependency graph is enabled');
-if (!ci.includes('artifact-metadata: write')) problems.push('GitHub artifact attestation permission missing');
-if (ci.match(/uses: actions\/attest@v4/g)?.length !== 3) problems.push('GitHub artifact attestation steps mismatch');
-for (const id of ['push-backend','push-web','push-edge']) if (!ci.includes(`id: ${id}`)) problems.push(`Docker build output id missing: ${id}`);
-if (!ci.includes('gh attestation verify')) problems.push('GitHub artifact provenance verification missing');
-if (!ci.includes('Regression-test edge container startup')) problems.push('edge container startup regression test missing');
-if (!ci.includes('--add-host backend:127.0.0.1') || !ci.includes('--add-host web:127.0.0.1')) problems.push('edge CI DNS-isolated startup regression test missing Compose-style host aliases');
-if (!ci.includes('127.0.0.1:18082/edge-health')) problems.push('edge CI health regression endpoint missing');
-if (!ci.includes("test \"$location\" = \"/monitor\"")) problems.push('CI monitor canonical redirect regression check missing');
-if (ci.includes('cosign verify-attestation')) problems.push('Legacy Cosign provenance verification must not be used for BuildKit attestations');
-if (!backendDockerfile.includes('/actuator/health/readiness')) problems.push('backend Docker healthcheck readiness contract missing');
-if (!prodCompose.includes('/actuator/health/readiness')) problems.push('production Compose backend readiness contract missing');
-if (!deploy.includes('/actuator/health/readiness')) problems.push('deployment backend readiness contract missing');
-if (!deploy.includes('BACKEND_READINESS_TIMEOUT_SECONDS="${BACKEND_READINESS_TIMEOUT_SECONDS:-300}"')) problems.push('deployment readiness timeout baseline mismatch');
-if (!deploy.includes('infra/smoke/production-smoke.sh')) problems.push('shared production smoke harness missing from deployment');
-if (!prodSmoke.includes('PUBLIC_HOST=\"${PUBLIC_HOST:-events.neelastack.com}\"')) problems.push('production smoke canonical host baseline missing');
-if (!prodSmoke.includes('-H \"Host: $PUBLIC_HOST\"')) problems.push('production smoke Host header baseline missing');
-if (!prodSmoke.includes("-H 'X-Forwarded-Proto: https'")) problems.push('production smoke HTTPS proxy header baseline missing');
-if (!prodSmoke.includes('Production safe smoke tests passed.')) problems.push('production smoke diagnostics baseline missing');
-if (!deploy.includes('print_backend_diagnostics')) problems.push('deployment readiness diagnostics missing');
-if (!deploy.includes('[[ "$state" == "restarting"')) problems.push('edge restart-loop fail-fast guard missing');
-if (!deploy.includes('docker exec lakhdatar-edge wget -qO- --timeout=5 http://127.0.0.1:8080/edge-health')) problems.push('edge internal readiness probe missing');
-if (!deploy.includes('curl -fsS --max-time 10 "$LOCAL_URL/edge-health"')) problems.push('edge host readiness probe missing');
-const backendAppConfig = read('backend/src/main/resources/application.yml');
-const prodComposeRedis = prodCompose.match(/\n  redis:\n([\s\S]*?)(?=\n  backend:)/)?.[1] ?? '';
-if (backendAppConfig.includes('spring:\n  data:\n    redis:\n      url:')) problems.push('Redis URL property must not override explicit password configuration');
-if (!backendAppConfig.includes('host: ${REDIS_HOST:localhost}')) problems.push('Redis host baseline missing');
-if (!backendAppConfig.includes('port: ${REDIS_PORT:6379}')) problems.push('Redis port baseline missing');
-if (!backendAppConfig.includes('password: ${REDIS_PASSWORD:}')) problems.push('Redis password baseline missing');
-if (backendAppConfig.includes('UserDetailsServiceAutoConfiguration') === false) problems.push('Spring Boot generated security-user auto-configuration must be disabled');
-if (!prodCompose.includes('REDIS_HOST: ${REDIS_HOST:-redis}')) problems.push('production Redis host contract missing');
-if (!prodCompose.includes('REDIS_PORT: ${REDIS_PORT:-6379}')) problems.push('production Redis port contract missing');
-if (!prodCompose.includes('REDIS_DATABASE: ${REDIS_DATABASE:-0}')) problems.push('production Redis database contract missing');
-if (prodCompose.includes('REDIS_URL:')) problems.push('production Redis URL must not override explicit authentication properties');
-if (deploy.includes('/actuator/health >/dev/null')) problems.push('legacy aggregate backend health gate must not be used');
-if (!prodCompose.includes('start_period: 90s')) problems.push('production backend healthcheck startup period mismatch');
-if (read('.nvmrc').trim() !== '22.19.0') problems.push('Node runtime baseline mismatch');
-if (!prodCompose.includes('NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-events.neelastack.com,monitor.neelastack.com}')) problems.push('Angular SSR allowed-host baseline missing');
-if (!prodCompose.includes('NG_TRUST_PROXY_HEADERS: ${NG_TRUST_PROXY_HEADERS:-X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO}')) problems.push('Angular SSR trusted-proxy baseline missing');
-if (!ci.includes('NG_ALLOWED_HOSTS=127.0.0.1,localhost,events.neelastack.com,monitor.neelastack.com')) problems.push('CI SSR test host allowlist baseline missing');
-const edgeNginx = read('edge/nginx.conf');
-if (!edgeNginx.includes('absolute_redirect off;')) problems.push('edge NGINX must keep canonical redirects relative so the internal :8080 port is never exposed');
-if (!edgeNginx.includes('location = /api/v1/public/events {')) problems.push('edge NGINX must have an exact slashless public catalog route to prevent auto-redirecting /api/v1/public/events to /api/v1/public/events/');
-const checkoutSource = read('frontend/src/app/features/checkout/checkout.component.ts');
-const scannerSource = read('frontend/src/app/features/scanner/scanner.component.ts');
-const apiServiceSource = read('frontend/src/app/core/api/api.service.ts');
-const apiTokenSource = read('frontend/src/app/core/api/api.tokens.ts');
-const prodEnvironmentSource = read('frontend/src/environments/environment.prod.ts');
-const paymentResultSource = read('frontend/src/app/features/payment-result/payment-result.component.ts');
-const recoverySource = read('frontend/src/app/features/recover/recover.component.ts');
-if (/map\s+\$http_cf_connecting_ip\s+\$client_rate_key\s*\{[^}]*\$binary_remote_addr/.test(edgeNginx)) problems.push('edge NGINX must not fall back to $binary_remote_addr: it is forwarded as X-Forwarded-For/X-Real-IP and raw bytes make Node/Tomcat answer 400');
-if (/proxy_set_header\s+\S+\s+\$binary_remote_addr/.test(edgeNginx)) problems.push('edge NGINX must never forward $binary_remote_addr in a request header');
-if (!edgeNginx.includes('"~^[0-9A-Fa-f:.]{3,45}$"')) problems.push('edge NGINX must validate CF-Connecting-IP as an IP literal before forwarding it');
+if (pkg.devDependencies?.vitest !== "3.2.7")
+  problems.push("Vitest baseline mismatch");
+if (pkg.devDependencies?.jsdom !== "29.1.1")
+  problems.push("jsdom baseline mismatch");
+if (pkg.devDependencies?.karma)
+  problems.push("Karma must not be a frontend dev dependency");
+if (
+  angular.projects?.["lakhdatar-events-frontend"]?.architect?.test?.options
+    ?.runner !== "vitest"
+)
+  problems.push("Angular unit-test runner baseline mismatch");
+if (!ci.includes("npm audit --audit-level=high"))
+  problems.push("CI full frontend dependency audit missing");
+if (pkg.overrides?.qs !== "6.16.0") problems.push("qs override mismatch");
+if (pkg.overrides?.piscina !== "5.3.2")
+  problems.push("piscina security override mismatch");
+if (pkg.overrides?.["http-errors@2.0.1"]?.inherits !== "2.0.4")
+  problems.push("http-errors inherits override mismatch");
+if (pkg.dependencies["@angular/animations"])
+  problems.push(
+    "deprecated Angular animations package must not be a direct dependency",
+  );
+if (pkg.dependencies["@angular/platform-browser-dynamic"])
+  problems.push(
+    "deprecated Angular platform-browser-dynamic package must not be a direct dependency",
+  );
+const appConfigSource = read("frontend/src/app/app.config.ts");
+if (appConfigSource.includes("provideAnimationsAsync"))
+  problems.push(
+    "deprecated Angular animations provider must not be configured",
+  );
+if (!ci.includes("npm run verify:dependencies"))
+  problems.push("frontend dependency lock verification missing from CI");
+if (
+  !pom.includes(
+    "<artifactId>spring-boot-starter-parent</artifactId>\n    <version>4.0.8</version>",
+  )
+)
+  problems.push("Spring Boot baseline mismatch");
+if (!pom.includes("<java.version>21</java.version>"))
+  problems.push("Java baseline mismatch");
+if (!pom.includes("<lombok.version>1.18.48</lombok.version>"))
+  problems.push("Lombok version baseline mismatch");
+if (!pom.includes("<proc>full</proc>"))
+  problems.push("Java annotation processing must be explicitly enabled");
+if (
+  !pom.includes(
+    "<artifactId>lombok</artifactId>\n              <version>${lombok.version}</version>",
+  )
+)
+  problems.push("Lombok annotation processor version must be explicit");
+if (!pom.includes("<jjwt.version>0.13.0</jjwt.version>"))
+  problems.push("JJWT baseline mismatch");
+if (!pom.includes("<testcontainers.version>1.21.4</testcontainers.version>"))
+  problems.push("Testcontainers baseline mismatch");
+if (!pom.includes("<artifactId>testcontainers-bom</artifactId>"))
+  problems.push("Testcontainers BOM import missing");
+if (
+  !pom.includes(
+    "<artifactId>postgresql</artifactId>\n      <scope>test</scope>",
+  )
+)
+  problems.push("Testcontainers PostgreSQL test dependency mismatch");
+if (
+  !pom.includes(
+    "<artifactId>junit-jupiter</artifactId>\n      <scope>test</scope>",
+  )
+)
+  problems.push("Testcontainers JUnit integration dependency mismatch");
+if (!pom.includes("<artifactId>spring-boot-starter-webmvc</artifactId>"))
+  problems.push("Spring MVC starter mismatch");
+if (!pom.includes("<artifactId>spring-boot-jackson2</artifactId>"))
+  problems.push("Jackson2 starter missing");
+if (!pom.includes("<postgresql.version>42.7.12</postgresql.version>"))
+  problems.push("PostgreSQL driver baseline mismatch");
+if (version !== pkg.version)
+  problems.push("release version mismatch between VERSION and package.json");
+if (version !== lock.version)
+  problems.push(
+    "release version mismatch between VERSION and package-lock.json",
+  );
+if (lock.packages?.[""]?.version !== version)
+  problems.push("release version mismatch in package-lock root package");
+if (
+  !pom.includes(
+    `<artifactId>lakhdatar-events</artifactId>\n  <version>${version}</version>`,
+  )
+)
+  problems.push("release version mismatch in Maven project");
+if (
+  angular.projects?.["lakhdatar-events-frontend"]?.architect?.build?.builder !==
+  "@angular/build:application"
+)
+  problems.push("Angular application builder mismatch");
+if (
+  !styles.includes("input,select,textarea{font-size:16px") &&
+  !styles.includes("input, select, textarea { font-size: 16px")
+)
+  problems.push("iOS input zoom guard missing");
+if (!index.includes('name="viewport"') || !index.includes("width=device-width"))
+  problems.push("viewport metadata missing");
+if (!dockerfile.includes("node:24-alpine3.22"))
+  problems.push("frontend Docker Node baseline mismatch");
+if ((dockerfile.match(/apk upgrade --no-cache/g) || []).length < 2)
+  problems.push(
+    "frontend Docker Alpine security upgrade missing from build and runtime stages",
+  );
+if (!edgeDockerfile.includes("FROM nginx:1.27-alpine"))
+  problems.push("edge Docker NGINX baseline mismatch");
+if (!edgeDockerfile.includes("apk upgrade --no-cache"))
+  problems.push("edge Docker Alpine security upgrade missing");
+if (!edgeDockerfile.includes("pid /tmp/nginx.pid;"))
+  problems.push("edge Docker must relocate the base NGINX pid file to /tmp");
+if (edgeDockerfile.includes("daemon off; pid /tmp/nginx.pid;"))
+  problems.push(
+    "edge Docker must not pass a duplicate pid directive through nginx -g",
+  );
+if (
+  !edgeDockerfile.includes(
+    "COPY edge-entrypoint.sh /usr/local/bin/edge-entrypoint.sh",
+  )
+)
+  problems.push("edge startup validation entrypoint missing");
+if (
+  !edgeDockerfile.includes('ENTRYPOINT ["/usr/local/bin/edge-entrypoint.sh"]')
+)
+  problems.push("edge Docker entrypoint contract mismatch");
+if (!edgeEntrypoint.includes("mkdir -p /var/cache/nginx/public-cache"))
+  problems.push("public-cache startup directory guard missing");
+if (!edgeDockerfile.includes("grep -Fq 'pid /tmp/nginx.pid;'"))
+  problems.push("edge Docker build-time pid regression guard missing");
+if (!ci.includes("npm audit --omit=dev --audit-level=high"))
+  problems.push("CI production dependency audit mismatch");
+if (!ci.includes("npm ci --omit=dev --ignore-scripts --no-audit --no-fund"))
+  problems.push("CI production dependency install mismatch");
+if (!ci.includes("node-version-file: .nvmrc"))
+  problems.push("CI Node baseline file mismatch");
+if (!ci.includes("fetch-depth: 0"))
+  problems.push("CI secret-scan history depth mismatch");
+if (ci.includes("actions/dependency-review-action@"))
+  problems.push(
+    "Unsupported dependency-review job must not run until GitHub dependency graph is enabled",
+  );
+if (!ci.includes("artifact-metadata: write"))
+  problems.push("GitHub artifact attestation permission missing");
+if (ci.match(/uses: actions\/attest@v4/g)?.length !== 3)
+  problems.push("GitHub artifact attestation steps mismatch");
+for (const id of ["push-backend", "push-web", "push-edge"])
+  if (!ci.includes(`id: ${id}`))
+    problems.push(`Docker build output id missing: ${id}`);
+if (!ci.includes("gh attestation verify"))
+  problems.push("GitHub artifact provenance verification missing");
+if (!ci.includes("Regression-test edge container startup"))
+  problems.push("edge container startup regression test missing");
+if (
+  !ci.includes("--add-host backend:127.0.0.1") ||
+  !ci.includes("--add-host web:127.0.0.1")
+)
+  problems.push(
+    "edge CI DNS-isolated startup regression test missing Compose-style host aliases",
+  );
+if (!ci.includes("127.0.0.1:18082/edge-health"))
+  problems.push("edge CI health regression endpoint missing");
+if (!ci.includes('test "$location" = "/monitor"'))
+  problems.push("CI monitor canonical redirect regression check missing");
+if (ci.includes("cosign verify-attestation"))
+  problems.push(
+    "Legacy Cosign provenance verification must not be used for BuildKit attestations",
+  );
+if (!backendDockerfile.includes("/actuator/health/readiness"))
+  problems.push("backend Docker healthcheck readiness contract missing");
+if (!prodCompose.includes("/actuator/health/readiness"))
+  problems.push("production Compose backend readiness contract missing");
+if (!deploy.includes("/actuator/health/readiness"))
+  problems.push("deployment backend readiness contract missing");
+if (
+  !deploy.includes(
+    'BACKEND_READINESS_TIMEOUT_SECONDS="${BACKEND_READINESS_TIMEOUT_SECONDS:-300}"',
+  )
+)
+  problems.push("deployment readiness timeout baseline mismatch");
+if (!deploy.includes("infra/smoke/production-smoke.sh"))
+  problems.push("shared production smoke harness missing from deployment");
+if (
+  !prodSmoke.includes('PUBLIC_HOST=\"${PUBLIC_HOST:-events.neelastack.com}\"')
+)
+  problems.push("production smoke canonical host baseline missing");
+if (!prodSmoke.includes('-H \"Host: $PUBLIC_HOST\"'))
+  problems.push("production smoke Host header baseline missing");
+if (!prodSmoke.includes("-H 'X-Forwarded-Proto: https'"))
+  problems.push("production smoke HTTPS proxy header baseline missing");
+if (!prodSmoke.includes("Production safe smoke tests passed."))
+  problems.push("production smoke diagnostics baseline missing");
+if (!deploy.includes("print_backend_diagnostics"))
+  problems.push("deployment readiness diagnostics missing");
+if (!deploy.includes('[[ "$state" == "restarting"'))
+  problems.push("edge restart-loop fail-fast guard missing");
+if (
+  !deploy.includes(
+    "docker exec lakhdatar-edge wget -qO- --timeout=5 http://127.0.0.1:8080/edge-health",
+  )
+)
+  problems.push("edge internal readiness probe missing");
+if (!deploy.includes('curl -fsS --max-time 10 "$LOCAL_URL/edge-health"'))
+  problems.push("edge host readiness probe missing");
+const backendAppConfig = read("backend/src/main/resources/application.yml");
+const prodComposeRedis =
+  prodCompose.match(/\n  redis:\n([\s\S]*?)(?=\n  backend:)/)?.[1] ?? "";
+if (backendAppConfig.includes("spring:\n  data:\n    redis:\n      url:"))
+  problems.push(
+    "Redis URL property must not override explicit password configuration",
+  );
+if (!backendAppConfig.includes("host: ${REDIS_HOST:localhost}"))
+  problems.push("Redis host baseline missing");
+if (!backendAppConfig.includes("port: ${REDIS_PORT:6379}"))
+  problems.push("Redis port baseline missing");
+if (!backendAppConfig.includes("password: ${REDIS_PASSWORD:}"))
+  problems.push("Redis password baseline missing");
+if (backendAppConfig.includes("UserDetailsServiceAutoConfiguration") === false)
+  problems.push(
+    "Spring Boot generated security-user auto-configuration must be disabled",
+  );
+if (!prodCompose.includes("REDIS_HOST: ${REDIS_HOST:-redis}"))
+  problems.push("production Redis host contract missing");
+if (!prodCompose.includes("REDIS_PORT: ${REDIS_PORT:-6379}"))
+  problems.push("production Redis port contract missing");
+if (!prodCompose.includes("REDIS_DATABASE: ${REDIS_DATABASE:-0}"))
+  problems.push("production Redis database contract missing");
+if (prodCompose.includes("REDIS_URL:"))
+  problems.push(
+    "production Redis URL must not override explicit authentication properties",
+  );
+if (deploy.includes("/actuator/health >/dev/null"))
+  problems.push("legacy aggregate backend health gate must not be used");
+if (!prodCompose.includes("start_period: 90s"))
+  problems.push("production backend healthcheck startup period mismatch");
+if (read(".nvmrc").trim() !== "24.21.0")
+  problems.push("Node runtime baseline mismatch");
+if (
+  !prodCompose.includes(
+    "NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-events.neelastack.com,monitor.neelastack.com}",
+  )
+)
+  problems.push("Angular SSR allowed-host baseline missing");
+if (
+  !prodCompose.includes(
+    "NG_TRUST_PROXY_HEADERS: ${NG_TRUST_PROXY_HEADERS:-X-FORWARDED-FOR,X-FORWARDED-HOST,X-FORWARDED-PROTO}",
+  )
+)
+  problems.push("Angular SSR trusted-proxy baseline missing");
+if (
+  !ci.includes(
+    "NG_ALLOWED_HOSTS=127.0.0.1,localhost,events.neelastack.com,monitor.neelastack.com",
+  )
+)
+  problems.push("CI SSR test host allowlist baseline missing");
+const edgeNginx = read("edge/nginx.conf");
+if (!edgeNginx.includes("absolute_redirect off;"))
+  problems.push(
+    "edge NGINX must keep canonical redirects relative so the internal :8080 port is never exposed",
+  );
+if (!edgeNginx.includes("location = /api/v1/public/events {"))
+  problems.push(
+    "edge NGINX must have an exact slashless public catalog route to prevent auto-redirecting /api/v1/public/events to /api/v1/public/events/",
+  );
+const checkoutSource = read(
+  "frontend/src/app/features/checkout/checkout.component.ts",
+);
+const scannerSource = read(
+  "frontend/src/app/features/scanner/scanner.component.ts",
+);
+const apiServiceSource = read("frontend/src/app/core/api/api.service.ts");
+const apiTokenSource = read("frontend/src/app/core/api/api.tokens.ts");
+const prodEnvironmentSource = read(
+  "frontend/src/environments/environment.prod.ts",
+);
+const paymentResultSource = read(
+  "frontend/src/app/features/payment-result/payment-result.component.ts",
+);
+const recoverySource = read(
+  "frontend/src/app/features/recover/recover.component.ts",
+);
+if (
+  /map\s+\$http_cf_connecting_ip\s+\$client_rate_key\s*\{[^}]*\$binary_remote_addr/.test(
+    edgeNginx,
+  )
+)
+  problems.push(
+    "edge NGINX must not fall back to $binary_remote_addr: it is forwarded as X-Forwarded-For/X-Real-IP and raw bytes make Node/Tomcat answer 400",
+  );
+if (/proxy_set_header\s+\S+\s+\$binary_remote_addr/.test(edgeNginx))
+  problems.push(
+    "edge NGINX must never forward $binary_remote_addr in a request header",
+  );
+if (!edgeNginx.includes('"~^[0-9A-Fa-f:.]{3,45}$"'))
+  problems.push(
+    "edge NGINX must validate CF-Connecting-IP as an IP literal before forwarding it",
+  );
 
-if (!checkoutSource.includes("redirectTarget: '_self'")) problems.push('Cashfree checkout target policy mismatch');
-if (!checkoutSource.includes('result?.paymentDetails') || !checkoutSource.includes('result?.error') || !checkoutSource.includes('.catch(() =>')) problems.push('Cashfree checkout result/promise handling regression detected');
-if (!checkoutSource.includes('loadExternalScript') || !checkoutSource.includes('Payment SDK timed out or failed to load')) problems.push('External payment SDK loader timeout/recovery guard missing');
-if (!scannerSource.includes('verifying = true') || !scannerSource.includes('Keep the live camera session')) problems.push('scanner verification-state/camera-reuse regression detected');
-if (!apiServiceSource.includes('private queryParams<T extends object>(values: T): HttpParams')) problems.push('central optional HTTP query-param sanitizer missing');
-if (!prodEnvironmentSource.includes("apiBaseUrl: '/api/v1'")) problems.push('production browser API base must be same-origin /api/v1');
-if (!apiTokenSource.includes("if (typeof window !== 'undefined' && environment.production) return '/api/v1';")) problems.push('production browser API token guard missing');
-if (apiTokenSource.includes('events.neelastack.com:8080') || recoverySource.includes('http://events.neelastack.com:8080') || paymentResultSource.includes('http://events.neelastack.com:8080')) problems.push('public backend :8080 URL leaked into frontend source');
-if (!paymentResultSource.includes('Never turn a transient verification error into') || !paymentResultSource.includes('a forced recovery redirect')) problems.push('payment-return recovery redirect regression detected');
-if (!recoverySource.includes('Cashfree transaction ID')) problems.push('recovery transaction-reference copy missing');
-if (!recoverySource.includes('finalize(() => { this.loading = false; })')) problems.push('recovery loading finalizer missing');
-const specRoot = path.join(root, 'frontend/src');
+if (!checkoutSource.includes("redirectTarget: '_self'"))
+  problems.push("Cashfree checkout target policy mismatch");
+if (
+  !checkoutSource.includes("result?.paymentDetails") ||
+  !checkoutSource.includes("result?.error") ||
+  !checkoutSource.includes(".catch(() =>")
+)
+  problems.push(
+    "Cashfree checkout result/promise handling regression detected",
+  );
+if (
+  !checkoutSource.includes("loadExternalScript") ||
+  !checkoutSource.includes("Payment SDK timed out or failed to load")
+)
+  problems.push("External payment SDK loader timeout/recovery guard missing");
+if (
+  !scannerSource.includes("verifying = true") ||
+  !scannerSource.includes("Keep the live camera session")
+)
+  problems.push("scanner verification-state/camera-reuse regression detected");
+if (
+  !apiServiceSource.includes(
+    "private queryParams<T extends object>(values: T): HttpParams",
+  )
+)
+  problems.push("central optional HTTP query-param sanitizer missing");
+if (!prodEnvironmentSource.includes("apiBaseUrl: '/api/v1'"))
+  problems.push("production browser API base must be same-origin /api/v1");
+if (
+  !apiTokenSource.includes(
+    "if (typeof window !== 'undefined' && environment.production) return '/api/v1';",
+  )
+)
+  problems.push("production browser API token guard missing");
+if (
+  apiTokenSource.includes("events.neelastack.com:8080") ||
+  recoverySource.includes("http://events.neelastack.com:8080") ||
+  paymentResultSource.includes("http://events.neelastack.com:8080")
+)
+  problems.push("public backend :8080 URL leaked into frontend source");
+if (
+  !paymentResultSource.includes(
+    "Never turn a transient verification error into",
+  ) ||
+  !paymentResultSource.includes("a forced recovery redirect")
+)
+  problems.push("payment-return recovery redirect regression detected");
+if (!recoverySource.includes("Cashfree transaction ID"))
+  problems.push("recovery transaction-reference copy missing");
+if (!recoverySource.includes("finalize(() => { this.loading = false; })"))
+  problems.push("recovery loading finalizer missing");
+const specRoot = path.join(root, "frontend/src");
 const stack = [specRoot];
 while (stack.length) {
   const dir = stack.pop();
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) stack.push(full);
-    else if (entry.isFile() && entry.name.endsWith('.spec.ts')) {
-      const source = fs.readFileSync(full, 'utf8');
-      if (!source.includes("import 'zone.js';") || !source.includes("import 'zone.js/testing';")) {
-        problems.push(`frontend test Zone.js bootstrap missing in ${path.relative(root, full)}`);
+    else if (entry.isFile() && entry.name.endsWith(".spec.ts")) {
+      const source = fs.readFileSync(full, "utf8");
+      if (
+        !source.includes("import 'zone.js';") ||
+        !source.includes("import 'zone.js/testing';")
+      ) {
+        problems.push(
+          `frontend test Zone.js bootstrap missing in ${path.relative(root, full)}`,
+        );
       }
     }
   }
 }
-if (!backendAppConfig.includes('max-connections: ${SERVER_TOMCAT_MAX_CONNECTIONS:10000}')) problems.push('Tomcat max-connections capacity guard missing');
-if (!backendAppConfig.includes('accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:1000}')) problems.push('Tomcat accept-count capacity guard missing');
-if (!backendAppConfig.includes('threads:\n      max: ${SERVER_TOMCAT_MAX_THREADS:200}')) problems.push('Tomcat bounded request-thread pool guard missing');
-if (!backendAppConfig.includes('keep-alive-timeout: ${SERVER_TOMCAT_KEEP_ALIVE_TIMEOUT:30s}')) problems.push('Tomcat keep-alive timeout guard missing');
-if (!backendAppConfig.includes('OTEL_METRICS_EXPORT_ENABLED:false')) problems.push('OTLP metrics exporter must be disabled by default when Prometheus scraping is enabled');
-if (!edgeNginx.includes('keepalive 64;') || !edgeNginx.includes('keepalive 32;')) problems.push('NGINX upstream keepalive pools missing');
-if (!edgeNginx.includes('proxy_cache_path /var/cache/nginx/public-cache')) problems.push('public event micro-cache missing');
-if (!edgeNginx.includes('proxy_cache_valid 200 5s')) problems.push('public event micro-cache TTL missing');
-if (!edgeNginx.includes('$cookie_lk_refresh') || !edgeNginx.includes('$cookie_ld_checkout')) problems.push('public cache cookie bypass missing');
-if (!monitorComponent.includes('Dedicated SRE console')) problems.push('dedicated SRE monitor component missing');
-if (!monitorComponent.includes('Live logs')) problems.push('SRE monitor live-log surface missing');
-if (!monitorComponent.includes('Incidents &amp; warnings')) problems.push('SRE monitor incident surface missing');
-if (!fs.existsSync(path.join(root, 'frontend/src/app/features/monitor-console.component.ts'))) problems.push('SRE monitor component file missing');
-if (!edgeNginx.includes('return 302 /monitor$is_args$args;')) problems.push('canonical monitor redirect missing');
-if (!edgeNginx.includes('location = /api/v1/admin/ops/logs')) problems.push('dedicated low-rate monitor log endpoint missing');
-if (!edgeNginx.includes('location ^~ /api/v1/admin/ops/')) problems.push('monitor operations API namespace missing');
-if (!edgeNginx.includes('if ($is_monitor_host = 1) { return 404; }')) problems.push('monitor business-route deny gates missing');
-if (!edgeNginx.includes('location = /monitor')) problems.push('dedicated monitor route missing');
-if (!edgeNginx.includes('if ($is_monitor_host = 0) { return 404; }')) problems.push('monitor host isolation missing');
-if (!edgeNginx.includes('limit_conn per_ip 1000;')) problems.push('edge connection ceiling baseline mismatch');
-if (!edgeNginx.includes('zone=public_catalog_api:10m rate=1200r/s')) problems.push('public catalog burst-rate budget missing');
-if (!edgeNginx.includes('gzip on;')) problems.push('edge response compression baseline missing');
-if (!frontendServer.includes('server.keepAliveTimeout') || !frontendServer.includes('server.headersTimeout') || !frontendServer.includes('server.requestTimeout')) problems.push('SSR timeout tuning source missing');
-if (!prodCompose.includes('nofile:') || !prodCompose.includes('soft: 65536') || !prodCompose.includes('hard: 65536')) problems.push('production file-descriptor ceiling missing');
-if (!prodCompose.includes('OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}')) problems.push('production OTLP metrics toggle missing');
-const haCompose = read('infra/ha/docker-compose.ha.example.yml');
-const haEdgeNginx = read('infra/ha/nginx-ha.conf.example');
-if (!haEdgeNginx.includes('location = /api/v1/public/events {')) problems.push('HA NGINX must have an exact slashless public catalog route');
+if (
+  !backendAppConfig.includes(
+    "max-connections: ${SERVER_TOMCAT_MAX_CONNECTIONS:10000}",
+  )
+)
+  problems.push("Tomcat max-connections capacity guard missing");
+if (
+  !backendAppConfig.includes("accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:1000}")
+)
+  problems.push("Tomcat accept-count capacity guard missing");
+if (
+  !backendAppConfig.includes(
+    "threads:\n      max: ${SERVER_TOMCAT_MAX_THREADS:200}",
+  )
+)
+  problems.push("Tomcat bounded request-thread pool guard missing");
+if (
+  !backendAppConfig.includes(
+    "keep-alive-timeout: ${SERVER_TOMCAT_KEEP_ALIVE_TIMEOUT:30s}",
+  )
+)
+  problems.push("Tomcat keep-alive timeout guard missing");
+if (!backendAppConfig.includes("OTEL_METRICS_EXPORT_ENABLED:false"))
+  problems.push(
+    "OTLP metrics exporter must be disabled by default when Prometheus scraping is enabled",
+  );
+if (
+  !edgeNginx.includes("keepalive 64;") ||
+  !edgeNginx.includes("keepalive 32;")
+)
+  problems.push("NGINX upstream keepalive pools missing");
+if (!edgeNginx.includes("proxy_cache_path /var/cache/nginx/public-cache"))
+  problems.push("public event micro-cache missing");
+if (!edgeNginx.includes("proxy_cache_valid 200 5s"))
+  problems.push("public event micro-cache TTL missing");
+if (
+  !edgeNginx.includes("$cookie_lk_refresh") ||
+  !edgeNginx.includes("$cookie_ld_checkout")
+)
+  problems.push("public cache cookie bypass missing");
+if (!monitorComponent.includes("Dedicated SRE console"))
+  problems.push("dedicated SRE monitor component missing");
+if (!monitorComponent.includes("Live logs"))
+  problems.push("SRE monitor live-log surface missing");
+if (!monitorComponent.includes("Incidents &amp; warnings"))
+  problems.push("SRE monitor incident surface missing");
+if (
+  !fs.existsSync(
+    path.join(root, "frontend/src/app/features/monitor-console.component.ts"),
+  )
+)
+  problems.push("SRE monitor component file missing");
+if (!edgeNginx.includes("return 302 /monitor$is_args$args;"))
+  problems.push("canonical monitor redirect missing");
+if (!edgeNginx.includes("location = /api/v1/admin/ops/logs"))
+  problems.push("dedicated low-rate monitor log endpoint missing");
+if (!edgeNginx.includes("location ^~ /api/v1/admin/ops/"))
+  problems.push("monitor operations API namespace missing");
+if (!edgeNginx.includes("if ($is_monitor_host = 1) { return 404; }"))
+  problems.push("monitor business-route deny gates missing");
+if (!edgeNginx.includes("location = /monitor"))
+  problems.push("dedicated monitor route missing");
+if (!edgeNginx.includes("if ($is_monitor_host = 0) { return 404; }"))
+  problems.push("monitor host isolation missing");
+if (!edgeNginx.includes("limit_conn per_ip 1000;"))
+  problems.push("edge connection ceiling baseline mismatch");
+if (!edgeNginx.includes("zone=public_catalog_api:10m rate=1200r/s"))
+  problems.push("public catalog burst-rate budget missing");
+if (!edgeNginx.includes("gzip on;"))
+  problems.push("edge response compression baseline missing");
+if (
+  !frontendServer.includes("server.keepAliveTimeout") ||
+  !frontendServer.includes("server.headersTimeout") ||
+  !frontendServer.includes("server.requestTimeout")
+)
+  problems.push("SSR timeout tuning source missing");
+if (
+  !prodCompose.includes("nofile:") ||
+  !prodCompose.includes("soft: 65536") ||
+  !prodCompose.includes("hard: 65536")
+)
+  problems.push("production file-descriptor ceiling missing");
+if (
+  !prodCompose.includes(
+    "OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}",
+  )
+)
+  problems.push("production OTLP metrics toggle missing");
+const haCompose = read("infra/ha/docker-compose.ha.example.yml");
+const haEdgeNginx = read("infra/ha/nginx-ha.conf.example");
+if (!haEdgeNginx.includes("location = /api/v1/public/events {"))
+  problems.push("HA NGINX must have an exact slashless public catalog route");
 
-if (!haCompose.includes('SERVER_TOMCAT_MAX_THREADS: ${SERVER_TOMCAT_MAX_THREADS:-200}')) problems.push('HA Tomcat capacity baseline missing');
-if (!haCompose.includes('KEEP_ALIVE_TIMEOUT_MS: ${KEEP_ALIVE_TIMEOUT_MS:-60000}')) problems.push('HA SSR keep-alive baseline missing');
-if (!haEdgeNginx.includes('absolute_redirect off;')) problems.push('HA NGINX must keep canonical redirects relative so the internal :8080 port is never exposed');
-if (!haEdgeNginx.includes('return 302 /monitor$is_args$args;')) problems.push('HA NGINX monitor routing baseline missing');
-if (!haEdgeNginx.includes('location = /monitor')) problems.push('HA dedicated monitor route missing');
-if (!haEdgeNginx.includes('if ($is_monitor_host = 0) { return 404; }')) problems.push('HA monitor host isolation missing');
-if (!haEdgeNginx.includes('zone=ops_logs_api:10m rate=2r/s')) problems.push('HA dedicated monitor log rate limit missing');
-if (!haEdgeNginx.includes('location = /api/v1/admin/ops/logs')) problems.push('HA dedicated low-rate monitor log endpoint missing');
-if (!haEdgeNginx.includes('location ^~ /api/v1/admin/ops/')) problems.push('HA monitor operations API namespace missing');
-if (!haEdgeNginx.includes('proxy_cache_path /var/cache/nginx/public-cache')) problems.push('HA public event micro-cache missing');
-if (!haEdgeNginx.includes('keepalive 64;') || !haEdgeNginx.includes('keepalive 32;')) problems.push('HA NGINX upstream keepalive pools missing');
-if (!haCompose.includes('security_opt: [no-new-privileges:true]') || !haCompose.includes('cap_drop: [ALL]')) problems.push('HA web/edge hardening missing');
-if (!fs.existsSync(path.join(root, 'infra/loadtest/thousands.js'))) problems.push('thousands-user staging load profile missing');
-if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V36__enterprise_webhook_retry_backoff.sql'))) problems.push('enterprise webhook retry migration missing');
-if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V38__enterprise_mfa_session_proof.sql'))) problems.push('enterprise MFA session-proof migration missing');
-if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V39__enterprise_mfa_replay_and_constraint_validation.sql'))) problems.push('enterprise MFA replay/constraint migration missing');
-if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V40__enterprise_event_change_notifications.sql'))) problems.push('event notification outbox migration missing');
-if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V41__normalize_auth_hash_columns.sql'))) problems.push('auth hash column normalization migration missing');
-if (!fs.existsSync(path.join(root, 'backend/src/main/resources/db/migration/V37__enterprise_webhook_provider_discriminator.sql'))) problems.push('enterprise webhook provider migration missing');
-if (!read('backend/src/main/java/com/neelastack/lakhdatar/domain/PaymentWebhookEvent.java').includes('provider')) problems.push('payment webhook provider discriminator missing');
-if (!read('backend/src/main/java/com/neelastack/lakhdatar/service/WebhookService.java').includes('processingExecutor')) problems.push('Razorpay webhook asynchronous processor missing');
-if (!read('backend/src/main/java/com/neelastack/lakhdatar/service/CashfreeWebhookService.java').includes('processingExecutor')) problems.push('Cashfree webhook asynchronous processor missing');
-if (!deploy.includes('ALLOW_SINGLE_NODE_PRODUCTION=true')) problems.push('single-node production explicit acknowledgement guard missing');
-if (!prodSmoke.includes('SMOKE_TICKET_ID') || !prodSmoke.includes('/pdf')) problems.push('production ticket read-only smoke coverage missing');
-if (!prodSmoke.includes('SMOKE_TICKET_TOKEN')) problems.push('production ticket-token smoke coverage missing');
-if (!stagingCompose.includes('name: lakhdatar-events-staging')) problems.push('staging Compose project name missing');
-if (!stagingCompose.includes('127.0.0.1:4003:8080')) problems.push('staging edge must bind loopback port 4003');
-if (!stagingCompose.includes('lakhdatar_staging')) problems.push('staging database isolation missing');
-if (!stagingCompose.includes('lakhdatar_pg_data_staging') || !stagingCompose.includes('lakhdatar_redis_data_staging')) problems.push('staging persistent-volume isolation missing');
-if (!stagingCompose.includes('APP_ENV: staging')) problems.push('staging APP_ENV missing');
-if (!stagingCompose.includes('PUBLIC_BASE_URL:-https://staging-events.neelastack.com') && !stagingCompose.includes('PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://staging-events.neelastack.com}')) problems.push('staging public base URL missing');
-if (!stagingCompose.includes('CORS_ALLOWED_ORIGINS:-https://staging-events.neelastack.com') && !stagingCompose.includes('CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://staging-events.neelastack.com}')) problems.push('staging CORS origin missing');
-if (!stagingCompose.includes('NG_ALLOWED_HOSTS:-staging-events.neelastack.com') && !stagingCompose.includes('NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-staging-events.neelastack.com}')) problems.push('staging SSR host allowlist missing');
-if (!stagingDeploy.includes('staging-events.neelastack.com')) problems.push('staging deploy host guard missing');
-if (!stagingDeploy.includes('4003')) problems.push('staging deploy port contract missing');
-if (!stagingSmoke.includes('staging-events.neelastack.com')) problems.push('staging smoke host guard missing');
-if (!stagingSmoke.includes('x-robots-tag:.*noindex')) problems.push('staging smoke noindex check missing');
-if (!stagingCloudflare.includes('staging-events.neelastack.com') || !stagingCloudflare.includes('localhost:4003')) problems.push('staging Cloudflare ingress example missing');
-if (!stagingWorkflow.includes('staging-events.neelastack.com')) problems.push('staging deployment workflow default origin missing');
-if (!read('backend/src/main/java/com/neelastack/lakhdatar/controller/AdminController.java').includes('/security/users/{userId}/mfa/reset')) problems.push('admin MFA emergency recovery endpoint missing');
-const loadtestWorkflow = read('.github/workflows/load-test.yml');
-if (!loadtestWorkflow.includes('thousands.js')) problems.push('load-test workflow must expose the thousands-user profile');
-if (!fs.existsSync(path.join(root, 'infra/loadtest/enterprise-gate.sh'))) problems.push('enterprise load gate missing');
-if (!loadtestWorkflow.includes('enterprise-gate')) problems.push('load-test workflow must expose enterprise gate');
-if (!loadtestWorkflow.includes("Staging Load Test must target https://staging-events.neelastack.com") && !loadtestWorkflow.includes('thousands.js must never run against the live events.neelastack.com site')) problems.push('thousands-user workflow production guard missing');
-const lockText = read('frontend/package-lock.json');
-if (lockText.includes('"node_modules/void-elements"') && !lockText.includes('"node_modules/void-elements": {\n      "version": "2.0.1"')) problems.push('frontend lockfile void-elements must resolve to 2.0.1 when present');
-if (!lockText.includes('"node_modules/http-errors": {\n      "version": "2.0.1"')) problems.push('frontend lockfile http-errors must resolve to 2.0.1');
-if (lockText.includes('void-elements-2.0.2.tgz') || lockText.includes('http-errors-2.0.2.tgz')) problems.push('stale invalid frontend lockfile tarball versions remain');
-if (!edgeNginx.includes('https://static.cloudflareinsights.com')) problems.push('Cloudflare Web Analytics CSP script source missing');
-if (!edgeNginx.includes('https://api.cashfree.com;') && !edgeNginx.includes('https://api.cashfree.com https://sdk.cashfree.com')) problems.push('Cashfree API frame/form action host missing from edge CSP');
-if (!edgeNginx.includes("form-action 'self' https://api.cashfree.com")) problems.push('Cashfree API form-action CSP host missing');
-if (problems.length) { console.error('Neelastack baseline verification FAILED:'); for (const p of problems) console.error(`- ${p}`); process.exit(1); }
-console.log('Neelastack stability baseline: PASS');
+if (
+  !haCompose.includes(
+    "SERVER_TOMCAT_MAX_THREADS: ${SERVER_TOMCAT_MAX_THREADS:-200}",
+  )
+)
+  problems.push("HA Tomcat capacity baseline missing");
+if (
+  !haCompose.includes("KEEP_ALIVE_TIMEOUT_MS: ${KEEP_ALIVE_TIMEOUT_MS:-60000}")
+)
+  problems.push("HA SSR keep-alive baseline missing");
+if (!haEdgeNginx.includes("absolute_redirect off;"))
+  problems.push(
+    "HA NGINX must keep canonical redirects relative so the internal :8080 port is never exposed",
+  );
+if (!haEdgeNginx.includes("return 302 /monitor$is_args$args;"))
+  problems.push("HA NGINX monitor routing baseline missing");
+if (!haEdgeNginx.includes("location = /monitor"))
+  problems.push("HA dedicated monitor route missing");
+if (!haEdgeNginx.includes("if ($is_monitor_host = 0) { return 404; }"))
+  problems.push("HA monitor host isolation missing");
+if (!haEdgeNginx.includes("zone=ops_logs_api:10m rate=2r/s"))
+  problems.push("HA dedicated monitor log rate limit missing");
+if (!haEdgeNginx.includes("location = /api/v1/admin/ops/logs"))
+  problems.push("HA dedicated low-rate monitor log endpoint missing");
+if (!haEdgeNginx.includes("location ^~ /api/v1/admin/ops/"))
+  problems.push("HA monitor operations API namespace missing");
+if (!haEdgeNginx.includes("proxy_cache_path /var/cache/nginx/public-cache"))
+  problems.push("HA public event micro-cache missing");
+if (
+  !haEdgeNginx.includes("keepalive 64;") ||
+  !haEdgeNginx.includes("keepalive 32;")
+)
+  problems.push("HA NGINX upstream keepalive pools missing");
+if (
+  !haCompose.includes("security_opt: [no-new-privileges:true]") ||
+  !haCompose.includes("cap_drop: [ALL]")
+)
+  problems.push("HA web/edge hardening missing");
+if (!fs.existsSync(path.join(root, "infra/loadtest/thousands.js")))
+  problems.push("thousands-user staging load profile missing");
+if (
+  !fs.existsSync(
+    path.join(
+      root,
+      "backend/src/main/resources/db/migration/V36__enterprise_webhook_retry_backoff.sql",
+    ),
+  )
+)
+  problems.push("enterprise webhook retry migration missing");
+if (
+  !fs.existsSync(
+    path.join(
+      root,
+      "backend/src/main/resources/db/migration/V38__enterprise_mfa_session_proof.sql",
+    ),
+  )
+)
+  problems.push("enterprise MFA session-proof migration missing");
+if (
+  !fs.existsSync(
+    path.join(
+      root,
+      "backend/src/main/resources/db/migration/V39__enterprise_mfa_replay_and_constraint_validation.sql",
+    ),
+  )
+)
+  problems.push("enterprise MFA replay/constraint migration missing");
+if (
+  !fs.existsSync(
+    path.join(
+      root,
+      "backend/src/main/resources/db/migration/V40__enterprise_event_change_notifications.sql",
+    ),
+  )
+)
+  problems.push("event notification outbox migration missing");
+if (
+  !fs.existsSync(
+    path.join(
+      root,
+      "backend/src/main/resources/db/migration/V41__normalize_auth_hash_columns.sql",
+    ),
+  )
+)
+  problems.push("auth hash column normalization migration missing");
+if (
+  !fs.existsSync(
+    path.join(
+      root,
+      "backend/src/main/resources/db/migration/V37__enterprise_webhook_provider_discriminator.sql",
+    ),
+  )
+)
+  problems.push("enterprise webhook provider migration missing");
+if (
+  !read(
+    "backend/src/main/java/com/neelastack/lakhdatar/domain/PaymentWebhookEvent.java",
+  ).includes("provider")
+)
+  problems.push("payment webhook provider discriminator missing");
+if (
+  !read(
+    "backend/src/main/java/com/neelastack/lakhdatar/service/WebhookService.java",
+  ).includes("processingExecutor")
+)
+  problems.push("Razorpay webhook asynchronous processor missing");
+if (
+  !read(
+    "backend/src/main/java/com/neelastack/lakhdatar/service/CashfreeWebhookService.java",
+  ).includes("processingExecutor")
+)
+  problems.push("Cashfree webhook asynchronous processor missing");
+if (!deploy.includes("ALLOW_SINGLE_NODE_PRODUCTION=true"))
+  problems.push(
+    "single-node production explicit acknowledgement guard missing",
+  );
+if (!prodSmoke.includes("SMOKE_TICKET_ID") || !prodSmoke.includes("/pdf"))
+  problems.push("production ticket read-only smoke coverage missing");
+if (!prodSmoke.includes("SMOKE_TICKET_TOKEN"))
+  problems.push("production ticket-token smoke coverage missing");
+if (!stagingCompose.includes("name: lakhdatar-events-staging"))
+  problems.push("staging Compose project name missing");
+if (!stagingCompose.includes("127.0.0.1:4003:8080"))
+  problems.push("staging edge must bind loopback port 4003");
+if (!stagingCompose.includes("lakhdatar_staging"))
+  problems.push("staging database isolation missing");
+if (
+  !stagingCompose.includes("lakhdatar_pg_data_staging") ||
+  !stagingCompose.includes("lakhdatar_redis_data_staging")
+)
+  problems.push("staging persistent-volume isolation missing");
+if (!stagingCompose.includes("APP_ENV: staging"))
+  problems.push("staging APP_ENV missing");
+if (
+  !stagingCompose.includes(
+    "PUBLIC_BASE_URL:-https://staging-events.neelastack.com",
+  ) &&
+  !stagingCompose.includes(
+    "PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://staging-events.neelastack.com}",
+  )
+)
+  problems.push("staging public base URL missing");
+if (
+  !stagingCompose.includes(
+    "CORS_ALLOWED_ORIGINS:-https://staging-events.neelastack.com",
+  ) &&
+  !stagingCompose.includes(
+    "CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://staging-events.neelastack.com}",
+  )
+)
+  problems.push("staging CORS origin missing");
+if (
+  !stagingCompose.includes("NG_ALLOWED_HOSTS:-staging-events.neelastack.com") &&
+  !stagingCompose.includes(
+    "NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-staging-events.neelastack.com}",
+  )
+)
+  problems.push("staging SSR host allowlist missing");
+if (!stagingDeploy.includes("staging-events.neelastack.com"))
+  problems.push("staging deploy host guard missing");
+if (!stagingDeploy.includes("4003"))
+  problems.push("staging deploy port contract missing");
+if (!stagingSmoke.includes("staging-events.neelastack.com"))
+  problems.push("staging smoke host guard missing");
+if (!stagingSmoke.includes("x-robots-tag:.*noindex"))
+  problems.push("staging smoke noindex check missing");
+if (
+  !stagingCloudflare.includes("staging-events.neelastack.com") ||
+  !stagingCloudflare.includes("localhost:4003")
+)
+  problems.push("staging Cloudflare ingress example missing");
+if (!stagingWorkflow.includes("staging-events.neelastack.com"))
+  problems.push("staging deployment workflow default origin missing");
+if (
+  !read(
+    "backend/src/main/java/com/neelastack/lakhdatar/controller/AdminController.java",
+  ).includes("/security/users/{userId}/mfa/reset")
+)
+  problems.push("admin MFA emergency recovery endpoint missing");
+const loadtestWorkflow = read(".github/workflows/load-test.yml");
+if (!loadtestWorkflow.includes("thousands.js"))
+  problems.push("load-test workflow must expose the thousands-user profile");
+if (!fs.existsSync(path.join(root, "infra/loadtest/enterprise-gate.sh")))
+  problems.push("enterprise load gate missing");
+if (!loadtestWorkflow.includes("enterprise-gate"))
+  problems.push("load-test workflow must expose enterprise gate");
+if (
+  !loadtestWorkflow.includes(
+    "Staging Load Test must target https://staging-events.neelastack.com",
+  ) &&
+  !loadtestWorkflow.includes(
+    "thousands.js must never run against the live events.neelastack.com site",
+  )
+)
+  problems.push("thousands-user workflow production guard missing");
+const lockText = read("frontend/package-lock.json");
+if (
+  lockText.includes('"node_modules/void-elements"') &&
+  !lockText.includes(
+    '"node_modules/void-elements": {\n      "version": "2.0.1"',
+  )
+)
+  problems.push(
+    "frontend lockfile void-elements must resolve to 2.0.1 when present",
+  );
+if (
+  !lockText.includes('"node_modules/http-errors": {\n      "version": "2.0.1"')
+)
+  problems.push("frontend lockfile http-errors must resolve to 2.0.1");
+if (
+  lockText.includes("void-elements-2.0.2.tgz") ||
+  lockText.includes("http-errors-2.0.2.tgz")
+)
+  problems.push("stale invalid frontend lockfile tarball versions remain");
+if (!edgeNginx.includes("https://static.cloudflareinsights.com"))
+  problems.push("Cloudflare Web Analytics CSP script source missing");
+if (
+  !edgeNginx.includes("https://api.cashfree.com;") &&
+  !edgeNginx.includes("https://api.cashfree.com https://sdk.cashfree.com")
+)
+  problems.push("Cashfree API frame/form action host missing from edge CSP");
+const cashfreeFormActionMap =
+  edgeNginx.match(
+    /map \$host \$cashfree_form_action_sources \{([\s\S]*?)\n\}/,
+  )?.[1] ?? "";
+
+if (
+  !edgeNginx.includes("form-action 'self' $cashfree_form_action_sources;") ||
+  !cashfreeFormActionMap.includes(
+    'default "https://api.cashfree.com https://payments.cashfree.com";',
+  ) ||
+  !cashfreeFormActionMap.includes(
+    'staging-events.neelastack.com "https://api.cashfree.com https://payments.cashfree.com https://sandbox.cashfree.com";',
+  )
+) {
+  problems.push("Cashfree host-scoped form-action CSP allowlist missing");
+}
+if (problems.length) {
+  console.error("Neelastack baseline verification FAILED:");
+  for (const p of problems) console.error(`- ${p}`);
+  process.exit(1);
+}
+console.log("Neelastack stability baseline: PASS");
