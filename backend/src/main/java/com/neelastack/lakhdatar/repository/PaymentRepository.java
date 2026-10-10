@@ -16,8 +16,20 @@ public interface PaymentRepository extends JpaRepository<Payment,Long>{
  List<Payment> findTop100ByStatusInAndCreatedAtBeforeOrderByCreatedAtAsc(Collection<Enums.PaymentStatus> statuses, Instant cutoff);
  @Query(value="select p from Payment p where p.providerOrderId is not null and p.status in :statuses and p.createdAt < :cutoff and p.createdAt > :windowStart and (p.lastReconciledAt is null or p.lastReconciledAt < :recheckBefore) order by p.lastReconciledAt asc nulls first, p.createdAt asc")
  List<Payment> findReconciliationCandidates(@Param("statuses") Collection<Enums.PaymentStatus> statuses, @Param("cutoff") Instant cutoff, @Param("windowStart") Instant windowStart, @Param("recheckBefore") Instant recheckBefore, org.springframework.data.domain.Pageable pageable);
- @Query(value="select p from Payment p where p.providerOrderId is null and p.status in :statuses and p.createdAt > :windowStart and (p.lastReconciledAt is null or p.lastReconciledAt < :recheckBefore) order by p.lastReconciledAt asc nulls first, p.createdAt asc")
- List<Payment> findMissingProviderOrderCandidates(@Param("statuses") Collection<Enums.PaymentStatus> statuses, @Param("windowStart") Instant windowStart, @Param("recheckBefore") Instant recheckBefore, org.springframework.data.domain.Pageable pageable);
+ @Query("select p from Payment p, Order o " +
+        "where o.id = p.orderId " +
+        "and p.providerOrderId is null " +
+        "and p.status in :statuses " +
+        "and o.status in :orderStatuses " +
+        "and p.createdAt > :windowStart " +
+        "and (p.lastReconciledAt is null or p.lastReconciledAt < :recheckBefore) " +
+        "order by p.lastReconciledAt asc nulls first, p.createdAt asc")
+ List<Payment> findMissingProviderOrderCandidates(
+         @Param("statuses") Collection<Enums.PaymentStatus> statuses,
+         @Param("orderStatuses") Collection<Enums.OrderStatus> orderStatuses,
+         @Param("windowStart") Instant windowStart,
+         @Param("recheckBefore") Instant recheckBefore,
+         org.springframework.data.domain.Pageable pageable);
  @org.springframework.transaction.annotation.Transactional
  @Modifying(clearAutomatically=false, flushAutomatically=false)
  @Query("update Payment p set p.lastReconciledAt=:now where p.id=:id")

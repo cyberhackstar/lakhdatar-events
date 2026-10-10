@@ -183,8 +183,12 @@ public class OrderService {
                     return new ProviderOrderContext(o.getId(),o.getPublicId(),o.getOrderNumber(),p.getProviderOrderId(),p.getAmountMinor(),p.getCurrency(),minReservationExpiry(o.getId()),false, eventOpen ? "RESERVATION_EXPIRED" : bookingBlock, p.getRazorpayOrderState(),o.getCustomerName(),o.getCustomerEmail(),o.getCustomerPhone(),p.getProvider());
                 }
                 if(p.getProviderOrderId()!=null) return new ProviderOrderContext(o.getId(),o.getPublicId(),o.getOrderNumber(),p.getProviderOrderId(),p.getAmountMinor(),p.getCurrency(),minReservationExpiry(o.getId()),true,null, p.getRazorpayOrderState(),o.getCustomerName(),o.getCustomerEmail(),o.getCustomerPhone(),p.getProvider());
+                // Preserve the state from before this request. A fresh NOT_CREATED payment should
+                // create its provider order directly; receipt lookup is only needed after a prior
+                // attempt may have reached the provider but failed before local persistence.
+                String priorProviderOrderState = p.getRazorpayOrderState();
                 p.setRazorpayOrderState("CREATING"); p.setRazorpayOrderAttempts(p.getRazorpayOrderAttempts()+1); payments.save(p);
-                return new ProviderOrderContext(o.getId(),o.getPublicId(),o.getOrderNumber(),null,p.getAmountMinor(),p.getCurrency(),minReservationExpiry(o.getId()),true,null,p.getRazorpayOrderState(),o.getCustomerName(),o.getCustomerEmail(),o.getCustomerPhone(),p.getProvider());
+                return new ProviderOrderContext(o.getId(),o.getPublicId(),o.getOrderNumber(),null,p.getAmountMinor(),p.getCurrency(),minReservationExpiry(o.getId()),true,null,priorProviderOrderState,o.getCustomerName(),o.getCustomerEmail(),o.getCustomerPhone(),p.getProvider());
             });
             if(context == null) throw new ApiException(HttpStatus.CONFLICT,"CHECKOUT_INITIALIZATION_FAILED","Checkout could not be initialized");
             if(!context.payable()){
@@ -228,11 +232,16 @@ public class OrderService {
                     // Continue into receipt-based recovery/creation below.
                 }
             }
-            Optional<PaymentGatewayProvider.ProviderOrder> recovered;
-            try { recovered = gateways.forProvider(context.provider()).findOrderByReceipt(context.orderNumber()); }
-            catch (RuntimeException ex) {
-                tx.executeWithoutResult(s->{ payments.findByOrderId(context.orderId()).ifPresent(p->{p.setRazorpayOrderState("RECOVERY_PENDING");p.setProviderLastError(ex.getClass().getSimpleName());payments.save(p);}); });
-                throw ex;
+            Optional<PaymentGatewayProvider.ProviderOrder> recovered = Optional.empty();
+            if (!"NOT_CREATED".equalsIgnoreCase(context.providerOrderState())) {
+                // A fresh order has never been sent to the provider, so don't issue a predictable
+                // GET that returns 404 before every first checkout. States such as CREATING and
+                // RECOVERY_PENDING are ambiguous: search by stable receipt before making a retry.
+                try { recovered = gateways.forProvider(context.provider()).findOrderByReceipt(context.orderNumber()); }
+                catch (RuntimeException ex) {
+                    tx.executeWithoutResult(s->{ payments.findByOrderId(context.orderId()).ifPresent(p->{p.setRazorpayOrderState("RECOVERY_PENDING");p.setProviderLastError(ex.getClass().getSimpleName());payments.save(p);}); });
+                    throw ex;
+                }
             }
             if(recovered.isPresent()) {
                 var providerOrder=recovered.get();
@@ -588,6 +597,7 @@ public class OrderService {
         var candidates = payments.findMissingProviderOrderCandidates(
                 List.of(Enums.PaymentStatus.CREATED, Enums.PaymentStatus.PENDING,
                         Enums.PaymentStatus.PAYMENT_INITIATED, Enums.PaymentStatus.AUTHORIZED),
+                List.of(Enums.OrderStatus.CREATED, Enums.OrderStatus.AWAITING_PAYMENT),
                 now.minus(Duration.ofHours(Math.max(1, recoveryWindowHours))),
                 now.minusMillis(Math.max(0, recoveryRecheckMs)),
                 org.springframework.data.domain.PageRequest.of(0, 100));

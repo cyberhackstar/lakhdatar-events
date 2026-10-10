@@ -60,6 +60,10 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
     }
 
     private JsonNode call(HttpRequest request) {
+        return call(request, false);
+    }
+
+    private JsonNode call(HttpRequest request, boolean notFoundIsExpected) {
         long started = System.nanoTime();
         String requestPath = request.uri().getPath();
         EnterpriseLog.debug(log, "payment.provider.http.started", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath);
@@ -67,7 +71,11 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             long durationMs = (System.nanoTime() - started) / 1_000_000L;
             if (response.statusCode() == 404) {
-                EnterpriseLog.warn(log, "payment.provider.http.not_found", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "http.status_code", 404, "duration.ms", durationMs);
+                if (notFoundIsExpected) {
+                    EnterpriseLog.debug(log, "payment.provider.order_lookup.miss", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "http.status_code", 404, "duration.ms", durationMs);
+                } else {
+                    EnterpriseLog.warn(log, "payment.provider.http.not_found", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "http.status_code", 404, "duration.ms", durationMs);
+                }
                 throw new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_PROVIDER_NOT_FOUND", "Cashfree resource was not found");
             }
             if (response.statusCode() / 100 != 2) {
@@ -114,16 +122,20 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
     }
 
     @Override public ProviderOrder fetchOrder(String id) {
-        JsonNode n = call(req("/orders/" + enc(id)).GET().build());
+        return fetchOrder(id, false);
+    }
+
+    private ProviderOrder fetchOrder(String id, boolean notFoundIsExpected) {
+        JsonNode n = call(req("/orders/" + enc(id)).GET().build(), notFoundIsExpected);
         long amount = toMinorUnits(n, "order_amount");
         String orderId = n.path("order_id").asText(id);
         return new ProviderOrder(orderId, null, n.path("payment_session_id").asText(null), amount, n.path("order_currency").asText("INR"), orderId, normalizeOrderStatus(n.path("order_status").asText("UNKNOWN")));
     }
 
     @Override public Optional<ProviderOrder> findOrderByReceipt(String receipt) {
-        try { return Optional.of(fetchOrder(receipt)); }
+        try { return Optional.of(fetchOrder(receipt, true)); }
         catch (ApiException e) {
-            if (e.status() == HttpStatus.NOT_FOUND) return Optional.empty();
+            if (e.status() == HttpStatus.NOT_FOUND && "PAYMENT_PROVIDER_NOT_FOUND".equals(e.code())) return Optional.empty();
             throw e;
         }
     }

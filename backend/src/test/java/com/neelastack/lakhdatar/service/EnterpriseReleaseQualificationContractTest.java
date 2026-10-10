@@ -56,4 +56,30 @@ class EnterpriseReleaseQualificationContractTest {
         assertTrue(compose.contains("REDIS_HOST: ${REDIS_HOST:?REDIS_HOST is required}"));
         assertFalse(compose.contains("deploy:\n      replicas:"));
     }
+
+    @Test
+    void flywayQualificationUsesApplyOrderInsteadOfLexicalVersionMax() throws Exception {
+        String flyway = read("../infra/certification/flyway-qualification.sh");
+        assertTrue(flyway.contains("ORDER BY installed_rank DESC LIMIT 1"));
+        assertFalse(flyway.contains("SELECT max(version) FROM flyway_schema_history"));
+    }
+
+    @Test
+    void dastWritesBasenameReportsToWritableMountedDirectory() throws Exception {
+        String dast = read("../infra/security/dast-staging.sh");
+        assertTrue(dast.contains("chmod 0777 \"$REPORT_ABS\""));
+        assertTrue(dast.contains("-r zap-baseline.html"));
+        assertTrue(dast.contains("-J zap-baseline.json"));
+        assertFalse(dast.contains("-r /zap/wrk/zap-baseline.html"));
+    }
+
+    @Test
+    void enterpriseLoadGateReportsMissingInputsWithoutLeakingValues() throws Exception {
+        String gate = read("../infra/loadtest/enterprise-gate.sh");
+        assertTrue(gate.contains("missing_runtime_inputs"));
+        assertTrue(gate.contains("missing required runtime inputs"));
+        assertTrue(gate.contains("LOADTEST_* secrets"));
+        assertTrue(gate.contains("enterprise-gate-preflight.txt"));
+    }
+
 }

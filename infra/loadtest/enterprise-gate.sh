@@ -1,20 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPORT_DIR="${REPORT_DIR:-$PROJECT_ROOT/loadtest-results}"
+mkdir -p "$REPORT_DIR"
+PREFLIGHT_REPORT="$REPORT_DIR/enterprise-gate-preflight.txt"
 
-: "${BASE_URL:?BASE_URL is required}"
+required_vars=(
+  BASE_URL EVENT_ID TICKET_TYPE_ID STAFF_BEARER CHECKIN_QR_TOKENS
+  TICKET_ID TICKET_TOKEN ADMIN_BEARER ADMIN_EVENT_ID DATABASE_URL LOADTEST_EVENT_ID
+)
+missing_vars=()
+for name in "${required_vars[@]}"; do
+  if [[ -z "${!name:-}" ]]; then missing_vars+=("$name"); fi
+done
+{
+  echo 'Neelastack Enterprise Load Gate Preflight'
+  echo 'Secrets and credential values are deliberately not recorded.'
+  if ((${#missing_vars[@]})); then
+    echo 'status=BLOCKED'
+    printf 'missing_runtime_inputs=%s\n' "${missing_vars[*]}"
+  else
+    echo 'status=PASS'
+    echo 'missing_runtime_inputs=none'
+  fi
+} > "$PREFLIGHT_REPORT"
+if ((${#missing_vars[@]})); then
+  printf 'Enterprise load gate blocked; missing required runtime inputs: %s\n' "${missing_vars[*]}" >&2
+  echo 'Configure the matching LOADTEST_* secrets in the GitHub Actions environment named staging.' >&2
+  echo 'See infra/loadtest/CONFIGURATION.md for the exact mapping. Values are not printed or written to artifacts.' >&2
+  exit 2
+fi
+
 [[ "$BASE_URL" == 'https://staging-events.neelastack.com' ]] || { echo 'Enterprise load gate must target https://staging-events.neelastack.com' >&2; exit 2; }
-: "${EVENT_ID:?EVENT_ID is required}"
-: "${TICKET_TYPE_ID:?TICKET_TYPE_ID is required}"
-: "${STAFF_BEARER:?STAFF_BEARER is required}"
-: "${CHECKIN_QR_TOKENS:?CHECKIN_QR_TOKENS is required}"
-: "${TICKET_ID:?TICKET_ID is required}"
-: "${TICKET_TOKEN:?TICKET_TOKEN is required}"
-: "${ADMIN_BEARER:?ADMIN_BEARER is required}"
-: "${ADMIN_EVENT_ID:?ADMIN_EVENT_ID is required}"
-: "${DATABASE_URL:?DATABASE_URL is required}"
-: "${LOADTEST_EVENT_ID:?LOADTEST_EVENT_ID is required}"
-
 HOSTNAME="$(python3 -c 'from urllib.parse import urlparse; import os; print(urlparse(os.environ["BASE_URL"]).hostname or "")')"
 case "$HOSTNAME" in
   events.neelastack.com|www.events.neelastack.com)

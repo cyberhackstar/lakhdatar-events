@@ -80,8 +80,8 @@ flyway() {
   echo '=== Re-run latest migration to prove idempotent no-op ==='
   flyway lk_upgrade migrate
   echo '=== Schema assertions ==='
-  docker exec "$CONTAINER" psql -U postgres -d lk_fresh -Atc "SELECT max(version) FROM flyway_schema_history WHERE success = true;" > "$REPORT_DIR/fresh-latest-version.txt"
-  docker exec "$CONTAINER" psql -U postgres -d lk_upgrade -Atc "SELECT max(version) FROM flyway_schema_history WHERE success = true;" > "$REPORT_DIR/upgrade-latest-version.txt"
+  docker exec "$CONTAINER" psql -U postgres -d lk_fresh -Atc "SELECT version FROM flyway_schema_history WHERE success = true AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1;" > "$REPORT_DIR/fresh-latest-version.txt"
+  docker exec "$CONTAINER" psql -U postgres -d lk_upgrade -Atc "SELECT version FROM flyway_schema_history WHERE success = true AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1;" > "$REPORT_DIR/upgrade-latest-version.txt"
   docker exec "$CONTAINER" psql -U postgres -d lk_fresh -Atc "SELECT count(*) FROM flyway_schema_history WHERE success = false;" > "$REPORT_DIR/fresh-failed-count.txt"
   docker exec "$CONTAINER" psql -U postgres -d lk_upgrade -Atc "SELECT count(*) FROM flyway_schema_history WHERE success = false;" > "$REPORT_DIR/upgrade-failed-count.txt"
   fresh_latest="$(tr -d '[:space:]' < "$REPORT_DIR/fresh-latest-version.txt")"
