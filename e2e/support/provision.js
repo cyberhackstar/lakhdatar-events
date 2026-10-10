@@ -229,7 +229,9 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
   const runId = (env.GITHUB_RUN_ID
     ? `${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT || 1}`
     : `${Date.now().toString(36)}-${rnd(3)}`).toLowerCase().replace(/[^a-z0-9-]/g, '');
-  const tag = `e2e-${runId}`;
+  const tagPrefix = String(env.E2E_FIXTURE_TAG_PREFIX || 'e2e').toLowerCase();
+  if (!/^[a-z][a-z0-9-]{1,15}$/.test(tagPrefix)) throw new ProvisionError('E2E_FIXTURE_TAG_PREFIX must be a short lowercase slug prefix');
+  const tag = `${tagPrefix}-${runId}`;
   const staffEmail = `${tag}-staff@example.test`;
   const managerEmail = `${tag}-manager@example.test`;
   const checkoutEmail = `${tag}@example.test`;
@@ -425,7 +427,11 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
       throw new ProvisionError('Staging has multiple organizers; set E2E_ORGANIZER_SLUG in E2E_STAGING_PROVISIONING_CONFIG so fixtures are created under the intended organizer');
     }
 
-    // 3. Create one future-dated sandbox event with one ticket type.
+    // 3. Create one future-dated sandbox event with one ticket type. Enterprise load runs
+    // use isolated high-capacity inventory so the workload tests concurrency, not a 200-seat cap.
+    const loadTestProfile = String(env.E2E_FIXTURE_PROFILE || '').toLowerCase() === 'loadtest';
+    const fixtureCapacity = loadTestProfile ? 50000 : 500;
+    const fixtureTicketQuantity = loadTestProfile ? 50000 : 200;
     const startsAt = new Date(Date.now() + 10 * 60_000);
     const endsAt = new Date(startsAt.getTime() + 4 * 3_600_000);
     const created = (await adminCall('POST', '/api/v1/admin/events', {
@@ -433,13 +439,14 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
         organizerSlug: organizer.slug, slug: tag, name: `Enterprise E2E ${runId}`,
         shortDescription: 'Disposable enterprise E2E event', description: 'Created through the normal staging API for automated qualification.',
         category: 'Test', timezone: 'Asia/Kolkata', startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(),
-        capacity: 500, venueName: 'E2E Venue', venueAddress: 'Staging', city: 'Jaipur', state: 'Rajasthan', paymentProvider: provider,
-        ticketTypes: [{ name: 'E2E General', description: 'Disposable sandbox test ticket', priceMinorUnits: 10_000, totalQuantity: 200, minPerOrder: 1, maxPerOrder: 5, saleStartsAt: null, saleEndsAt: null }],
+        capacity: fixtureCapacity, venueName: 'Automated Qualification Venue', venueAddress: 'Staging only', city: 'Jaipur', state: 'Rajasthan', paymentProvider: provider,
+        ticketTypes: [{ name: loadTestProfile ? 'Load Test General' : 'E2E General', description: 'Disposable sandbox qualification ticket', priceMinorUnits: 10_000, totalQuantity: fixtureTicketQuantity, minPerOrder: 1, maxPerOrder: 5, saleStartsAt: null, saleEndsAt: null }],
       },
     })).json || {};
     eventId = created.id || created.eventId || '';
     if (!isUuid(eventId)) throw new ProvisionError('Event creation response did not contain a valid event ID');
     out.E2E_EVENT_ID = eventId;
+    out.E2E_EVENT_SLUG = tag;
 
     const view = (await adminCall('GET', `/api/v1/admin/events/${eventId}`)).json || {};
     const ticketTypes = view.ticketTypes || view.tickets || [];
@@ -496,7 +503,7 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
     })).json || {};
     secret('E2E_QR_TOKEN', decodeQrDataUri(scanView.qrDataUri));
     out.E2E_IDEMPOTENCY_KEY = crypto.randomUUID();
-    log(`Provisioning complete: ${tag} (${provider} sandbox); fixture values are now available to Playwright workers`);
+    log(`Provisioning complete: ${tag} (${provider} sandbox); disposable fixture values are ready`);
     return { env: out, teardown: () => cleanup({ failOnError: true }), tag };
   } catch (error) {
     try { await cleanup({ failOnError: false }); }

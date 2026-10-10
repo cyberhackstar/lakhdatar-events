@@ -3,7 +3,10 @@ import { check } from 'k6';
 
 const baseUrl = (__ENV.BASE_URL || '').replace(/\/$/, '');
 const slug = __ENV.EVENT_SLUG || '';
-if (!baseUrl || !slug) throw new Error('Set BASE_URL and EVENT_SLUG.');
+if (!baseUrl) throw new Error('Set BASE_URL.');
+const targetPath = slug
+  ? `/api/v1/public/events/${encodeURIComponent(slug)}`
+  : '/api/v1/public/events/featured';
 
 export const options = {
   scenarios: {
@@ -29,6 +32,6 @@ export const options = {
 };
 
 export default function () {
-  const r = http.get(`${baseUrl}/api/v1/public/events/${encodeURIComponent(slug)}`, { tags: { endpoint: 'public-event-burst' } });
-  check(r, { 'event remains HTTP 200': x => x.status === 200, 'event remains JSON': x => (x.headers['Content-Type'] || '').includes('application/json') });
+  const r = http.get(`${baseUrl}${targetPath}`, { tags: { endpoint: slug ? 'public-event-burst' : 'featured-event-burst' } });
+  check(r, { 'event remains HTTP 200': x => x.status === 200, 'event response remains JSON': x => (x.headers['Content-Type'] || '').includes('application/json') });
 }

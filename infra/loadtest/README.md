@@ -31,28 +31,41 @@ During the runs, record NGINX request saturation, p50/p95/p99 latency, HTTP 5xx,
 
 The qualification gate should require server 5xx < 1%, p95 under the scenario threshold, no oversell, no duplicate ticket issuance, no duplicate refund, no stuck recovery backlog after the run, and no data-integrity violation. Expected business 409/429 responses must be measured separately from server failures rather than being used to hide 5xx rates.
 
-## Run all scenarios
+## Automatic staging qualification (recommended)
 
-`BASE_URL=https://staging.example.com EVENT_ID=... TICKET_TYPE_ID=... ADMIN_EVENT_ID=... ADMIN_BEARER=... TICKET_ID=... TICKET_TOKEN=... STAFF_BEARER=... CHECKIN_QR_TOKENS=... ENABLE_CHECKOUT_LOAD=true ./run-suite.sh`
+GitHub Actions `Staging Load Test` and `Enterprise Release Qualification` call
+`node ./infra/loadtest/auto-runner.cjs`. It reuses `E2E_STAGING_PROVISIONING_CONFIG`, creates a new
+`loadtest-<run-id>` event with large disposable inventory, generates every required ticket/staff/admin
+credential and QR token, maps them into k6 without saving them as secrets, runs the selected scenario,
+checks database invariants over the existing pinned SSH connection, then cancels the event and
+_deactivates_ the generated team accounts. No `LOADTEST_*` fixture secrets or DB URL are needed.
 
-For checkout, also set `ENABLE_CHECKOUT_LOAD=true`. For check-in, provide `STAFF_BEARER` and a comma-separated `CHECKIN_QR_TOKENS`.
+The protected `staging` environment must already contain `E2E_STAGING_PROVISIONING_CONFIG` and the
+existing `STAGING_DEPLOY_HOST`, `STAGING_DEPLOY_SSH_KEY`, `STAGING_DEPLOY_KNOWN_HOSTS` secrets. Do not
+pass `STAGING_ENV_FILE` or database credentials to the workflow. The backend's payment-safety
+preflight must independently confirm test/sandbox mode before any fixture is created.
+
+Public-only scenarios (`catalog.js`, `burst.js`, `seo.js`, `thousands.js`) can run without fixture
+provisioning. `burst.js` uses the featured endpoint if no `EVENT_SLUG` is supplied. Stateful tests
+provision fixtures automatically.
 
 ## Post-run integrity verification
 
-After checkout/load/recovery scenarios finish, run the invariant verifier against the dedicated load-test event:
+For every stateful automated scenario, the wrapper queries consistency inside `lakhdatar-staging-postgres`
+using the existing pinned SSH connection and the generated event UUID. It does so even if k6 reports an
+SLO failure and runs before fixture cleanup. The SQL verifier fails on inventory/capacity violations,
+ticket/order mismatches, ticket orphans/event mismatches, expired held reservations left behind, duplicate
+provider-order references, confirmed orders with missing tickets, or captured payments without issued tickets.
 
-`DATABASE_URL=... LOADTEST_EVENT_ID=... ./verify-invariants.sh`
-
-The verifier fails on capacity violations, ticket/order mismatches, ticket orphans/event mismatches, expired held reservations left behind, duplicate provider-order references, or captured payments without issued tickets. Never run it against an active production event.
-
-The GitHub Actions load-test workflow stores the k6 summary JSON files as a CI artifact. Preserve them together with the commit SHA, environment sizing and test-event identifier as release evidence.
+Local/dev runs may still use `DATABASE_URL=... LOADTEST_EVENT_ID=... bash ./infra/loadtest/verify-invariants.sh`;
+GitHub Actions intentionally do not provide a database URL or DB password to the runner.
 
 ## Enterprise staging gate
 
-Run `infra/loadtest/enterprise-gate.sh` for release qualification. It fails closed unless checkout,
-check-in, ticket PDF, operations, database invariant checks and the 1,000-user public-read profile
-all have the required staging credentials. Never point this gate at the live site or enable production
-checkout load.
+The `enterprise-gate` scenario automatically provisions fixture IDs and credentials; it fails closed if
+the provisioner does not supply a required field, and reports the missing field names without exposing
+credential values. The orchestration verifies database invariants and requires teardown to succeed.
+Never point this gate at the live site or enable production checkout load.
 
 ## Enterprise hot-sale qualification
 

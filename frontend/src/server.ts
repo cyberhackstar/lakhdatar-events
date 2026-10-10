@@ -37,7 +37,9 @@ app.use((req, res, next) => {
   const isPrivate = PRIVATE_PREFIXES.some(p => req.path === p || req.path.startsWith(p + '/'));
   if (isPrivate) {
     // Customer, payment and operator pages must never be cached or indexed by any intermediary.
-    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   } else {
     res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=60');

@@ -31,89 +31,33 @@ jobs:
           set -euo pipefail
           test "$BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Staging Load Test must target https://staging-events.neelastack.com'; exit 2; }
         shell: bash
-      - name: Validate enterprise load-test credentials
-        if: inputs.test == 'enterprise-gate'
-        env:
-          LOADTEST_EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
-          LOADTEST_TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
-          LOADTEST_TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
-          LOADTEST_ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
-          LOADTEST_ADMIN_EVENT_ID: ${{ secrets.LOADTEST_ADMIN_EVENT_ID }}
-          LOADTEST_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
-          LOADTEST_TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
-          LOADTEST_STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
-          LOADTEST_GATE: ${{ secrets.LOADTEST_GATE }}
-          LOADTEST_CHECKIN_QR_TOKENS: ${{ secrets.LOADTEST_CHECKIN_QR_TOKENS }}
-          LOADTEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
-          LOADTEST_DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          missing=()
-          for name in LOADTEST_EVENT_SLUG LOADTEST_TICKET_ID LOADTEST_TICKET_TOKEN LOADTEST_ADMIN_BEARER LOADTEST_ADMIN_EVENT_ID LOADTEST_EVENT_ID LOADTEST_TICKET_TYPE_ID LOADTEST_STAFF_BEARER LOADTEST_GATE LOADTEST_CHECKIN_QR_TOKENS LOADTEST_IDEMPOTENCY_KEY LOADTEST_DATABASE_URL; do
-            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf 'Missing required staging load-test environment secrets: %s\n' "${missing[*]}" >&2
-            exit 2
-          fi
-      - name: Run enterprise staging gate
-        if: inputs.test == 'enterprise-gate'
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Install shared protected fixture provisioner dependencies
+        working-directory: e2e
+        run: npm ci
+      - name: Run selected staging load scenario (automatic fixtures when required)
         env:
           BASE_URL: ${{ inputs.base_url }}
+          LOADTEST_SCENARIO: ${{ inputs.test }}
           K6_IMAGE: "grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6"
-          EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
-          TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
-          TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
-          ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
-          ADMIN_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
-          EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
-          TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
-          STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
-          GATE: ${{ secrets.LOADTEST_GATE }}
-          CHECKIN_QR_TOKENS: ${{ secrets.LOADTEST_CHECKIN_QR_TOKENS }}
-          TEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
-          DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
-          LOADTEST_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
+          STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          STAGING_DEPLOY_SSH_KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          STAGING_DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
           THOUSANDS_MAX_VUS: ${{ vars.LOADTEST_THOUSANDS_MAX_VUS || '1000' }}
           THOUSANDS_RAMP: ${{ vars.LOADTEST_THOUSANDS_RAMP || '2m' }}
           THOUSANDS_HOLD: ${{ vars.LOADTEST_THOUSANDS_HOLD || '3m' }}
-          CHECKIN_RATE: ${{ secrets.LOADTEST_CHECKIN_RATE || '2' }}
-          CHECKIN_DURATION: ${{ secrets.LOADTEST_CHECKIN_DURATION || '2m' }}
-          BURST_START_RATE: ${{ secrets.LOADTEST_BURST_START_RATE || '50' }}
-          BURST_RATE_1: ${{ secrets.LOADTEST_BURST_RATE_1 || '100' }}
-          BURST_RATE_2: ${{ secrets.LOADTEST_BURST_RATE_2 || '200' }}
-          BURST_RATE_3: ${{ secrets.LOADTEST_BURST_RATE_3 || '250' }}
-          ENABLE_CHECKOUT_LOAD: "true"
-          ALLOW_PRODUCTION_CHECKOUT_LOAD: "false"
-        run: bash ./infra/loadtest/enterprise-gate.sh
-      - name: Run pinned k6 test
-        if: inputs.test != 'enterprise-gate'
-        env:
-          BASE_URL: ${{ inputs.base_url }}
-          K6_IMAGE: "grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6"
-          EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
-          TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
-          TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
-          ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
-          ADMIN_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
-          EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
-          TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
-          STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
-          GATE: ${{ secrets.LOADTEST_GATE }}
-          ENABLE_CHECKOUT_LOAD: ${{ secrets.ENABLE_CHECKOUT_LOAD }}
-          ALLOW_PRODUCTION_CHECKOUT_LOAD: "false"
-          CHECKIN_RATE: ${{ secrets.LOADTEST_CHECKIN_RATE || '2' }}
-          CHECKIN_DURATION: ${{ secrets.LOADTEST_CHECKIN_DURATION || '2m' }}
-          TEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
-          BURST_START_RATE: ${{ secrets.LOADTEST_BURST_START_RATE || '50' }}
-          BURST_RATE_1: ${{ secrets.LOADTEST_BURST_RATE_1 || '100' }}
-          BURST_RATE_2: ${{ secrets.LOADTEST_BURST_RATE_2 || '200' }}
-          BURST_RATE_3: ${{ secrets.LOADTEST_BURST_RATE_3 || '250' }}
-          THOUSANDS_MAX_VUS: ${{ vars.LOADTEST_THOUSANDS_MAX_VUS || '1000' }}
-          THOUSANDS_RAMP: ${{ vars.LOADTEST_THOUSANDS_RAMP || '2m' }}
-          THOUSANDS_HOLD: ${{ vars.LOADTEST_THOUSANDS_HOLD || '3m' }}
-        run: bash ./infra/loadtest/run.sh '${{ inputs.test }}'
+          CHECKOUT_TARGET_RATE: ${{ vars.LOADTEST_CHECKOUT_TARGET_RATE || '100' }}
+          CHECKIN_RATE: ${{ vars.LOADTEST_CHECKIN_RATE || '2' }}
+          CHECKIN_DURATION: ${{ vars.LOADTEST_CHECKIN_DURATION || '2m' }}
+          RATE: ${{ vars.LOADTEST_RATE || '50' }}
+          DURATION: ${{ vars.LOADTEST_DURATION || '2m' }}
+          ALLOW_PRODUCTION_CHECKOUT_LOAD: 'false'
+        run: node ./infra/loadtest/auto-runner.cjs "$LOADTEST_SCENARIO"
       - name: Upload k6 summaries
         if: always()
         uses: actions/upload-artifact@v4.6.2

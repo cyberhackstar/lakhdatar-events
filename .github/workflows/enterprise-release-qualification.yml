@@ -176,31 +176,28 @@ jobs:
         run: |
           set -euo pipefail
           test "$BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Enterprise load qualification must target https://staging-events.neelastack.com'; exit 2; }
-      - name: Run mandatory mixed load qualification
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Install shared protected fixture provisioner dependencies
+        working-directory: e2e
+        run: npm ci
+      - name: Run automatic enterprise load qualification
         env:
           BASE_URL: ${{ inputs.staging_url }}
           K6_IMAGE: "${{ vars.K6_IMAGE || 'grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6' }}"
-          EVENT_SLUG: ${{ secrets.LOADTEST_EVENT_SLUG }}
-          TICKET_ID: ${{ secrets.LOADTEST_TICKET_ID }}
-          TICKET_TOKEN: ${{ secrets.LOADTEST_TICKET_TOKEN }}
-          ADMIN_BEARER: ${{ secrets.LOADTEST_ADMIN_BEARER }}
-          ADMIN_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
-          EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
-          TICKET_TYPE_ID: ${{ secrets.LOADTEST_TICKET_TYPE_ID }}
-          STAFF_BEARER: ${{ secrets.LOADTEST_STAFF_BEARER }}
-          GATE: ${{ secrets.LOADTEST_GATE }}
-          CHECKIN_QR_TOKENS: ${{ secrets.LOADTEST_CHECKIN_QR_TOKENS }}
-          TEST_IDEMPOTENCY_KEY: ${{ secrets.LOADTEST_IDEMPOTENCY_KEY }}
-          DATABASE_URL: ${{ secrets.LOADTEST_DATABASE_URL }}
-          LOADTEST_EVENT_ID: ${{ secrets.LOADTEST_EVENT_ID }}
+          E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
+          STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          STAGING_DEPLOY_SSH_KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          STAGING_DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
           THOUSANDS_MAX_VUS: ${{ vars.LOADTEST_THOUSANDS_MAX_VUS || '1000' }}
           THOUSANDS_RAMP: ${{ vars.LOADTEST_THOUSANDS_RAMP || '2m' }}
           THOUSANDS_HOLD: ${{ vars.LOADTEST_THOUSANDS_HOLD || '3m' }}
-          ENABLE_CHECKOUT_LOAD: 'true'
-          ENABLE_ENTERPRISE_CHECKOUT_LOAD: 'true'
           CHECKOUT_TARGET_RATE: ${{ vars.LOADTEST_CHECKOUT_TARGET_RATE || '100' }}
           ALLOW_PRODUCTION_CHECKOUT_LOAD: 'false'
-        run: bash ./infra/loadtest/enterprise-gate.sh
+        run: node ./infra/loadtest/auto-runner.cjs enterprise-gate
       - name: Upload load-test evidence
         if: always()
         uses: actions/upload-artifact@v7

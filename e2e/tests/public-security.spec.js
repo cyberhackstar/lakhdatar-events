@@ -29,4 +29,13 @@ test.describe('public surface and security headers', () => {
     const response = await request.get('/api/v1/admin/dashboard');
     expect([401, 403]).toContain(response.status());
   });
+
+  test('untrusted event-filter query values are not parsed as active HTML', async ({ page }) => {
+    let scriptDialogObserved = false;
+    page.on('dialog', async (dialog) => { scriptDialogObserved = true; await dialog.dismiss(); });
+    const payload = encodeURIComponent('\"><img src=x onerror=alert(1)>');
+    await page.goto(`/events?category=${payload}`, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('img[onerror], svg[onload], script[data-xss-probe]')).toHaveCount(0);
+    expect(scriptDialogObserved).toBe(false);
+  });
 });

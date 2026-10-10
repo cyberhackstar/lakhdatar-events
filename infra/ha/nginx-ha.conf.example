@@ -57,12 +57,14 @@ server {
     limit_conn per_ip 1000;
 
     add_header X-Content-Type-Options "nosniff" always;
+    # HSTS is emitted by Cloudflare at the public edge to avoid duplicate header entries.
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header X-Frame-Options "DENY" always;
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header Permissions-Policy 'camera=(self), microphone=(), geolocation=(), payment=(self "https://api.cashfree.com" "https://payments.cashfree.com" "https://checkout.razorpay.com")' always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://checkout.razorpay.com https://sdk.cashfree.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://lumberjack.razorpay.com https://api.cashfree.com https://sdk.cashfree.com; frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://sdk.cashfree.com https://payments.cashfree.com https://api.cashfree.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https://api.cashfree.com https://payments.cashfree.com;" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://checkout.razorpay.com https://sdk.cashfree.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://images.pexels.com https://cdn.pixabay.com; connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://lumberjack.razorpay.com https://api.cashfree.com https://sandbox.cashfree.com https://sdk.cashfree.com; frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://sdk.cashfree.com https://payments.cashfree.com https://api.cashfree.com; font-src 'self' data:; media-src 'self' https://res.cloudinary.com; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self' https://api.cashfree.com https://payments.cashfree.com;" always;
 
+    # Suppress Spring/SSR upstream HSTS so Cloudflare emits exactly one public header.
+    proxy_hide_header Strict-Transport-Security;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $client_rate_key;
