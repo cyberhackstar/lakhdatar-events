@@ -1,9 +1,9 @@
-NEELASTACK EVENTS v2.0.38 — CI SCAN RESILIENCE / STAGING E2E QUALIFICATION CANDIDATE
-Release: 2.0.38
-Changes: CHANGES-2.0.38-TRIVY-RESILIENCE.md
-Validation: VALIDATION-2.0.38-TRIVY-RESILIENCE.md
-Base application and staging-deploy workflow: v2.0.35 known-good reference archive.
-Carried forward: v2.0.36–v2.0.37 authenticated fixture provisioning, staging-only payment sandbox checks, MFA-safe account setup, safe retries, verified cleanup, and removal of manual per-test fixture secrets.
-CI fix: reuse one pinned Trivy installation for backend/web/edge image scans and configure explicit per-image timeouts. CRITICAL/HIGH findings and failed scans still fail CI. No scanners disabled and no security-finding allowlists added.
-E2E secret boundary: E2E_STAGING_PROVISIONING_CONFIG contains APP_ENV, DEFAULT_PAYMENT_PROVIDER, dedicated admin email/password/TOTP seed when required, and organizer slug. Payment-provider API keys remain only in STAGING_ENV_FILE and must be sandbox/test credentials.
-Status: qualification candidate only; real GitHub Actions, staging E2E and protected release gates must pass before production promotion.
+NEELASTACK EVENTS v2.0.39 — CONSOLIDATED PAYMENT AND QUALIFICATION HARDENING
+Release: 2.0.39
+Changes: CHANGES-2.0.39-QUALIFICATION-HARDENING.md
+Validation: VALIDATION-2.0.39-QUALIFICATION-HARDENING.md
+Baseline: v2.0.38 CI scan-resilience bundle, with v2.0.35 known-good deploy/E2E configuration carried forward.
+Payment fixes: restrict missing-provider-order recovery to payable orders; skip the known-not-created Cashfree receipt lookup on first creation; retain receipt recovery for ambiguous previous attempts and log expected lookup misses at DEBUG.
+Qualification fixes: compare Flyway migrations by installed_rank rather than lexical MAX(version); correct ZAP writable report mount and report paths; improve redacted load-gate diagnostics for all missing LOADTEST_* configuration.
+Security policy: required security scans are not disabled, findings are not allowlisted, and load tests are not skipped. All staging credentials remain in protected GitHub environment secrets.
+Status: release candidate only. Promote after backend verification passes, qualification workflows pass with configured staging inputs, a fresh DAST report is reviewed, and Cashfree sandbox payment/webhook/reconciliation is verified.

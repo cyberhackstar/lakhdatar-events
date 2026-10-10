@@ -6,6 +6,9 @@ changes from the 2.0.38 working bundle with fixes for the three qualification fa
 
 ## Included fixes
 
+- Corrected the two release-contract failures from the 2026-10-10 CI run: the normalized Java source assertion now matches its whitespace-free string, and `RELEASE-MANIFEST.txt` now reports release 2.0.39 and references the matching change/validation records.
+- Carried forward the v2.0.38 recovery fix: missing-provider-order recovery selects only `CREATED` and `AWAITING_PAYMENT` orders, preventing repeated retries against expired/cancelled orders.
+- Carried forward the Cashfree first-creation fix: new `NOT_CREATED` payment sessions create directly, while ambiguous retries still look up the stable order receipt before attempting another create.
 - Flyway qualification now reads the last successful non-null migration by `installed_rank`, not
   `MAX(version)`. The prior SQL text comparison reported `9` even though the fresh and upgrade test
   databases had both applied migration 41.

@@ -30,7 +30,7 @@ class ProviderOrderRecoveryContractTest {
         String cashfree = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/CashfreeGatewayProvider.java"));
         String normalizedService = service.toLowerCase(java.util.Locale.ROOT).replaceAll("\\s+", "");
 
-        assertTrue(normalizedService.contains("string priorproviderorderstate=p.getrazorpayorderstate();"),
+        assertTrue(normalizedService.contains("stringpriorproviderorderstate=p.getrazorpayorderstate();"),
                 "Keep the pre-request state to distinguish a fresh creation from recovery");
         assertTrue(normalizedService.contains("if(!\"not_created\".equalsignorecase(context.providerorderstate()))"),
                 "Only ambiguous previous attempts should perform receipt-based lookup before retrying");
