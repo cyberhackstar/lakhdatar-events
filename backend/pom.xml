@@ -31,7 +31,7 @@
     <!-- Security patch overrides validated against the registry-backed Trivy findings in the v1.9.11 image. -->
     <jackson2.version>2.21.7</jackson2.version>
     <jackson3.version>3.1.7</jackson3.version>
-    <httpcomponents-core5.version>5.4.3</httpcomponents-core5.version>
+    <httpcomponents-core5.version>5.4.4</httpcomponents-core5.version>
     <tomcat.version>11.0.26</tomcat.version>
     <!-- Empty by default so `mvn verify` runs everything. Use -Punit to skip Docker-backed integration tests. -->
     <test.excludedGroups></test.excludedGroups>
