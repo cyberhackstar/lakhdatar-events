@@ -426,7 +426,7 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
     }
 
     // 3. Create one future-dated sandbox event with one ticket type.
-    const startsAt = new Date(Date.now() + 30 * 86_400_000);
+    const startsAt = new Date(Date.now() + 10 * 60_000);
     const endsAt = new Date(startsAt.getTime() + 4 * 3_600_000);
     const created = (await adminCall('POST', '/api/v1/admin/events', {
       body: {
