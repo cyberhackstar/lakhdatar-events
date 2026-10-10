@@ -8,17 +8,27 @@ const FIXTURE_VARS = [
 ];
 
 module.exports = async function globalSetup() {
-  if (process.env.E2E_RUN_MUTATIONS !== 'true' || process.env.E2E_AUTO_PROVISION === 'false') return undefined;
+  if (process.env.E2E_RUN_MUTATIONS !== 'true') return undefined;
+  if (process.env.E2E_AUTO_PROVISION === 'false') {
+    if ((process.env.E2E_ENV || '').toLowerCase() === 'staging') {
+      throw new Error('E2E_AUTO_PROVISION=false is forbidden for staging mutation runs; staging fixtures must be provisioned and torn down by the qualification harness.');
+    }
+    return undefined;
+  }
 
-  // Legacy fixture mode is all-or-nothing: mixing manually maintained IDs/tokens with
-  // newly provisioned resources can produce a dangerous cross-fixture mismatch.
+  // Staging never accepts manually maintained fixture IDs, bearer tokens, or QR tokens. Those
+  // values can be stale or bound to the wrong event. Local legacy mode is retained only for a
+  // complete fixture set; partial fixture sets are always rejected.
   const suppliedFixtures = FIXTURE_VARS.filter((key) => Boolean(process.env[key]));
-  if (suppliedFixtures.length === FIXTURE_VARS.length) {
-    console.log('All legacy E2E fixtures were supplied explicitly; skipping auto-provisioning.');
+  if ((process.env.E2E_ENV || '').toLowerCase() === 'staging' && suppliedFixtures.length > 0) {
+    throw new Error(`Manual fixture variables are forbidden for staging E2E (${suppliedFixtures.join(', ')}). Remove legacy fixture variables so the runner can create a fresh disposable fixture set.`);
+  }
+  if (suppliedFixtures.length === FIXTURE_VARS.length && (process.env.E2E_ENV || '').toLowerCase() === 'local') {
+    console.log('Complete local legacy fixture set supplied; skipping auto-provisioning.');
     return undefined;
   }
   if (suppliedFixtures.length > 0) {
-    throw new Error(`Partial legacy E2E fixture set detected (${suppliedFixtures.join(', ')}). Clear all fixture variables to enable automatic staging provisioning, or supply the complete fixture set.`);
+    throw new Error(`Partial legacy E2E fixture set detected (${suppliedFixtures.join(', ')}). Clear all fixture variables to enable automatic provisioning.`);
   }
 
   const mask = (v) => { if (process.env.GITHUB_ACTIONS === 'true' && v) console.log(`::add-mask::${v}`); };

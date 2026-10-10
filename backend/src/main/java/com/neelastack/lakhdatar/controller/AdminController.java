@@ -1,11 +1,15 @@
 package com.neelastack.lakhdatar.controller;
 
 import com.neelastack.lakhdatar.security.UserPrincipal;
+import com.neelastack.lakhdatar.config.AppProperties;
 import com.neelastack.lakhdatar.service.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.core.env.Environment;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.MediaType;
@@ -15,6 +19,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
+import java.net.URI;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -27,6 +33,8 @@ public class AdminController {
     private final TeamService team;
     private final MfaService mfa;
     private final AdminTicketQueryService ticketQueries;
+    private final AppProperties properties;
+    private final Environment environment;
 
     private UserPrincipal p(Authentication a) { return (UserPrincipal) a.getPrincipal(); }
 
@@ -52,6 +60,56 @@ public class AdminController {
     ResponseEntity<Void> resetUserMfa(@PathVariable UUID userId, Authentication a) {
         mfa.resetForAdmin(userId, p(a).userId());
         return ResponseEntity.noContent().build();
+    }
+
+    /** Non-secret staging preflight for automated checkout qualification. Never returns credential values. */
+    public record PaymentSafetyView(String environment, String defaultProvider, String razorpayMode,
+                                    String cashfreeMode, boolean safeForE2E) {}
+
+    @GetMapping("/qualification/payment-safety")
+    @PreAuthorize("hasRole('ADMIN')")
+    ResponseEntity<PaymentSafetyView> paymentSafety() {
+        String appEnv = environment.getProperty("APP_ENV", "").trim().toLowerCase(Locale.ROOT);
+        if (!"staging".equals(appEnv)) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+
+        var razorpay = properties.razorpay();
+        boolean razorpayConfigured = present(razorpay.keyId()) || present(razorpay.keySecret()) || present(razorpay.webhookSecret());
+        boolean razorpayTest = razorpayConfigured
+                && present(razorpay.keyId()) && razorpay.keyId().startsWith("rzp_test_")
+                && present(razorpay.keySecret()) && present(razorpay.webhookSecret())
+                && exactHttpsEndpoint(razorpay.baseUrl(), "api.razorpay.com", "/v1");
+        String razorpayMode = !razorpayConfigured ? "unconfigured" : razorpayTest ? "test" : "unsafe";
+
+        var cashfree = properties.cashfree();
+        boolean cashfreeConfigured = present(cashfree.appId()) || present(cashfree.secretKey());
+        boolean cashfreeSandbox = cashfreeConfigured
+                && present(cashfree.appId()) && present(cashfree.secretKey())
+                && exactHttpsEndpoint(cashfree.baseUrl(), "sandbox.cashfree.com", "/pg");
+        String cashfreeMode = !cashfreeConfigured ? "unconfigured" : cashfreeSandbox ? "sandbox" : "unsafe";
+
+        boolean anyConfigured = razorpayConfigured || cashfreeConfigured;
+        String configuredDefault = environment.getProperty("DEFAULT_PAYMENT_PROVIDER", "CASHFREE").trim().toUpperCase(Locale.ROOT);
+        boolean defaultProviderSafe = "CASHFREE".equals(configuredDefault) ? cashfreeSandbox
+                : "RAZORPAY".equals(configuredDefault) && razorpayTest;
+        boolean safe = anyConfigured && defaultProviderSafe
+                && (!razorpayConfigured || razorpayTest) && (!cashfreeConfigured || cashfreeSandbox);
+        if (!"RAZORPAY".equals(configuredDefault) && !"CASHFREE".equals(configuredDefault)) configuredDefault = "UNKNOWN";
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(new PaymentSafetyView("staging", configuredDefault, razorpayMode, cashfreeMode, safe));
+    }
+
+    private static boolean present(String value) { return value != null && !value.isBlank(); }
+
+    private static boolean exactHttpsEndpoint(String raw, String host, String path) {
+        if (!present(raw)) return false;
+        try {
+            URI uri = URI.create(raw.trim());
+            return "https".equalsIgnoreCase(uri.getScheme())
+                    && host.equalsIgnoreCase(uri.getHost())
+                    && (uri.getPath().equals(path) || uri.getPath().equals(path + "/"))
+                    && (uri.getPort() == -1 || uri.getPort() == 443)
+                    && uri.getUserInfo() == null && uri.getQuery() == null && uri.getFragment() == null;
+        } catch (RuntimeException ex) { return false; }
     }
 
     @GetMapping("/dashboard") AdminService.Dashboard dashboard(Authentication a) { return admin.dashboard(p(a)); }

@@ -13,30 +13,47 @@ const GATE = 'Main Gate';
 const STAGING_ORIGIN = 'https://staging-events.neelastack.com';
 class ProvisionError extends Error {}
 
+const ALLOWED_CONFIG_KEYS = new Set([
+  // Minimal identity-only allowlist. Payment credentials, deployment topology, database, JWT,
+  // mail, and application runtime settings must never enter the browser-test secret.
+  'APP_ENV', 'E2E_ADMIN_EMAIL', 'E2E_ADMIN_PASSWORD', 'E2E_ADMIN_TOTP_SECRET',
+  'E2E_ORGANIZER_SLUG', 'DEFAULT_PAYMENT_PROVIDER',
+]);
+
 function parseEnvFile(text) {
-  const out = {};
+  const out = Object.create(null);
   for (const raw of String(text || '').replace(/\r/g, '').split('\n')) {
     const line = raw.trim();
     if (!line || line.startsWith('#')) continue;
     const m = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
-    if (!m) continue;
+    if (!m) throw new ProvisionError('E2E_STAGING_PROVISIONING_CONFIG contains a malformed line; use KEY=value entries only');
+    const key = m[1];
+    if (Object.prototype.hasOwnProperty.call(out, key)) throw new ProvisionError(`E2E_STAGING_PROVISIONING_CONFIG contains duplicate key ${key}`);
     let v = m[2].trim();
     if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
-    // dotenv-style inline comments are only stripped from unquoted values.
+    // dotenv-style inline comments are stripped only from unquoted values.
     else v = v.replace(/\s+#.*$/, '').trim();
-    out[m[1]] = v;
+    out[key] = v;
   }
   return out;
 }
 
+function validateProvisioningConfig(file) {
+  const unexpected = Object.keys(file).filter((key) => !ALLOWED_CONFIG_KEYS.has(key));
+  if (unexpected.length) {
+    throw new ProvisionError(`E2E_STAGING_PROVISIONING_CONFIG contains unapproved key(s): ${unexpected.join(', ')}. Do not include database, JWT-signing, SMTP, deployment or other runtime secrets.`);
+  }
+}
+
 function adminCredentials(env) {
   const file = parseEnvFile(env.E2E_STAGING_PROVISIONING_CONFIG);
+  validateProvisioningConfig(file);
   return {
     file,
-    email: env.E2E_ADMIN_EMAIL || file.E2E_ADMIN_EMAIL || file.BOOTSTRAP_ADMIN_EMAIL || '',
-    password: env.E2E_ADMIN_PASSWORD || file.E2E_ADMIN_PASSWORD || file.BOOTSTRAP_ADMIN_PASSWORD || '',
+    email: env.E2E_ADMIN_EMAIL || file.E2E_ADMIN_EMAIL || '',
+    password: env.E2E_ADMIN_PASSWORD || file.E2E_ADMIN_PASSWORD || '',
     totpSecret: env.E2E_ADMIN_TOTP_SECRET || file.E2E_ADMIN_TOTP_SECRET || '',
-    organizerSlug: env.E2E_ORGANIZER_SLUG || file.E2E_ORGANIZER_SLUG || file.BOOTSTRAP_ORGANIZER_SLUG || '',
+    organizerSlug: env.E2E_ORGANIZER_SLUG || file.E2E_ORGANIZER_SLUG || '',
   };
 }
 
@@ -52,9 +69,6 @@ function assertSafeTarget(baseUrl, env, file = {}) {
     if (appEnv !== 'staging') {
       throw new ProvisionError('E2E_ENV=staging requires E2E_STAGING_PROVISIONING_CONFIG to identify APP_ENV=staging; refusing an unverified environment');
     }
-    if (String(file.PRODUCTION_TOPOLOGY || '').toLowerCase() === 'enterprise-ha') {
-      throw new ProvisionError('Refusing to provision staging E2E fixtures because E2E_STAGING_PROVISIONING_CONFIG identifies a production topology');
-    }
   } else if (env.E2E_ENV === 'local') {
     const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname);
     if (!loopback || !['http:', 'https:'].includes(parsed.protocol)) {
@@ -67,41 +81,27 @@ function assertSafeTarget(baseUrl, env, file = {}) {
 
 function paymentProvider(file, env) {
   const explicit = String(env.DEFAULT_PAYMENT_PROVIDER || file.DEFAULT_PAYMENT_PROVIDER || '').trim().toUpperCase();
-  if (explicit && !['RAZORPAY', 'CASHFREE'].includes(explicit)) {
-    throw new ProvisionError('DEFAULT_PAYMENT_PROVIDER in E2E_STAGING_PROVISIONING_CONFIG must be RAZORPAY or CASHFREE');
-  }
-  const cashId = file.CASHFREE_APP_ID || env.CASHFREE_APP_ID || '';
-  const cashSecret = file.CASHFREE_SECRET_KEY || env.CASHFREE_SECRET_KEY || '';
-  const cashUrl = file.CASHFREE_BASE_URL || env.CASHFREE_BASE_URL || '';
-  const cashUrlParsed = (() => { try { return new URL(cashUrl); } catch { return null; } })();
-  const cashHost = cashUrlParsed ? cashUrlParsed.hostname.toLowerCase() : '';
-  const cashCredsPresent = Boolean(cashId || cashSecret);
-  const cashfreeSafe = Boolean(cashId && cashSecret && cashUrlParsed && cashUrlParsed.protocol === 'https:' && cashHost === 'sandbox.cashfree.com' && cashUrlParsed.pathname.replace(/\/$/, '') === '/pg' && !cashUrlParsed.search && !cashUrlParsed.hash && !cashUrlParsed.username && !cashUrlParsed.password);
-
-  const razorId = file.RAZORPAY_KEY_ID || env.RAZORPAY_KEY_ID || '';
-  const razorSecret = file.RAZORPAY_KEY_SECRET || env.RAZORPAY_KEY_SECRET || '';
-  const razorWebhook = file.RAZORPAY_WEBHOOK_SECRET || env.RAZORPAY_WEBHOOK_SECRET || '';
-  const razorCredsPresent = Boolean(razorId || razorSecret || razorWebhook);
-  const razorpaySafe = Boolean(/^rzp_test_[A-Za-z0-9]+$/.test(razorId) && razorSecret && razorWebhook);
-
-  if (String(file.APP_ENV || env.APP_ENV || '').toLowerCase() === 'production') {
+  if (String(file.APP_ENV || env.APP_ENV || '').trim().toLowerCase() === 'production') {
     throw new ProvisionError('E2E_STAGING_PROVISIONING_CONFIG contains APP_ENV=production; refusing automatic E2E provisioning');
   }
-  if (cashCredsPresent && !cashfreeSafe) {
-    throw new ProvisionError('Cashfree is configured with incomplete credentials or a non-sandbox URL. Staging E2E requires CASHFREE_BASE_URL on sandbox.cashfree.com.');
+  if (!['RAZORPAY', 'CASHFREE'].includes(explicit)) {
+    throw new ProvisionError('Set DEFAULT_PAYMENT_PROVIDER to RAZORPAY or CASHFREE in E2E_STAGING_PROVISIONING_CONFIG. Gateway credentials belong only in the protected staging deployment environment; the backend must independently confirm test/sandbox mode before fixture creation.');
   }
-  if (razorCredsPresent && !razorpaySafe) {
-    throw new ProvisionError('Razorpay is configured with incomplete credentials or a non-test key. Staging E2E requires a complete rzp_test_* credential set.');
-  }
+  // The browser-test secret chooses a provider only. It cannot carry gateway keys, so the
+  // authenticated backend preflight remains the authoritative check of actual sandbox mode.
+  return explicit;
+}
 
-  if (explicit === 'RAZORPAY' && razorpaySafe) return 'RAZORPAY';
-  if (explicit === 'CASHFREE' && cashfreeSafe) return 'CASHFREE';
-  if (explicit && ((explicit === 'RAZORPAY' && razorCredsPresent) || (explicit === 'CASHFREE' && cashCredsPresent))) {
-    throw new ProvisionError(`Configured ${explicit} provider is not safe for staging E2E checkout`);
+function validateServerPaymentSafety(report, provider, environment = 'staging') {
+  if (!report || report.environment !== environment || report.safeForE2E !== true) {
+    throw new ProvisionError('Staging backend payment-safety preflight failed or was unavailable. No fixtures should be created until the deployed backend confirms sandbox-only payment configuration.');
   }
-  if (razorpaySafe) return 'RAZORPAY';
-  if (cashfreeSafe) return 'CASHFREE';
-  throw new ProvisionError('No payment sandbox is available for checkout E2E. Configure either a complete Razorpay rzp_test_* credential set or Cashfree sandbox credentials in E2E_STAGING_PROVISIONING_CONFIG.');
+  const expectedMode = provider === 'CASHFREE' ? 'sandbox' : provider === 'RAZORPAY' ? 'test' : '';
+  const actualMode = provider === 'CASHFREE' ? report.cashfreeMode : report.razorpayMode;
+  if (!expectedMode || actualMode !== expectedMode) {
+    throw new ProvisionError(`Staging backend reports ${provider} mode '${actualMode || 'unknown'}'; E2E requires '${expectedMode || 'unsupported'}'. No fixtures have been created.`);
+  }
+  return true;
 }
 
 function makeClient(baseUrl, log) {
@@ -110,7 +110,9 @@ function makeClient(baseUrl, log) {
     const h = { Accept: 'application/json', ...headers };
     if (body !== undefined) h['Content-Type'] = 'application/json';
     if (token) h.Authorization = `Bearer ${token}`;
-    const safeToRetry = method === 'GET' || retrySafe;
+    // Callers cannot make POST replayable by setting retrySafe. Only inherently safe reads
+    // and explicitly idempotent DELETE/PUT/PATCH calls can be retried.
+    const safeToRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method) || (retrySafe && ['DELETE', 'PUT', 'PATCH'].includes(method));
     let res;
     let responseTimeout;
     for (let attempt = 1; attempt <= (safeToRetry ? 3 : 1); attempt++) {
@@ -145,9 +147,10 @@ function makeClient(baseUrl, log) {
     let json = null;
     try { json = responseText ? JSON.parse(responseText) : null; } catch { /* error below includes a short body */ }
     if (!ok.includes(res.status)) {
-      const detail = json && (json.message || json.code || json.error)
-        ? `${json.code || ''} ${json.message || json.error || ''}`.trim() : responseText.slice(0, 220);
-      const err = new ProvisionError(`${method} ${path} failed: HTTP ${res.status}${detail ? ` — ${detail}` : ''}`);
+      // Never include response bodies/messages in CI errors: services occasionally echo user input.
+      const code = json && typeof json.code === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(json.code) ? json.code : '';
+      const detail = code ? ` (${code})` : '';
+      const err = new ProvisionError(`${method} ${path} failed: HTTP ${res.status}${detail}`);
       err.status = res.status;
       err.code = json && json.code;
       throw err;
@@ -175,7 +178,7 @@ async function login(client, email, password, { totpSecret = '', allowEnroll = f
     return { token: done.accessToken, totpSecret: enroll.secret };
   }
   if (!totpSecret) {
-    throw new ProvisionError(`${label} account has MFA enabled but the TOTP key is not available to CI. Supply E2E_ADMIN_TOTP_SECRET or E2E_ADMIN_TOTP_SECRET in E2E_STAGING_PROVISIONING_CONFIG. Do not disable privileged MFA to make tests pass.`);
+    throw new ProvisionError(`${label} account has MFA enabled but the TOTP key is not available to CI. Supply E2E_ADMIN_TOTP_SECRET in E2E_STAGING_PROVISIONING_CONFIG. Do not disable privileged MFA to make tests pass.`);
   }
 
   // TOTP codes are single-use in a time window. If a request is rejected, wait for the next window
@@ -214,6 +217,11 @@ const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0
 
 async function provision({ baseUrl, env = process.env, log = console.log, mask = () => {} }) {
   const creds = adminCredentials(env);
+  // Mask every individual credential because masking only the combined multiline GitHub secret
+  // does not guarantee each parsed line will be redacted independently.
+  for (const value of [creds.email, creds.password, creds.totpSecret]) {
+    if (value) mask(value);
+  }
   assertSafeTarget(baseUrl, env, creds.file);
   const provider = paymentProvider(creds.file, env);
   const client = makeClient(baseUrl, log);
@@ -239,7 +247,8 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
   let managerUserId = '';
   let manager = null;
   let staff = null;
-  let cleanupStarted = false;
+  let cleanupComplete = false;
+  let cleanupPromise = null;
 
   async function currentAdminToken() {
     if (adminToken) return adminToken;
@@ -251,10 +260,17 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
     const token = await currentAdminToken();
     try { return await api(method, path, { ...options, token }); }
     catch (error) {
-      // Retry only after an explicit 401 (authorization failed before the handler ran). Do not replay
-      // writes after 5xx/network failures, since those may have committed on the server.
+      // Refresh a session after 401, but automatically replay only read-only or explicitly
+      // idempotent operations. Never repeat an event/team/ticket-creation POST after ambiguity.
       if (error.status !== 401 || !relogin) throw error;
       adminToken = await relogin();
+      const replaySafe = ['GET', 'HEAD', 'OPTIONS'].includes(method)
+        || (options.retrySafe === true && ['DELETE', 'PUT', 'PATCH'].includes(method));
+      if (!replaySafe) {
+        const guarded = new ProvisionError(`${method} ${path} returned HTTP 401; the admin session was refreshed, but the potentially mutating request was not replayed. Re-run after checking fixture state.`);
+        guarded.status = 401;
+        throw guarded;
+      }
       return api(method, path, { ...options, token: adminToken });
     }
   }
@@ -289,12 +305,13 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
   }
 
   async function cleanup({ failOnError = true } = {}) {
-    if (cleanupStarted) return;
-    cleanupStarted = true;
-    const failures = [];
-    try { await discoverPartialResources(); } catch (e) { failures.push(`resource discovery: ${e.message}`); }
+    if (cleanupComplete) return;
+    if (cleanupPromise) return cleanupPromise;
+    cleanupPromise = (async () => {
+      const failures = [];
+      try { await discoverPartialResources(); } catch (e) { failures.push(`resource discovery: ${e.message}`); }
 
-    // Remove event assignments before cancellation, then revoke disposable team accounts.
+      // Remove event assignments before cancellation, then revoke disposable team accounts.
     if (eventId && staffEmail && staffUserId) {
       try { await adminCall('DELETE', `/api/v1/admin/events/${eventId}/staff?email=${encodeURIComponent(staffEmail)}`, { retrySafe: true }); }
       catch (e) { if (e.status !== 404) failures.push(`staff unassignment: ${e.message}`); }
@@ -312,14 +329,57 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
       catch (e) { if (e.status !== 404) failures.push(`manager deactivation: ${e.message}`); }
     }
     if (eventId) {
-      try { await adminCall('POST', `/api/v1/admin/events/${eventId}/cancel`, { ok: [200, 204], retrySafe: true }); }
+      try { await adminCall('POST', `/api/v1/admin/events/${eventId}/cancel`, { ok: [200, 204] }); }
       catch (e) { if (e.status !== 404 && e.status !== 409) failures.push(`event cancellation: ${e.message}`); }
     }
-    if (failures.length) {
-      const msg = `E2E fixture cleanup did not fully succeed for ${tag}: ${failures.join(' | ')}`;
-      log(msg);
-      if (failOnError) throw new ProvisionError(msg);
-    } else log(`Teardown complete: event ${tag} cancelled and disposable team identities deactivated`);
+
+      // Verify postconditions against the API, not merely successful HTTP responses. A 404/409
+      // during cleanup is tolerated only if final state proves the resource is already cleaned up.
+      if (organizer && (staffUserId || managerUserId)) {
+        try {
+          const team = (await adminCall('GET', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team`)).json || {};
+          const verifyMember = (list, email, userId, roleLabel) => {
+            if (!userId) return;
+            const member = (Array.isArray(list) ? list : []).find((item) => item.id === userId || String(item.email || '').toLowerCase() === email.toLowerCase());
+            if (!member) {
+              failures.push(`${roleLabel} cleanup verification: member not found in organizer team listing`);
+              return;
+            }
+            if (member.active !== false) failures.push(`${roleLabel} cleanup verification: account remains active`);
+            if (!Array.isArray(member.assignments)) {
+              failures.push(`${roleLabel} cleanup verification: API did not return assignment state`);
+            } else if (eventId && member.assignments.some((assignment) => String(assignment.eventId || assignment.id || '') === eventId)) {
+              failures.push(`${roleLabel} cleanup verification: event assignment remains`);
+            }
+          };
+          verifyMember(team.staff, staffEmail, staffUserId, 'staff');
+          verifyMember(team.managers, managerEmail, managerUserId, 'manager');
+        } catch (e) {
+          failures.push(`team cleanup verification: ${e.message}`);
+        }
+      }
+      if (eventId) {
+        try {
+          const finalEvent = (await adminCall('GET', `/api/v1/admin/events/${eventId}`)).json || {};
+          if (String(finalEvent.status || '').toUpperCase() !== 'CANCELLED') {
+            failures.push('event cleanup verification: event is not confirmed CANCELLED');
+          }
+        } catch (e) {
+          failures.push(`event cleanup verification: ${e.message}`);
+        }
+      }
+
+      if (failures.length) {
+        const msg = `E2E fixture cleanup did not fully succeed for ${tag}: ${failures.join(' | ')}`;
+        log(msg);
+        if (failOnError) throw new ProvisionError(msg);
+      } else {
+        cleanupComplete = true;
+        log(`Teardown complete: event ${tag} cancelled and disposable team identities deactivated`);
+      }
+    })();
+    try { await cleanupPromise; }
+    finally { cleanupPromise = null; }
   }
 
   try {
@@ -327,7 +387,7 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
     adminToken = env.E2E_ADMIN_BEARER ? String(env.E2E_ADMIN_BEARER).replace(/^Bearer\s+/i, '').trim() : '';
     if (!adminToken) {
       if (!creds.email || !creds.password) {
-        throw new ProvisionError('No admin identity available. Supply E2E_ADMIN_EMAIL/PASSWORD or use BOOTSTRAP_ADMIN_EMAIL/PASSWORD from E2E_STAGING_PROVISIONING_CONFIG. Fixture variables are generated automatically.');
+        throw new ProvisionError('No admin identity available. Supply E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD in E2E_STAGING_PROVISIONING_CONFIG. Fixture variables are generated automatically.');
       }
       relogin = async () => (await login(client, creds.email, creds.password, { totpSecret: creds.totpSecret, label: 'Admin' })).token;
       log('Provisioning: signing in with the staging admin identity');
@@ -339,6 +399,19 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
         : null;
     }
     secret('E2E_ADMIN_BEARER', adminToken);
+
+    // Verify the real server's active provider mode before making any fixture mutations. The
+    // provisioning secret alone cannot prove which credentials the deployed backend actually uses.
+    let paymentSafety;
+    try {
+      paymentSafety = (await adminCall('GET', '/api/v1/admin/qualification/payment-safety')).json || {};
+    } catch (error) {
+      if (env.E2E_ENV === 'staging') {
+        throw new ProvisionError(`Staging payment-safety preflight is missing or failed (${error.status || 'network/error'}). Deploy the backend with the staging payment-safety endpoint and sandbox-only payment configuration before full E2E. No fixtures have been created.`);
+      }
+      throw error;
+    }
+    validateServerPaymentSafety(paymentSafety, provider, env.E2E_ENV === 'staging' ? 'staging' : 'local');
 
     // 2. Find the correct organizer; an explicit slug must exist rather than silently selecting another.
     const orgList = (await adminCall('GET', '/api/v1/admin/organizers')).json || {};
@@ -441,4 +514,4 @@ async function apiForUser(client, token, currentPassword, newPassword) {
   return result;
 }
 
-module.exports = { provision, ProvisionError, parseEnvFile, adminCredentials, decodeQrDataUri, paymentProvider, assertSafeTarget };
+module.exports = { provision, ProvisionError, parseEnvFile, adminCredentials, decodeQrDataUri, paymentProvider, assertSafeTarget, validateServerPaymentSafety };

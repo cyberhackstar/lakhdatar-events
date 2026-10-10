@@ -24,7 +24,7 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   application:
     name: lakhdatar-events-backend
-    version: ${APP_VERSION:2.0.36}
+    version: ${APP_VERSION:2.0.37}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}

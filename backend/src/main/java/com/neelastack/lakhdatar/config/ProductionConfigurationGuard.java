@@ -4,11 +4,17 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.util.Locale;
 
 @Component
 public class ProductionConfigurationGuard {
     public ProductionConfigurationGuard(AppProperties props, Environment environment) {
         boolean production = environment.matchesProfiles("prod", "production") || "production".equalsIgnoreCase(environment.getProperty("APP_ENV"));
+        boolean staging = "staging".equalsIgnoreCase(environment.getProperty("APP_ENV", ""));
+        if (staging && production) {
+            throw new IllegalStateException("APP_ENV=staging cannot be combined with the prod/production Spring profile");
+        }
+        if (staging) validateStagingPaymentProviders(props, environment);
         if (!production) {
             // The strict checks below are opt-in (prod profile or APP_ENV=production). A deployment that
             // forgets both flags but is clearly public-facing (non-local HTTPS origins) must still never
@@ -71,6 +77,52 @@ public class ProductionConfigurationGuard {
             requireNonBlank("CLOUDINARY_API_KEY", props.cloudinary().apiKey());
             requireProviderCredential("CLOUDINARY_API_SECRET", props.cloudinary().apiSecret());
             if (props.cloudinary().maxBytes() < 1024 || props.cloudinary().maxBytes() > 10_000_000) throw new IllegalStateException("CLOUDINARY_MAX_BYTES must be between 1KB and 10MB");
+        }
+    }
+
+    /** Staging must never boot with provider settings that can create live payment orders. */
+    private void validateStagingPaymentProviders(AppProperties props, Environment environment) {
+        boolean razorpayConfigured = present(props.razorpay().keyId()) || present(props.razorpay().keySecret()) || present(props.razorpay().webhookSecret());
+        if (razorpayConfigured) {
+            if (!present(props.razorpay().keyId()) || !props.razorpay().keyId().startsWith("rzp_test_")
+                    || !present(props.razorpay().keySecret()) || !present(props.razorpay().webhookSecret())) {
+                throw new IllegalStateException("Staging Razorpay configuration must be complete and use an rzp_test_ key ID; live Razorpay credentials are forbidden in staging");
+            }
+            requireExactHttpsEndpoint("RAZORPAY_BASE_URL", props.razorpay().baseUrl(), "api.razorpay.com", "/v1");
+        }
+
+        boolean cashfreeConfigured = present(props.cashfree().appId()) || present(props.cashfree().secretKey());
+        if (cashfreeConfigured) {
+            if (!present(props.cashfree().appId()) || !present(props.cashfree().secretKey())) {
+                throw new IllegalStateException("Staging Cashfree configuration must include both sandbox App ID and sandbox secret");
+            }
+            requireExactHttpsEndpoint("CASHFREE_BASE_URL", props.cashfree().baseUrl(), "sandbox.cashfree.com", "/pg");
+        }
+
+        String defaultProvider = environment.getProperty("DEFAULT_PAYMENT_PROVIDER", "CASHFREE").trim().toUpperCase(Locale.ROOT);
+        if (!defaultProvider.equals("CASHFREE") && !defaultProvider.equals("RAZORPAY")) {
+            throw new IllegalStateException("DEFAULT_PAYMENT_PROVIDER must be CASHFREE or RAZORPAY in staging");
+        }
+        if (defaultProvider.equals("CASHFREE") && !cashfreeConfigured) {
+            throw new IllegalStateException("DEFAULT_PAYMENT_PROVIDER=CASHFREE but Cashfree sandbox credentials are not configured in staging");
+        }
+        if (defaultProvider.equals("RAZORPAY") && !razorpayConfigured) {
+            throw new IllegalStateException("DEFAULT_PAYMENT_PROVIDER=RAZORPAY but Razorpay test credentials are not configured in staging");
+        }
+    }
+
+    private void requireExactHttpsEndpoint(String name, String raw, String host, String path) {
+        try {
+            if (raw == null || raw.isBlank()) throw new IllegalArgumentException();
+            java.net.URI uri = java.net.URI.create(raw.trim());
+            boolean valid = "https".equalsIgnoreCase(uri.getScheme())
+                    && host.equalsIgnoreCase(uri.getHost())
+                    && (uri.getPath().equals(path) || uri.getPath().equals(path + "/"))
+                    && (uri.getPort() == -1 || uri.getPort() == 443)
+                    && uri.getUserInfo() == null && uri.getQuery() == null && uri.getFragment() == null;
+            if (!valid) throw new IllegalArgumentException();
+        } catch (RuntimeException ex) {
+            throw new IllegalStateException(name + " must use the approved staging sandbox endpoint https://" + host + path);
         }
     }
 

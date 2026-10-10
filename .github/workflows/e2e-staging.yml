@@ -16,7 +16,7 @@ permissions:
 
 # Prevent overlapping runs from consuming the same staging test data.
 concurrency:
-  group: enterprise-e2e-staging
+  group: neelastack-staging-qualification
   cancel-in-progress: false
 
 jobs:

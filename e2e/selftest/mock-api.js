@@ -5,10 +5,36 @@ const crypto = require('crypto');
 const QRCode = require('qrcode');
 const { totp } = require('../support/totp');
 const id = () => crypto.randomUUID();
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
-async function start({ mfa = 'off', adminEnrolled = true, failTeamRole = '', failCleanup = false } = {}) {
-  const adminSecret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
-  const users = new Map([['admin@example.test', { id: id(), email: 'admin@example.test', name: 'Admin', role: 'ADMIN', password: 'Admin-Password-1', mfaSecret: adminEnrolled ? adminSecret : null, lastCounter: -1, active: true, mustChangePassword: false }]]);
+// Generate synthetic-only TOTP test seeds at runtime so no fixed MFA credential is committed.
+function randomBase32(byteLength = 20) {
+  const bytes = crypto.randomBytes(byteLength);
+  let buffer = 0;
+  let bits = 0;
+  let encoded = '';
+  for (const byte of bytes) {
+    buffer = (buffer << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      encoded += BASE32_ALPHABET[(buffer >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) encoded += BASE32_ALPHABET[(buffer << (5 - bits)) & 31];
+  return encoded;
+}
+
+async function start({ mfa = 'off', adminEnrolled = true, failTeamRole = '', failCleanup = false, failCleanupCount = 0 } = {}) {
+  const adminEmail = 'admin@example.test';
+  const adminSecret = randomBase32();
+  const adminPassword = `Mock-${crypto.randomBytes(32).toString('base64url')}-9a!`;
+  let remainingCleanupFailures = failCleanupCount;
+  const shouldFailCleanup = (code) => {
+    if (remainingCleanupFailures > 0) { remainingCleanupFailures -= 1; return true; }
+    return failCleanup ? code : false;
+  };
+  const users = new Map([[adminEmail, { id: id(), email: adminEmail, name: 'Admin', role: 'ADMIN', password: adminPassword, mfaSecret: adminEnrolled ? adminSecret : null, lastCounter: -1, active: true, mustChangePassword: false }]]);
   const tokens = new Map();
   const challenges = new Map();
   const events = new Map();
@@ -52,7 +78,7 @@ async function start({ mfa = 'off', adminEnrolled = true, failTeamRole = '', fai
     if (req.method === 'POST' && path === '/api/v1/auth/mfa/enroll') {
       const email = challenges.get(body.challengeToken); const u = email && users.get(email);
       if (!u || u.mfaSecret) return send(401, { code: 'CHALLENGE' });
-      u.mfaSecret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'; return send(200, { secret: u.mfaSecret });
+      u.mfaSecret = randomBase32(); return send(200, { secret: u.mfaSecret });
     }
     if (req.method === 'POST' && (path === '/api/v1/auth/mfa/confirm' || path === '/api/v1/auth/mfa/verify')) {
       const email = challenges.get(body.challengeToken); const u = email && users.get(email);
@@ -68,6 +94,7 @@ async function start({ mfa = 'off', adminEnrolled = true, failTeamRole = '', fai
       a.password = body.newPassword; a.mustChangePassword = false; return send(200, { accessToken: issueToken(a.email), role: a.role });
     }
 
+    if (req.method === 'GET' && path === '/api/v1/admin/qualification/payment-safety') { if (!need('ADMIN')) return; return send(200, { environment: 'local', defaultProvider: 'CASHFREE', razorpayMode: 'test', cashfreeMode: 'sandbox', safeForE2E: true }); }
     if (req.method === 'GET' && path === '/api/v1/admin/organizers') { if (!need('ADMIN')) return; return send(200, { organizers: [organizer] }); }
     if (req.method === 'GET' && path === '/api/v1/admin/events') {
       if (!need('ADMIN')) return;
@@ -79,7 +106,14 @@ async function start({ mfa = 'off', adminEnrolled = true, failTeamRole = '', fai
       if (slug !== organizer.slug) return send(404, { code: 'ORGANIZER_NOT_FOUND' });
       if (req.method === 'GET' && !op) {
         const members = [...users.values()].filter((u) => u.role === 'STAFF' || u.role === 'EVENT_MANAGER');
-        return send(200, { staff: members.filter((u) => u.role === 'STAFF').map((u) => ({ id: u.id, email: u.email, active: u.active })), managers: members.filter((u) => u.role === 'EVENT_MANAGER').map((u) => ({ id: u.id, email: u.email, active: u.active })) });
+        const assignmentsFor = (email) => [...events.values()]
+          .filter((event) => event.staff.has(email) || event.managers.has(email))
+          .map((event) => ({ eventId: event.id }));
+        const view = (u) => ({ id: u.id, email: u.email, active: u.active, assignments: assignmentsFor(u.email) });
+        return send(200, {
+          staff: members.filter((u) => u.role === 'STAFF').map(view),
+          managers: members.filter((u) => u.role === 'EVENT_MANAGER').map(view),
+        });
       }
       if (req.method === 'POST' && ['staff', 'managers'].includes(op)) {
         if (failTeamRole === op) return send(503, { code: 'MOCK_TEAM_FAILURE' });
@@ -105,7 +139,7 @@ async function start({ mfa = 'off', adminEnrolled = true, failTeamRole = '', fai
       if (req.method === 'GET' && sub === '/publish-readiness') return send(200, { ready: true, blockers: [], warnings: [] });
       if (req.method === 'POST' && sub === '/publish') { event.status = 'PUBLISHED'; return send(204); }
       if (req.method === 'POST' && sub === '/cancel') {
-        if (failCleanup) return send(503, { code: 'MOCK_CANCEL_FAILURE' });
+        if (shouldFailCleanup('MOCK_CANCEL_FAILURE')) return send(503, { code: 'MOCK_CANCEL_FAILURE' });
         event.status = 'CANCELLED'; return send(204);
       }
       if (req.method === 'POST' && sub === '/staff') {
@@ -114,7 +148,7 @@ async function start({ mfa = 'off', adminEnrolled = true, failTeamRole = '', fai
         event.staff.set(u.email, body.gate); return send(204);
       }
       if (req.method === 'DELETE' && sub === '/staff') {
-        if (failCleanup) return send(503, { code: 'MOCK_UNASSIGN_FAILURE' });
+        if (shouldFailCleanup('MOCK_UNASSIGN_FAILURE')) return send(503, { code: 'MOCK_UNASSIGN_FAILURE' });
         event.staff.delete(url.searchParams.get('email')); return send(204);
       }
       if (req.method === 'POST' && sub === '/managers') {
@@ -123,7 +157,7 @@ async function start({ mfa = 'off', adminEnrolled = true, failTeamRole = '', fai
         event.managers.add(u.email); return send(204);
       }
       if (req.method === 'DELETE' && sub === '/managers') {
-        if (failCleanup) return send(503, { code: 'MOCK_UNASSIGN_FAILURE' });
+        if (shouldFailCleanup('MOCK_UNASSIGN_FAILURE')) return send(503, { code: 'MOCK_UNASSIGN_FAILURE' });
         event.managers.delete(url.searchParams.get('email')); return send(204);
       }
     }
@@ -139,31 +173,33 @@ async function start({ mfa = 'off', adminEnrolled = true, failTeamRole = '', fai
       const event = events.get(body.eventId);
       if (!event || !event.managers.has(a.email) || !a.active) return send(403, { code: 'FORBIDDEN' });
       const issued = [];
-      for (let i = 0; i < body.quantity; i++) {
-        const ticket = { ticketId: id(), ticketNumber: `T-${i + 1}`, accessToken: crypto.randomBytes(24).toString('base64url'), eventId: event.id, qrToken: '' };
+      const orderPublicId = id();
+      const quantity = Math.max(0, Math.min(100, Number(body.quantity) || 0));
+      for (let i = 0; i < quantity; i++) {
+        const ticket = { ticketId: id(), ticketNumber: `T-${i + 1}`, accessToken: crypto.randomBytes(24).toString('base64url'), eventId: event.id, qrToken: '', orderPublicId, ticketPosition: i + 1, orderTicketCount: quantity };
         tickets.set(ticket.ticketId, ticket); issued.push({ ticketId: ticket.ticketId, ticketNumber: ticket.ticketNumber, accessToken: ticket.accessToken });
       }
-      return send(201, { orderPublicId: id(), tickets: issued, emailStatus: 'SENT' });
+      return send(201, { orderPublicId, tickets: issued, emailStatus: 'SENT' });
     }
     if (req.method === 'GET' && (match = /^\/api\/v1\/public\/tickets\/([^/]+)$/.exec(path))) {
       const ticket = tickets.get(match[1]);
       if (!ticket || req.headers['x-ticket-token'] !== ticket.accessToken) return send(401, { code: 'TICKET_TOKEN_INVALID' });
       if (!ticket.qrToken) ticket.qrToken = `LK1.${ticket.ticketId}.${crypto.randomBytes(20).toString('base64url')}`;
-      return send(200, { ticketId: ticket.ticketId, qrDataUri: await QRCode.toDataURL(ticket.qrToken, { errorCorrectionLevel: 'H', width: 320 }) });
+      return send(200, { ticketId: ticket.ticketId, ticketNumber: ticket.ticketNumber, ticketPosition: ticket.ticketPosition, orderTicketCount: ticket.orderTicketCount, qrDataUri: await QRCode.toDataURL(ticket.qrToken, { errorCorrectionLevel: 'H', width: 320 }) });
     }
     if (req.method === 'POST' && path === '/api/v1/checkin/scan') {
       const a = need('STAFF'); if (!a) return;
       const event = events.get(body.eventId);
-      if (!event || !event.staff.has(a.email) || event.staff.get(a.email) !== body.gate) return send(403, { code: 'UNAUTHORIZED_GATE' });
+      if (!event || event.status !== 'PUBLISHED' || !event.staff.has(a.email) || event.staff.get(a.email) !== body.gate) return send(403, { code: 'UNAUTHORIZED_GATE' });
       const ticket = [...tickets.values()].find((item) => item.qrToken === body.qrToken && item.eventId === event.id);
       if (!ticket) return send(200, { result: 'INVALID' });
       const first = !scans.has(ticket.ticketId); scans.add(ticket.ticketId);
-      return send(200, { result: first ? 'ACCEPTED' : 'ALREADY_USED', ticketPosition: 2, orderTicketCount: 2 });
+      return send(200, { result: first ? 'ACCEPTED' : 'ALREADY_USED', ticketPosition: ticket.ticketPosition, orderTicketCount: ticket.orderTicketCount });
     }
     send(404, { code: 'NOT_FOUND', path });
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  return { url: `http://127.0.0.1:${server.address().port}`, adminSecret, events, calls, users,
+  return { url: `http://127.0.0.1:${server.address().port}`, adminEmail, adminPassword, adminSecret, events, calls, users, tickets,
     close: () => new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve())) };
 }
 

@@ -18,7 +18,7 @@ permissions:
   packages: read
 
 concurrency:
-  group: enterprise-release-qualification
+  group: neelastack-staging-qualification
   cancel-in-progress: false
 
 jobs:
@@ -161,7 +161,8 @@ jobs:
           if-no-files-found: warn
 
   load:
-    needs: [backend, frontend]
+    # Keep synthetic user-facing/browser actions and load traffic from contending on staging.
+    needs: [backend, frontend, browser-e2e]
     runs-on: ubuntu-latest
     environment: staging
     steps:
