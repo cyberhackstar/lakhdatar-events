@@ -61,7 +61,7 @@ jobs:
         run: bash ./infra/certification/flyway-qualification.sh
       - name: Upload database evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-database-${{ inputs.release_sha }}
           path: certification-evidence/database/
@@ -154,7 +154,7 @@ jobs:
           npm test -- --reporter=line
       - name: Upload browser evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-browser-${{ inputs.release_sha }}
           path: e2e/playwright-report/
@@ -200,7 +200,7 @@ jobs:
         run: node ./infra/loadtest/auto-runner.cjs enterprise-gate
       - name: Upload load-test evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-load-${{ inputs.release_sha }}
           path: loadtest-results/
@@ -222,7 +222,7 @@ jobs:
         run: bash ./infra/security/dast-staging.sh
       - name: Upload DAST evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-dast-${{ inputs.release_sha }}
           path: security-results/
@@ -264,7 +264,7 @@ jobs:
           MFA_STATUS: ${{ vars.MFA_STATUS }}
         run: bash ./infra/certification/verify-enterprise-evidence.sh
       - name: Upload certification manifest
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-certification-${{ inputs.release_sha }}
           path: certification-evidence/enterprise-certification.json

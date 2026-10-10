@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload Playwright HTML report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-e2e-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: e2e/playwright-report/
