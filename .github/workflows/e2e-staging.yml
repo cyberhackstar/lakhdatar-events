@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       run_mutations:
-        description: Run stateful checkout/check-in tests against disposable staging data
+        description: Run stateful checkout/check-in tests (fixtures are created and cancelled automatically)
         required: true
-        default: false
+        default: true
         type: boolean
   schedule:
     - cron: "30 21 * * 1-5"
@@ -50,6 +50,19 @@ jobs:
 
           echo "Staging target validated."
 
+      - name: Validate provisioning input for full E2E runs
+        env:
+          E2E_RUN_MUTATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mutations || false }}
+          E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$E2E_RUN_MUTATIONS" == "true" && -z "${E2E_STAGING_PROVISIONING_CONFIG:-}" ]]; then
+            echo "Full staging E2E requires the dedicated E2E_STAGING_PROVISIONING_CONFIG secret containing only staging-safe E2E credentials and sandbox payment settings. Do not pass the deployment STAGING_ENV_FILE to this job. No fixture IDs or QR tokens are needed." >&2
+            exit 2
+          fi
+          echo "Provisioning input check passed."
+
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
@@ -73,60 +86,19 @@ jobs:
           E2E_RUN_MUTATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mutations || false }}
           E2E_BASE_URL: ${{ vars.STAGING_PUBLIC_URL || 'https://staging-events.neelastack.com' }}
 
-          # Dedicated staging test credentials and fixtures.
-          E2E_ADMIN_BEARER: ${{ secrets.E2E_ADMIN_BEARER }}
-          E2E_STAFF_BEARER: ${{ secrets.E2E_STAFF_BEARER }}
-          E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
-          E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
-
-          E2E_EVENT_ID: ${{ secrets.E2E_EVENT_ID }}
-          E2E_TICKET_TYPE_ID: ${{ secrets.E2E_TICKET_TYPE_ID }}
-          E2E_CHECKOUT_EMAIL: ${{ secrets.E2E_CHECKOUT_EMAIL }}
-
-          E2E_TICKET_ID: ${{ secrets.E2E_TICKET_ID }}
-          E2E_TICKET_TOKEN: ${{ secrets.E2E_TICKET_TOKEN }}
-          E2E_QR_TOKEN: ${{ secrets.E2E_QR_TOKEN }}
-          E2E_GATE: ${{ secrets.E2E_GATE }}
+          # No hand-made fixtures: global-setup creates the event, tickets, staff and QR credential
+          # This dedicated secret must contain only the E2E admin identity/MFA seed and sandbox
+          # payment settings—not the deployment .env, database, JWT-signing, or SMTP secrets.
+          E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
         shell: bash
         run: |
           set -euo pipefail
 
+          echo "Verifying the provisioning logic against the in-process mock API."
+          npm run selftest
+
           if [[ "$E2E_RUN_MUTATIONS" == "true" ]]; then
-            echo "Full E2E suite requested. Validating required staging fixtures."
-
-            required_secrets=(
-              E2E_ADMIN_BEARER
-              E2E_STAFF_BEARER
-              E2E_STAFF_EMAIL
-              E2E_STAFF_PASSWORD
-              E2E_EVENT_ID
-              E2E_TICKET_TYPE_ID
-              E2E_CHECKOUT_EMAIL
-              E2E_TICKET_ID
-              E2E_TICKET_TOKEN
-              E2E_QR_TOKEN
-              E2E_GATE
-            )
-
-            missing_secrets=()
-
-            for name in "${required_secrets[@]}"; do
-              if [[ -z "${!name:-}" ]]; then
-                missing_secrets+=("$name")
-              fi
-            done
-
-            if ((${#missing_secrets[@]})); then
-              echo "Cannot run the full E2E suite. Configure these secrets in the staging environment:" >&2
-              printf ' - %s\n' "${missing_secrets[@]}" >&2
-              exit 2
-            fi
-
-            # Generate a unique key for this run. The test reuses it for
-            # its first checkout request and its idempotent retry.
-            export E2E_IDEMPOTENCY_KEY="$(cat /proc/sys/kernel/random/uuid)"
-
-            echo "Running the complete Playwright E2E suite."
+            echo "Full E2E suite requested. Fixtures will be provisioned automatically."
             npm test
           else
             echo "Running public security smoke tests only."

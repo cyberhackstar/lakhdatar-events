@@ -129,6 +129,17 @@ jobs:
           set -euo pipefail
           test "$E2E_BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Enterprise release qualification must target https://staging-events.neelastack.com'; exit 2; }
         shell: bash
+      - name: Validate staging E2E provisioning input
+        env:
+          E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${E2E_STAGING_PROVISIONING_CONFIG:-}" ]]; then
+            echo "Browser qualification requires E2E_STAGING_PROVISIONING_CONFIG; do not expose deployment STAGING_ENV_FILE. Fixture IDs and tokens are generated automatically." >&2
+            exit 2
+          fi
+
       - name: Run browser qualification
         working-directory: e2e
         env:
@@ -136,19 +147,11 @@ jobs:
           E2E_ENV: staging
           E2E_RUN_MUTATIONS: 'true'
           E2E_BASE_URL: ${{ inputs.staging_url }}
-          E2E_ADMIN_BEARER: ${{ secrets.E2E_ADMIN_BEARER }}
-          E2E_STAFF_BEARER: ${{ secrets.E2E_STAFF_BEARER }}
-          E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
-          E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
-          E2E_EVENT_ID: ${{ secrets.E2E_EVENT_ID }}
-          E2E_TICKET_TYPE_ID: ${{ secrets.E2E_TICKET_TYPE_ID }}
-          E2E_CHECKOUT_EMAIL: ${{ secrets.E2E_CHECKOUT_EMAIL }}
-          E2E_IDEMPOTENCY_KEY: ${{ secrets.E2E_IDEMPOTENCY_KEY }}
-          E2E_TICKET_ID: ${{ secrets.E2E_TICKET_ID }}
-          E2E_TICKET_TOKEN: ${{ secrets.E2E_TICKET_TOKEN }}
-          E2E_QR_TOKEN: ${{ secrets.E2E_QR_TOKEN }}
-          E2E_GATE: ${{ secrets.E2E_GATE }}
-        run: npm test -- --reporter=line
+          # Dedicated least-privilege config; never expose the deployment STAGING_ENV_FILE here.
+          E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
+        run: |
+          npm run selftest
+          npm test -- --reporter=line
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v7

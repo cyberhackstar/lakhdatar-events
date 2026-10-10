@@ -23,6 +23,8 @@ if (e2eEnv === 'staging') {
 
 module.exports = defineConfig({
   testDir: './tests',
+  // Creates (and afterwards cancels) disposable staging fixtures when E2E_RUN_MUTATIONS=true.
+  globalSetup: require.resolve('./global-setup'),
   timeout: 60_000,
   expect: { timeout: 15_000 },
   fullyParallel: true,

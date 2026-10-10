@@ -1,6 +1,6 @@
-# v2.0.35 — Enterprise Production Reliability Candidate
+# v2.0.36 — Staging E2E Self-Provisioning Qualification
 
-This release continues the enterprise hardening program with financial recovery correctness, event/check-in concurrency protection, durable payment webhook processing, privileged MFA, password recovery, backup/DR controls, deployment safety and release qualification gates.
+The application carries forward the tested v2.0.35 event-ticketing baseline and its payment, check-in, authentication, backup/DR and deployment controls. This v2.0.36 release focuses on making the staging browser qualification repeatable without manually maintained per-test fixture secrets.
 
 ## Isolated staging environment
 
@@ -10,9 +10,9 @@ The repository includes a separate `staging-events.neelastack.com` deployment pr
 
 ## Enterprise production status
 
-v2.0.35 also corrects the Windows frontend dependency bootstrap so `npm run bootstrap:dependencies` does not spawn `npm.cmd` through the incompatible `shell:false` path.
+The v2.0.35 application baseline is retained; v2.0.36 adds staging E2E self-provisioning and qualification hardening. The earlier release also corrects the Windows frontend dependency bootstrap so `npm run bootstrap:dependencies` does not spawn `npm.cmd` through the incompatible `shell:false` path.
 
-v2.0.35 is the **enterprise-production certification-gated candidate**. Production HA promotion is fail-closed on the protected certified Git SHA, signed image provenance, HA topology, privileged MFA, external database/Redis, and protected certification evidence.
+The production application code is carried forward from the tested v2.0.35 baseline; v2.0.36 is **not a new production certification** and still requires the release-qualification gates. Production HA promotion is fail-closed on the protected certified Git SHA, signed image provenance, HA topology, privileged MFA, external database/Redis, and protected certification evidence.
 
 The repository must never self-declare a runtime/HA/DR/security certification result that has not actually been executed and reviewed in the target environment. See `docs/ENTERPRISE-PRODUCTION-CERTIFICATION.md`.
 
@@ -140,7 +140,7 @@ The repository intentionally uses two GitHub Actions workflows: `CI` for build, 
 
 
 ## Current release
-**v2.0.35** is the current release candidate. See `CHANGES-2.0.35.md`, `VALIDATION-2.0.35.md`, and `RELEASE-MANIFEST.txt`. Historical v1.9.x and v2.0.x validation records are retained for traceability.
+**v2.0.36** is the current qualification-harness release. See `CHANGES-2.0.36-E2E-SELF-PROVISIONING.md`, `VALIDATION-2.0.36-E2E-SELF-PROVISIONING.md`, `STAGING-QUALIFICATION-SETUP.md`, and `RELEASE-MANIFEST.txt`. Historical v1.9.x and v2.0.x validation records are retained for traceability.
 
 
 ### Deployment dotenv safety

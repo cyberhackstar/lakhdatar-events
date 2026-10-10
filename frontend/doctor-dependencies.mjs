@@ -24,7 +24,7 @@ const versions = () => {
 if (!fs.existsSync("package-lock.json")) failures.push("package-lock.json is missing; run npm run bootstrap:dependencies");
 const nodeParts = process.versions.node.split(".").map(Number);
 if (!((nodeParts[0] === 22 && nodeParts[1] >= 19) || nodeParts[0] === 24)) failures.push(`Node.js must be 22.19+ or 24.x, found ${process.versions.node}`);
-if (pkg.version !== "2.0.35") failures.push(`frontend package version must be 2.0.35, found ${pkg.version}`);
+if (pkg.version !== "2.0.36") failures.push(`frontend package version must be 2.0.36, found ${pkg.version}`);
 if (pkg.devDependencies?.vitest !== "3.2.7") failures.push("Vitest must be pinned to 3.2.7");
 if (pkg.devDependencies?.jsdom !== "29.1.1") failures.push("JSDOM must be pinned to 29.1.1");
 if (pkg.overrides?.["@modelcontextprotocol/sdk"] !== "1.31.0") failures.push("MCP SDK override must be 1.31.0");
