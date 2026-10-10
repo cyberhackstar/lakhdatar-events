@@ -29,7 +29,7 @@
     <postgresql.version>42.7.12</postgresql.version>
     <testcontainers.version>1.21.4</testcontainers.version>
     <!-- Security patch overrides validated against the registry-backed Trivy findings in the v1.9.11 image. -->
-    <jackson2.version>2.21.7</jackson2.version>
+    <jackson2.version>2.22.3</jackson2.version>
     <jackson3.version>3.1.7</jackson3.version>
     <httpcomponents-core5.version>5.4.3</httpcomponents-core5.version>
     <tomcat.version>11.0.26</tomcat.version>
