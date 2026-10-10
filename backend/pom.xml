@@ -26,7 +26,7 @@
     <lombok.version>1.18.48</lombok.version>
     <jjwt.version>0.13.0</jjwt.version>
     <zxing.version>3.5.3</zxing.version>
-    <postgresql.version>42.7.12</postgresql.version>
+    <postgresql.version>42.7.13</postgresql.version>
     <testcontainers.version>1.21.4</testcontainers.version>
     <!-- Security patch overrides validated against the registry-backed Trivy findings in the v1.9.11 image. -->
     <jackson2.version>2.21.7</jackson2.version>
