@@ -1,10 +1,10 @@
-# Staging Browser E2E Qualification — v2.0.37
+# Staging Browser E2E Qualification — v2.0.38
 
 The stateful browser E2E suite is restricted to `https://staging-events.neelastack.com`. The Playwright configuration and provisioning helper reject production origins; the provisioning helper also requires the declared environment to be `staging` or `local` and refuses an environment config marked as production.
 
 ## One-time GitHub environment setup
 
-Create **one** protected secret named `E2E_STAGING_PROVISIONING_CONFIG` in the GitHub `staging` environment. This is deliberately separate from the deployment `STAGING_ENV_FILE`: do **not** pass the full deployment file to browser tests, because it may contain database, JWT-signing, SMTP, and other runtime secrets. Keep this E2E-only secret limited to the staging marker, the desired provider name, and the dedicated staging E2E admin identity/MFA seed. Do not duplicate payment gateway API keys in the browser-test secret: the deployed backend is the source of truth and must independently pass an authenticated sandbox-mode preflight before fixture creation.
+Create **one** protected secret named `E2E_STAGING_PROVISIONING_CONFIG` in the GitHub `staging` environment. Do not put `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, or webhook secrets in this E2E secret; the current provisioner intentionally rejects those keys. This is deliberately separate from the deployment `STAGING_ENV_FILE`: do **not** pass the full deployment file to browser tests, because it may contain database, JWT-signing, SMTP, and other runtime secrets. Keep this E2E-only secret limited to the staging marker, the desired provider name, and the dedicated staging E2E admin identity/MFA seed. Do not duplicate payment gateway API keys in the browser-test secret: the deployed backend is the source of truth and must independently pass an authenticated sandbox-mode preflight before fixture creation.
 
 Example shape (replace every placeholder with the real staging-only value; do not commit this file):
 

@@ -171,6 +171,7 @@ jobs:
     needs: [backend, frontend, security]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     permissions:
       contents: read
       packages: write
@@ -276,6 +277,13 @@ jobs:
           }
           echo "Monitor host boundary regression test passed."
 
+      - name: Install Trivy once for all image scans
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # pinned setup-trivy revision
+        with:
+          version: v0.70.0
+          cache: true
+          token: ${{ github.token }}
+
       - name: Scan backend image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
@@ -287,6 +295,13 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: false
           exit-code: '1'
+          timeout: 15m0s
+          scanners: vuln,secret
+          vuln-type: os,library
+          version: v0.70.0
+          skip-setup-trivy: true
+          cache: true
+
       - name: Scan web image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
@@ -298,6 +313,13 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: false
           exit-code: '1'
+          timeout: 15m0s
+          scanners: vuln,secret
+          vuln-type: os,library
+          version: v0.70.0
+          skip-setup-trivy: true
+          cache: true
+
       - name: Scan edge image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
@@ -309,6 +331,12 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: false
           exit-code: '1'
+          timeout: 15m0s
+          scanners: vuln,secret
+          vuln-type: os,library
+          version: v0.70.0
+          skip-setup-trivy: true
+          cache: true
 
       - name: Generate backend GitHub artifact attestation
         uses: actions/attest@v4
