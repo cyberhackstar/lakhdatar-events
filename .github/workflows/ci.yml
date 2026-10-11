@@ -31,6 +31,10 @@ jobs:
         run: bash infra/loadtest/test-checkout-target-guard.sh
       - name: Verify bounded reservation-expiry invariant retry
         run: bash infra/loadtest/test-invariant-expiry-retry.sh
+      - name: Verify just-in-time load-test access-token refresh
+        run: node infra/loadtest/test-refresh-access-token.cjs
+      - name: Verify load-test token refresh wiring
+        run: bash infra/loadtest/test-loadtest-token-refresh-wiring.sh
       - name: Verify single-owner HSTS smoke contract
         run: bash infra/smoke/test-hsts-ownership.sh
       - name: Verify security and automatic-fixture source contracts

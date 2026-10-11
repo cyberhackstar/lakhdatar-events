@@ -1,11 +1,6 @@
-NEELASTACK EVENTS v2.0.45 — LOAD-TEST RATE-LIMIT AND RESERVATION-INVARIANT FIX
-Release: 2.0.45
-Changes: CHANGES-2.0.45-LOADTEST-RATE-LIMIT-FIX.md
-Validation: VALIDATION-2.0.45-LOADTEST-RATE-LIMIT-FIX.md
-Baseline: v2.0.44 (Cashfree checkout fixture correction, CSP nonce handling, and single-owner HSTS).
-Rate-limit semantics: edge NGINX keeps the same rate and burst limits, but emits HTTP 429 for rate-limit/connection-limit rejection instead of NGINX's default HTTP 503. Application/provider-generated HTTP 503 responses remain unchanged and continue to count against the hot-sale unavailable threshold.
-Invariant verification: only EXPIRED_HELD_RESERVATIONS_REMAIN is retried, for a bounded 28-second window, to allow the scheduled reservation-expiry sweep (15-second default) to finish. All other database invariant failures still fail immediately.
-Diagnostics: checkout hot-sale records the 429 rate separately from the 503 unavailable rate; thresholds are not relaxed.
-Preservation: no changes to Angular application source, backend payment/order business logic, database schema, CSP nonce handling, HSTS ownership, payment provider credentials, or E2E fixture provisioning.
-Qualification: rerun CI, staging deployment, E2E, DAST, and the full load gate on one final commit SHA. Do not promote until all required live gates pass.
-Status: targeted source correction; live staging qualification is still required.
+NEELASTACK EVENTS v2.0.46 — JUST-IN-TIME LOAD-TEST TOKEN REFRESH
+Release: 2.0.46
+Base: v2.0.45 load-test rate-limit and reservation-invariant fix
+Changes: CHANGES-2.0.46-JIT-LOADTEST-TOKEN-REFRESH.md
+Validation: VALIDATION-2.0.46-JIT-LOADTEST-TOKEN-REFRESH.md
+Security invariants retained: staging-only test target; production checkout load guard; single-owner HSTS; CSP nonce policy; 429 for deliberate rate limiting; 503 threshold; bounded reservation invariant retry; no live payment gateway usage in load tests.

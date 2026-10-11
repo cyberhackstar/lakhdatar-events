@@ -15,6 +15,15 @@ if (!Number.isFinite(RATE) || RATE <= 0) fail('CHECKIN_RATE must be a positive n
 
 const contract = new Rate('checkin_contract');
 const serverErrors = new Rate('checkin_server_errors');
+let diagnosticFailures = 0;
+
+function safeErrorCode(response) {
+  try {
+    const payload = response.json();
+    const candidate = payload && (payload.code || payload.errorCode || payload.error_code);
+    return typeof candidate === 'string' && /^[A-Za-z0-9_.-]{1,80}$/.test(candidate) ? candidate : 'unavailable';
+  } catch (_) { return 'unavailable'; }
+}
 
 export const options = {
   scenarios: {
@@ -43,5 +52,9 @@ export default function () {
   const expected = [200, 409, 429].includes(res.status);
   contract.add(expected);
   serverErrors.add(res.status >= 500);
+  if (!expected && diagnosticFailures < 3) {
+    diagnosticFailures += 1;
+    console.error(`[checkin] unexpected HTTP status=${res.status} apiCode=${safeErrorCode(res)}; response body and credentials omitted`);
+  }
   check(res, { 'check-in endpoint returns business result': r => expected });
 }

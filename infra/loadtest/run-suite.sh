@@ -13,19 +13,37 @@ trap restore_report_permissions EXIT
 chmod 0777 "$REPORT_ABS"
 IMAGE="${K6_IMAGE:-grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6}"
 BASE_URL="${BASE_URL:?Set BASE_URL to staging/load-test host}"
-run(){ local name="$1"; echo "=== k6: $name ==="; docker run --rm -i --net=host -v "$REPORT_DIR:/results" \
+run(){
+  local name="$1"
+  local staff_bearer="${STAFF_BEARER:-}"
+  local admin_bearer="${ADMIN_BEARER:-}"
+  # Access JWTs default to 15 minutes; the enterprise suite can run much longer. Renew the
+  # fixture identity at the point of use instead of weakening token expiry or disabling auth.
+  if [[ "$name" == "checkin.js" && -n "${STAFF_EMAIL:-}" && -n "${STAFF_PASSWORD:-}" ]]; then
+    echo "Refreshing short-lived scanner session immediately before check-in load"
+    staff_bearer="$(BASE_URL="$BASE_URL" REFRESH_TOKEN_ROLE=staff STAFF_EMAIL="$STAFF_EMAIL" STAFF_PASSWORD="$STAFF_PASSWORD" node "$SCRIPT_DIR/refresh-access-token.cjs")"
+    [[ -n "$staff_bearer" ]] || { echo "Scanner session refresh returned an empty token" >&2; return 2; }
+  fi
+  if [[ "$name" == "operations.js" && -n "${ADMIN_REFRESH_EMAIL:-}" && -n "${ADMIN_REFRESH_PASSWORD:-}" ]]; then
+    echo "Refreshing short-lived admin session immediately before operations load"
+    admin_bearer="$(BASE_URL="$BASE_URL" REFRESH_TOKEN_ROLE=admin ADMIN_REFRESH_EMAIL="$ADMIN_REFRESH_EMAIL" ADMIN_REFRESH_PASSWORD="$ADMIN_REFRESH_PASSWORD" ADMIN_REFRESH_TOTP_SECRET="${ADMIN_REFRESH_TOTP_SECRET:-}" node "$SCRIPT_DIR/refresh-access-token.cjs")"
+    [[ -n "$admin_bearer" ]] || { echo "Admin session refresh returned an empty token" >&2; return 2; }
+  fi
+  echo "=== k6: $name ==="
+  docker run --rm -i --net=host -v "$REPORT_DIR:/results" \
   -e BASE_URL="$BASE_URL" \
   -e EVENT_SLUG="${EVENT_SLUG:-}" -e TICKET_ID="${TICKET_ID:-}" -e TICKET_TOKEN="${TICKET_TOKEN:-}" \
-  -e ADMIN_BEARER="${ADMIN_BEARER:-}" -e ADMIN_EVENT_ID="${ADMIN_EVENT_ID:-}" \
+  -e ADMIN_BEARER="$admin_bearer" -e ADMIN_EVENT_ID="${ADMIN_EVENT_ID:-}" \
   -e EVENT_ID="${EVENT_ID:-}" -e TICKET_TYPE_ID="${TICKET_TYPE_ID:-}" \
   -e ENABLE_CHECKOUT_LOAD="${ENABLE_CHECKOUT_LOAD:-false}" -e ENABLE_ENTERPRISE_CHECKOUT_LOAD="${ENABLE_ENTERPRISE_CHECKOUT_LOAD:-false}" -e CHECKOUT_TARGET_RATE="${CHECKOUT_TARGET_RATE:-100}" -e ALLOW_PRODUCTION_CHECKOUT_LOAD="${ALLOW_PRODUCTION_CHECKOUT_LOAD:-false}" \
-  -e STAFF_BEARER="${STAFF_BEARER:-}" -e GATE="${GATE:-Gate 1}" -e CHECKIN_QR_TOKENS="${CHECKIN_QR_TOKENS:-}" \
+  -e STAFF_BEARER="$staff_bearer" -e GATE="${GATE:-Gate 1}" -e CHECKIN_QR_TOKENS="${CHECKIN_QR_TOKENS:-}" \
   -e RATE="${RATE:-50}" -e DURATION="${DURATION:-2m}" -e VUS="${VUS:-20}" -e MAX_VUS="${MAX_VUS:-100}" \
   -e TEST_IDEMPOTENCY_KEY="${TEST_IDEMPOTENCY_KEY:-}" \
   -e CHECKIN_RATE="${CHECKIN_RATE:-2}" -e CHECKIN_DURATION="${CHECKIN_DURATION:-2m}" \
   -e BURST_START_RATE="${BURST_START_RATE:-50}" -e BURST_RATE_1="${BURST_RATE_1:-100}" -e BURST_RATE_2="${BURST_RATE_2:-200}" -e BURST_RATE_3="${BURST_RATE_3:-250}" \
   -e THOUSANDS_MAX_VUS="${THOUSANDS_MAX_VUS:-1000}" -e THOUSANDS_RAMP="${THOUSANDS_RAMP:-2m}" -e THOUSANDS_HOLD="${THOUSANDS_HOLD:-3m}" \
-  "$IMAGE" run --summary-export="/results/${name%.js}.json" - < "$SCRIPT_DIR/$name"; }
+  "$IMAGE" run --summary-export="/results/${name%.js}.json" - < "$SCRIPT_DIR/$name"
+}
 
 run catalog.js
 run burst.js

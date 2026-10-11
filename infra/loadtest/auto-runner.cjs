@@ -7,7 +7,7 @@
 // cleanup on partial failure; this wrapper performs and verifies teardown after each successful run.
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { provision } = require('../../e2e/support/provision');
+const { provision, adminCredentials } = require('../../e2e/support/provision');
 
 const ROOT = path.resolve(__dirname, '../..');
 const BASE_URL = process.env.BASE_URL || 'https://staging-events.neelastack.com';
@@ -85,8 +85,10 @@ async function main() {
       teardown = fixture.teardown;
       fixtureTag = fixture.tag;
       const generated = fixture.env;
+      const adminRefresh = adminCredentials(provisionEnv);
       for (const value of [generated.E2E_ADMIN_BEARER, generated.E2E_STAFF_BEARER,
-        generated.E2E_TICKET_TOKEN, generated.E2E_QR_TOKEN, generated.E2E_IDEMPOTENCY_KEY]) mask(value);
+        generated.E2E_STAFF_PASSWORD, generated.E2E_TICKET_TOKEN, generated.E2E_QR_TOKEN,
+        generated.E2E_IDEMPOTENCY_KEY, adminRefresh.email, adminRefresh.password, adminRefresh.totpSecret]) mask(value);
 
       const loadEnv = {
         ...process.env,
@@ -100,6 +102,13 @@ async function main() {
         TICKET_TOKEN: generated.E2E_TICKET_TOKEN,
         ADMIN_BEARER: generated.E2E_ADMIN_BEARER,
         STAFF_BEARER: generated.E2E_STAFF_BEARER,
+        // Used only by the host-side refresh helper; run.sh/run-suite.sh do not pass passwords to k6.
+        STAFF_EMAIL: generated.E2E_STAFF_EMAIL,
+        STAFF_PASSWORD: generated.E2E_STAFF_PASSWORD,
+        ADMIN_REFRESH_EMAIL: adminRefresh.email,
+        ADMIN_REFRESH_PASSWORD: adminRefresh.password,
+        ADMIN_REFRESH_TOTP_SECRET: adminRefresh.totpSecret,
+        E2E_ENV: 'staging',
         CHECKIN_QR_TOKENS: generated.E2E_QR_TOKEN,
         GATE: generated.E2E_GATE || 'Main Gate',
         TEST_IDEMPOTENCY_KEY: generated.E2E_IDEMPOTENCY_KEY,

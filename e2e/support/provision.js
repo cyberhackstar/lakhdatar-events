@@ -5,8 +5,6 @@
  * payment requests to a live gateway, and never replays a non-idempotent write after a 5xx.
  */
 const crypto = require('crypto');
-const { PNG } = require('pngjs');
-const jsQR = require('jsqr');
 const { totp } = require('./totp');
 
 const GATE = 'Main Gate';
@@ -202,7 +200,11 @@ async function login(client, email, password, { totpSecret = '', allowEnroll = f
 }
 
 function decodeQrDataUri(dataUri) {
-  const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUri || '');
+  // Load QR-image dependencies only when decoding is requested. Auth/session refresh helpers can
+  // reuse this module without loading image-processing dependencies on the CI runner.
+  const { PNG } = require('pngjs');
+  const jsQR = require('jsqr');
+  const m= /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUri || '');
   if (!m) throw new ProvisionError('Ticket view did not include a base64 PNG QR code');
   let png;
   try { png = PNG.sync.read(Buffer.from(m[1], 'base64')); } catch (e) { throw new ProvisionError(`Ticket QR PNG could not be parsed: ${e.message}`); }
@@ -521,4 +523,4 @@ async function apiForUser(client, token, currentPassword, newPassword) {
   return result;
 }
 
-module.exports = { provision, ProvisionError, parseEnvFile, adminCredentials, decodeQrDataUri, paymentProvider, assertSafeTarget, validateServerPaymentSafety };
+module.exports = { provision, ProvisionError, parseEnvFile, adminCredentials, decodeQrDataUri, paymentProvider, assertSafeTarget, validateServerPaymentSafety, makeClient, login };

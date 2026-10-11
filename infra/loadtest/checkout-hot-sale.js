@@ -26,6 +26,15 @@ const contract = new Rate('checkout_contract');
 const serverErrors = new Rate('checkout_server_errors');
 const unavailableResponses = new Rate('checkout_unavailable_503');
 const rateLimitedResponses = new Rate('checkout_rate_limited_429');
+let diagnosticFailures = 0;
+
+function safeErrorCode(response) {
+  try {
+    const payload = response.json();
+    const candidate = payload && (payload.code || payload.errorCode || payload.error_code);
+    return typeof candidate === 'string' && /^[A-Za-z0-9_.-]{1,80}$/.test(candidate) ? candidate : 'unavailable';
+  } catch (_) { return 'unavailable'; }
+}
 
 // Treat designed overload/provider responses as expected HTTP outcomes so http_req_failed
 // remains a signal for transport errors and unexpected statuses. Keep 503 separately capped so
@@ -75,5 +84,9 @@ export default function () {
   serverErrors.add(response.status >= 500 && response.status !== 503);
   unavailableResponses.add(response.status === 503);
   rateLimitedResponses.add(response.status === 429);
+  if (!ok && diagnosticFailures < 3) {
+    diagnosticFailures += 1;
+    console.error(`[checkout-hot-sale] unexpected HTTP status=${response.status} apiCode=${safeErrorCode(response)}; response body and credentials omitted`);
+  }
   check(response, { 'checkout has an explicit overload/provider response': r => ok });
 }
