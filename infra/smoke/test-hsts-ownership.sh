@@ -42,7 +42,7 @@ if [[ -n "$headers_file" ]]; then
       count="${MOCK_PUBLIC_HSTS_COUNT:-1}"
       for ((i=0; i<count; i++)); do printf 'Strict-Transport-Security: max-age=31536000; includeSubDomains\r\n'; done
     else
-      count="${MOCK_ORIGIN_HSTS_COUNT:-0}"
+      count="${MOCK_ORIGIN_HSTS_COUNT:-1}"
       for ((i=0; i<count; i++)); do printf 'Strict-Transport-Security: max-age=31536000\r\n'; done
     fi
     printf '\r\n'
@@ -64,11 +64,16 @@ MOCK_CURL
 chmod +x "$TMP/bin/curl"
 export PATH="$TMP/bin:$PATH"
 
-# Local HTTP origin must pass without HSTS.
-MOCK_ORIGIN_HSTS_COUNT=0 MOCK_PUBLIC_HSTS_COUNT=1 BASE_URL=http://127.0.0.1:4003 PUBLIC_HOST=staging-events.neelastack.com \
+# The origin edge must emit exactly one HSTS header, even on direct HTTP smoke calls.
+MOCK_ORIGIN_HSTS_COUNT=1 MOCK_PUBLIC_HSTS_COUNT=1 BASE_URL=http://127.0.0.1:4003 PUBLIC_HOST=staging-events.neelastack.com \
   bash "$ROOT/infra/smoke/staging-smoke.sh" >/dev/null
-MOCK_ORIGIN_HSTS_COUNT=0 BASE_URL=http://127.0.0.1:4002 PUBLIC_HOST=events.neelastack.com \
+MOCK_ORIGIN_HSTS_COUNT=1 BASE_URL=http://127.0.0.1:4002 PUBLIC_HOST=events.neelastack.com \
   bash "$ROOT/infra/smoke/production-smoke.sh" >/dev/null
+if MOCK_ORIGIN_HSTS_COUNT=0 BASE_URL=http://127.0.0.1:4003 PUBLIC_HOST=staging-events.neelastack.com \
+  bash "$ROOT/infra/smoke/staging-smoke.sh" >/dev/null 2>&1; then
+  echo 'Expected missing origin HSTS to fail the staging smoke test' >&2
+  exit 1
+fi
 # Public HTTPS must pass with one HSTS header and fail closed with duplicates.
 MOCK_PUBLIC_HSTS_COUNT=1 BASE_URL=https://events.neelastack.com PUBLIC_HOST=events.neelastack.com \
   bash "$ROOT/infra/smoke/production-smoke.sh" >/dev/null
@@ -79,4 +84,11 @@ if MOCK_PUBLIC_HSTS_COUNT=2 BASE_URL=https://events.neelastack.com PUBLIC_HOST=e
 fi
 # Public staging workflow must explicitly gate on a single HSTS response.
 grep -q 'hsts_count.*== "1"' "$ROOT/.github/workflows/staging.yml"
-echo 'HSTS ownership smoke regression tests passed.'
+# The edge is the HSTS owner and must hide application/SSR copies. Two cache locations
+# have their own add_header directives, so they each need an explicit HSTS line.
+for conf in edge/nginx.conf infra/ha/nginx-ha.conf.example; do
+  hsts_directive_count="$(grep -Eic '^[[:space:]]*add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;' "$ROOT/$conf" || true)"
+  [[ "$hsts_directive_count" == "3" ]] || { echo "$conf must set HSTS at server level and both cache locations; found $hsts_directive_count directives" >&2; exit 1; }
+  grep -Eiq '^[[:space:]]*proxy_hide_header Strict-Transport-Security;' "$ROOT/$conf" || { echo "$conf must hide upstream HSTS headers" >&2; exit 1; }
+done
+echo 'Single-owner HSTS smoke regression tests passed.'

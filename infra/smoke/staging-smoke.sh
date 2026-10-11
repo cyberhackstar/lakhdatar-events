@@ -25,10 +25,10 @@ curl -fsS --max-time 15 -D "$headers_file" -o /dev/null -H "Host: $PUBLIC_HOST" 
 grep -qi '^content-security-policy:' "$headers_file"
 grep -qi '^x-content-type-options: *nosniff' "$headers_file"
 grep -qi '^x-frame-options:' "$headers_file"
-# This test calls the HTTP origin directly, bypassing Cloudflare. The origin must
-# not emit HSTS; Cloudflare owns the single public HTTPS HSTS header.
+# The origin edge is the single HSTS writer; hide application/SSR copies.
 origin_hsts_count="$(grep -ci '^strict-transport-security:' "$headers_file" || true)"
-[[ "$origin_hsts_count" == "0" ]] || { echo "Staging origin emitted Strict-Transport-Security; it must be owned by Cloudflare only" >&2; exit 1; }
+[[ "$origin_hsts_count" == "1" ]] || { echo "Expected exactly one origin Strict-Transport-Security header; found $origin_hsts_count" >&2; exit 1; }
+grep -Eiq '^strict-transport-security:[[:space:]]*max-age=[1-9][0-9]*' "$headers_file" || { echo "Origin HSTS has no positive max-age" >&2; exit 1; }
 grep -qi '^x-robots-tag:.*noindex' "$headers_file"
 
 sitemap="$(curl -fsS --max-time 15 -H "Host: $PUBLIC_HOST" -H 'X-Forwarded-Proto: https' "$BASE_URL/sitemap.xml")"

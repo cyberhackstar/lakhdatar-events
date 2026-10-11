@@ -8,7 +8,7 @@
 - Keeps deployment `STAGING_ENV_FILE`, database password, and the E2E provisioning config out of the k6 child environment. The SSH private key is passed only to the isolated read-only database verifier.
 - Runs post-workload database invariants even when k6 exits with a threshold failure, then attempts cleanup; failure of invariant validation or teardown makes the qualification fail.
 - Adds a public query-parameter XSS regression test and private SSR cache-prevention headers.
-- Resolves duplicate public HSTS by making Cloudflare the public HSTS writer and hiding upstream HSTS at the origin proxy. Narrows CSP image/connect sources and mounts the ZAP policy correctly into the scanner container.
+- Resolves duplicate HSTS at the origin edge: NGINX emits one valid header, hides upstream Spring/SSR copies, and explicitly covers cache locations. The public HTTPS response carries that single origin header through Cloudflare. Narrows CSP image/connect sources and mounts the ZAP policy correctly into the scanner container.
 - Adds narrowly documented INFO dispositions for reviewed ZAP heuristics; duplicate HSTS and wildcard/scheme-wide CSP findings remain blocking, and unlisted findings retain the baseline default severity.
 - Fixes database invariant SQL variable binding and keeps the earlier payment recovery/Cashfree first-create improvements in the consolidated release.
 
@@ -22,4 +22,4 @@
 
 ## Staging smoke hotfix (2026-10-11)
 
-Fixed a deployment regression introduced when HSTS ownership moved to Cloudflare: local HTTP smoke tests no longer require an HSTS header from the origin, while public HTTPS qualification explicitly requires exactly one valid HSTS header. Applied the same distinction to production smoke checks so the next production rollout does not encounter the same failure. Added a mock-curl regression test to CI.
+Fixed the first HSTS ownership hotfix after live staging showed the public HTTPS response had zero HSTS headers. NGINX edge is now the single HSTS writer; upstream Spring/SSR copies are hidden. The two cache locations explicitly add HSTS because their X-Cache-Status add_header directive overrides server-level add_header inheritance in the pinned NGINX 1.27 image. Direct-origin and public HTTPS smoke checks require exactly one valid HSTS header, with mock-curl regression coverage. Confirm Cloudflare is not separately adding HSTS before production.

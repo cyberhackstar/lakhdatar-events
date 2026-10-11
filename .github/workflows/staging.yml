@@ -184,7 +184,7 @@ jobs:
             fi
             sleep 4
           done
-          echo '::error::Staging public HTTPS/HSTS smoke failed; expected HTTP 200 and exactly one HSTS header from the Cloudflare edge.'
+          echo '::error::Staging public HTTPS/HSTS smoke failed; expected HTTP 200 and exactly one valid HSTS header.'
           exit 1
 
       - name: Logout and clean SSH material

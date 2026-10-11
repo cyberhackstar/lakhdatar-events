@@ -7,6 +7,7 @@ SMOKE_EMAIL="${SMOKE_EMAIL:-}"
 SMOKE_PASSWORD="${SMOKE_PASSWORD:-}"
 SMOKE_ROLE_ENDPOINT="${SMOKE_ROLE_ENDPOINT:-/api/v1/staff/events}"
 SMOKE_ENTERPRISE="${SMOKE_ENTERPRISE:-false}"
+[[ "$BASE_URL" == http://* || "$BASE_URL" == https://* ]] || { echo "Unsupported smoke BASE_URL scheme; expected http:// origin or https:// public URL" >&2; exit 1; }
 
 request() {
   local path="$1"; shift
@@ -34,17 +35,11 @@ curl -fsS --max-time 15 -D "$headers_file" -o /dev/null -H "Host: $PUBLIC_HOST" 
 grep -qi '^content-security-policy:' "$headers_file" || { echo "Missing Content-Security-Policy header" >&2; exit 1; }
 grep -qi '^x-content-type-options: *nosniff' "$headers_file" || { echo "Missing X-Content-Type-Options: nosniff" >&2; exit 1; }
 grep -qi '^x-frame-options:' "$headers_file" || { echo "Missing X-Frame-Options header" >&2; exit 1; }
-# The local deployment smoke calls the plain-HTTP origin; Cloudflare owns public HSTS.
-# Public smoke calls use an HTTPS BASE_URL and must see exactly one HSTS entry.
+# The origin edge is the sole HSTS writer and strips application/SSR copies.
+# Both direct-origin and public HTTPS smoke requests must observe exactly one valid header.
 hsts_count="$(grep -ci '^strict-transport-security:' "$headers_file" || true)"
-if [[ "$BASE_URL" == https://* ]]; then
-  [[ "$hsts_count" == "1" ]] || { echo "Expected exactly one public Strict-Transport-Security header; found $hsts_count" >&2; exit 1; }
-elif [[ "$BASE_URL" == http://* ]]; then
-  [[ "$hsts_count" == "0" ]] || { echo "HTTP origin must not emit Strict-Transport-Security; Cloudflare owns the public header" >&2; exit 1; }
-else
-  echo "Unsupported smoke BASE_URL scheme; expected http:// origin or https:// public URL" >&2
-  exit 1
-fi
+[[ "$hsts_count" == "1" ]] || { echo "Expected exactly one Strict-Transport-Security header; found $hsts_count" >&2; exit 1; }
+grep -Eiq '^strict-transport-security:[[:space:]]*max-age=[1-9][0-9]*' "$headers_file" || { echo "HSTS has no positive max-age" >&2; exit 1; }
 
 # Optional privileged read-only synthetic account. No checkout, payment, refund, or state mutation is
 # performed in production smoke testing. The credentials should belong to a dedicated low-privilege

@@ -11,6 +11,8 @@
 - Mock automatic load-runner test: provisioned fixture values were mapped to the workload, provisioning/deployment secrets were excluded from the k6 child environment, the read-only invariant verifier was invoked with only the needed SSH inputs, and teardown ran.
 - Mock DAST-wrapper test: the ZAP config was mounted at the path used by the scan, report paths were container-relative, reports were written, and original report-directory permissions were restored.
 - Patch application and ZIP integrity checks.
+- Live local NGINX runtime test with mock web/backend upstreams deliberately emitting duplicate HSTS headers: `/edge-health`, `/`, `/robots.txt`, both public catalogue cache routes, and blocked `/actuator/prometheus` each returned exactly one valid HSTS header; actuator remained 404. The installed test NGINX was 1.26.3 (the project image is pinned to nginx 1.27-alpine), so this verifies behavior but is not a substitute for the deployed image/staging run.
+- `bash infra/smoke/test-hsts-ownership.sh` and `node tools/verify-security-policy.mjs` pass with the final origin-owned HSTS contract.
 
 ## Required after pushing to GitHub
 
@@ -26,4 +28,4 @@ This workspace does not have Maven or Docker available, and npm dependency insta
 
 ## Deployment smoke follow-up (2026-10-11)
 
-The staging deployment log showed backend, web, and edge became healthy before the local smoke gate failed. Comparison against the known-good v2.0.38 archive identified a stale assertion: the v2.0.40 edge suppresses origin HSTS because Cloudflare owns the public header, while the local HTTP smoke script still required HSTS. The staging and production smoke contracts now require zero HSTS headers on plain-HTTP origin requests and exactly one valid HSTS header on public HTTPS requests. A mock-curl regression test is run in CI. Live staging deployment and DAST requalification remain required.
+The v2.0.40 hotfix initially corrected the internal smoke assertion but assumed Cloudflare was already injecting HSTS. A subsequent staging run proved the public HTTPS response had zero HSTS headers. The corrected contract makes the origin edge the single HSTS writer, hides Spring/SSR upstream copies, explicitly emits HSTS in both catalogue cache locations (which override NGINX server-level add_header inheritance), and requires exactly one valid header for both direct-origin and public HTTPS smoke checks. A mock-curl regression test and static source contract cover missing/duplicate headers. Live staging deployment, DAST requalification, and confirmation that no Cloudflare transform adds a duplicate remain required.
