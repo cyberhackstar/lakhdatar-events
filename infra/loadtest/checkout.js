@@ -9,8 +9,14 @@ const CUSTOMER_PREFIX = __ENV.CUSTOMER_PREFIX || 'Load Test';
 const ENABLE = __ENV.ENABLE_CHECKOUT_LOAD === 'true';
 
 if (!BASE_URL || !EVENT_ID || !TICKET_TYPE_ID) throw new Error('BASE_URL, EVENT_ID and TICKET_TYPE_ID are required.');
+// Parse the host from an absolute HTTP(S) URL without relying on Node/browser URL globals.
+// k6 runs these scripts from stdin in a small JS runtime, so the browser/Node URL constructor is not portable here.
+const BASE_URL_HOST_MATCH = /^https?:\/\/(\[[0-9a-f:.]+\]|[^/:?#@]+)(?::\d+)?(?:[/?#]|$)/i.exec(BASE_URL);
+if (!BASE_URL_HOST_MATCH) throw new Error('BASE_URL must be an absolute HTTP(S) URL without embedded credentials.');
+const BASE_URL_HOST = BASE_URL_HOST_MATCH[1].replace(/^\[|\]$/g, '').toLowerCase();
+const IS_PRODUCTION_EVENTS_HOST = BASE_URL_HOST === 'events.neelastack.com' || BASE_URL_HOST.endsWith('.events.neelastack.com');
 if (!ENABLE) throw new Error('Refusing checkout load test: set ENABLE_CHECKOUT_LOAD=true explicitly.');
-if (/events\.neelastack\.com$/i.test(new URL(BASE_URL).hostname) && __ENV.ALLOW_PRODUCTION_CHECKOUT_LOAD !== 'true') {
+if (IS_PRODUCTION_EVENTS_HOST && __ENV.ALLOW_PRODUCTION_CHECKOUT_LOAD !== 'true') {
   throw new Error('Checkout load testing is blocked against production. Use a dedicated staging/test event/provider sandbox.');
 }
 
@@ -21,14 +27,11 @@ const serverErrors = new Rate('checkout_server_errors');
 export const options = {
   scenarios: {
     checkout_provisioning: {
-      executor: 'ramping-arrival-rate', startRate: 1, timeUnit: '1s', preAllocatedVUs: 5, maxVUs: 30,
-      stages: [
-        { target: 1, duration: '30s' },
-        { target: 2, duration: '60s' },
-        { target: 5, duration: '60s' },
-        { target: 10, duration: '60s' },
-        { target: 2, duration: '30s' }
-      ], gracefulStop: '30s'
+      // Keep the success-path checkout probe below the default per-client limit of 20/minute.
+      // Higher-rate overload behavior is covered separately by checkout-hot-sale.js, where 429
+      // is an explicit rate-limit outcome rather than a successful checkout.
+      executor: 'constant-arrival-rate', rate: 1, timeUnit: '6s', duration: '4m',
+      preAllocatedVUs: 5, maxVUs: 30, gracefulStop: '30s'
     }
   },
   thresholds: {

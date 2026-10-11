@@ -11,14 +11,25 @@ const ENABLE = __ENV.ENABLE_ENTERPRISE_CHECKOUT_LOAD === 'true';
 const TARGET = Number(__ENV.CHECKOUT_TARGET_RATE || 100);
 
 if (!BASE_URL || !EVENT_ID || !TICKET_TYPE_ID) throw new Error('BASE_URL, EVENT_ID and TICKET_TYPE_ID are required.');
+// Parse the host from an absolute HTTP(S) URL without relying on Node/browser URL globals.
+// k6 runs these scripts from stdin in a small JS runtime, so the browser/Node URL constructor is not portable here.
+const BASE_URL_HOST_MATCH = /^https?:\/\/(\[[0-9a-f:.]+\]|[^/:?#@]+)(?::\d+)?(?:[/?#]|$)/i.exec(BASE_URL);
+if (!BASE_URL_HOST_MATCH) throw new Error('BASE_URL must be an absolute HTTP(S) URL without embedded credentials.');
+const BASE_URL_HOST = BASE_URL_HOST_MATCH[1].replace(/^\[|\]$/g, '').toLowerCase();
+const IS_PRODUCTION_EVENTS_HOST = BASE_URL_HOST === 'events.neelastack.com' || BASE_URL_HOST.endsWith('.events.neelastack.com');
 if (!ENABLE) throw new Error('Refusing enterprise checkout load: set ENABLE_ENTERPRISE_CHECKOUT_LOAD=true explicitly.');
-const host = new URL(BASE_URL).hostname;
-if (/events\.neelastack\.com$/i.test(host) && __ENV.ALLOW_PRODUCTION_CHECKOUT_LOAD !== 'true') {
+if (IS_PRODUCTION_EVENTS_HOST && __ENV.ALLOW_PRODUCTION_CHECKOUT_LOAD !== 'true') {
   throw new Error('Enterprise checkout load is blocked against production. Use staging with a payment sandbox.');
 }
 
 const contract = new Rate('checkout_contract');
 const serverErrors = new Rate('checkout_server_errors');
+const unavailableResponses = new Rate('checkout_unavailable_503');
+
+// Treat designed overload/provider responses as expected HTTP outcomes so http_req_failed
+// remains a signal for transport errors and unexpected statuses. Keep 503 separately capped so
+// an unavailable backend cannot make the hot-sale test look healthy.
+http.setResponseCallback(http.expectedStatuses(200, 201, 409, 429, 503));
 
 export const options = {
   scenarios: {
@@ -38,6 +49,7 @@ export const options = {
   thresholds: {
     checkout_contract: ['rate>0.99'],
     checkout_server_errors: ['rate<0.01'],
+    checkout_unavailable_503: ['rate<0.02'],
     http_req_failed: ['rate<0.02'],
     http_req_duration: ['p(95)<3000', 'p(99)<5000'],
   },
@@ -60,5 +72,6 @@ export default function () {
   const ok = [200, 201, 409, 429, 503].includes(response.status);
   contract.add(ok);
   serverErrors.add(response.status >= 500 && response.status !== 503);
+  unavailableResponses.add(response.status === 503);
   check(response, { 'checkout has an explicit overload/provider response': r => ok });
 }

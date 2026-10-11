@@ -27,6 +27,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Verify checkout load-test target guard
+        run: bash infra/loadtest/test-checkout-target-guard.sh
       - name: Verify single-owner HSTS smoke contract
         run: bash infra/smoke/test-hsts-ownership.sh
       - name: Verify security and automatic-fixture source contracts

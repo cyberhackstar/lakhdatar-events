@@ -9,6 +9,7 @@ const ssr = fs.readFileSync(new URL('../frontend/src/server.ts', import.meta.url
 const provision = fs.readFileSync(new URL('../e2e/support/provision.js', import.meta.url), 'utf8');
 const runner = fs.readFileSync(new URL('../infra/loadtest/auto-runner.cjs', import.meta.url), 'utf8');
 const catalog = fs.readFileSync(new URL('../infra/loadtest/catalog.js', import.meta.url), 'utf8');
+const checkoutLoadScripts = ['checkout.js', 'checkout-hot-sale.js', 'checkout-idempotency.js'].map(name => fs.readFileSync(new URL(`../infra/loadtest/${name}`, import.meta.url), 'utf8'));
 const loadSuite = fs.readFileSync(new URL('../infra/loadtest/run-suite.sh', import.meta.url), 'utf8');
 const qualificationWorkflow = fs.readFileSync(new URL('../.github/workflows/enterprise-release-qualification.yml', import.meta.url), 'utf8');
 const loadWorkflow = fs.readFileSync(new URL('../.github/workflows/load-test.yml', import.meta.url), 'utf8');
@@ -43,6 +44,14 @@ assert.match(haExactCatalog, /add_header\s+Strict-Transport-Security/i, 'HA exac
 assert.match(haCatalogTree, /add_header\s+Strict-Transport-Security/i, 'HA catalogue subtree cache location must set HSTS');
 assert.equal((haNginx.match(/add_header\s+Strict-Transport-Security/ig) || []).length, 3, 'HA edge must set HSTS exactly at server level and in both cache locations');
 assert.match(haNginx, /proxy_hide_header\s+Strict-Transport-Security/i, 'HA edge must hide upstream HSTS too');
+for (const [label, source] of [['edge', nginx], ['HA edge', haNginx]]) {
+  assert.match(source, /style-src 'self' 'nonce-\$request_id'; style-src-attr 'unsafe-inline';/, `${label} CSP must nonce inline style elements and isolate the narrow style-attribute allowance`);
+  assert.doesNotMatch(source, /style-src 'self' 'unsafe-inline'/, `${label} CSP must not broadly allow inline style elements`);
+  assert.match(source, /proxy_set_header X-CSP-Nonce \$request_id;/, `${label} must override the inbound CSP nonce with its per-request request id`);
+  assert.match(source, /sub_filter '<style' '<style nonce=\"\$request_id\"';/, `${label} must nonce SSR style elements`);
+  assert.match(source, /sub_filter '<app-root' '<app-root ngCspNonce=\"\$request_id\"';/, `${label} must provide the nonce to Angular client-side rendering`);
+  assert.match(source, /proxy_set_header Accept-Encoding \"\";/, `${label} must request uncompressed upstream HTML for nonce rewriting`);
+}
 assert.doesNotMatch(nginx, /img-src[^;]*\shttps:\s/i, 'CSP img-src must not permit every HTTPS origin');
 assert.match(nginx, /connect-src[^;]*https:\/\/sandbox\.cashfree\.com/i, 'Cashfree sandbox must be explicit in connect-src');
 assert.match(ssr, /no-store, no-cache, must-revalidate, private/);
@@ -52,6 +61,21 @@ assert.match(runner, /verify-invariants\.sh/, 'stateful load runs must verify da
 assert.match(runner, /E2E_STAGING_PROVISIONING_CONFIG/, 'fixture provisioning must reuse the existing E2E secret');
 assert.match(runner, /delete loadEnv\.STAGING_DEPLOY_SSH_KEY/, 'SSH private key must not reach k6 subprocesses');
 assert.doesNotMatch(catalog, /TICKET_TOKEN|ADMIN_BEARER|admin\/events|public\/tickets/, 'public catalogue load must not hammer protected APIs with one shared credential');
+for (const [index, source] of checkoutLoadScripts.entries()) {
+  assert.doesNotMatch(source, /new URL\s*\(/, `checkout load script ${index + 1} must not depend on URL global missing in k6`);
+  assert.match(source, /BASE_URL_HOST_MATCH/, `checkout load script ${index + 1} must parse the base host compatibly with k6`);
+  assert.match(source, /BASE_URL_HOST === 'events\.neelastack\.com' \|\| BASE_URL_HOST\.endsWith\('\.events\.neelastack\.com'\)/, `checkout load script ${index + 1} must use the exact production events hostname guard`);
+  assert.match(source, /endsWith\('\.events\.neelastack\.com'\)/, `checkout load script ${index + 1} must also protect production event subdomains`);
+}
+const idempotencyScript = checkoutLoadScripts[2];
+assert.match(idempotencyScript, /rate:\s*4,\s*timeUnit:\s*'1s',\s*duration:\s*'1s'/, 'idempotency probe must stay below the minimum per-email limiter while issuing a concurrent burst');
+assert.match(idempotencyScript, /customerName:\s*'Idempotency Load Test'/, 'idempotency retries must reuse the exact same customer name');
+assert.match(idempotencyScript, /customerEmail:\s*'idempotency-load@example\.invalid'/, 'idempotency retries must reuse the exact same customer email');
+assert.doesNotMatch(idempotencyScript, /customer(?:Name|Email):\s*`[^`]*\$\{__(?:VU|ITER)/, 'idempotency retries must not mutate the original checkout payload');
+assert.match(checkoutLoadScripts[0], /rate:\s*1,\s*timeUnit:\s*'6s',\s*duration:\s*'4m'/, 'success-path checkout probe must remain below the default per-client rate limit');
+assert.match(checkoutLoadScripts[1], /http\.setResponseCallback\(http\.expectedStatuses\(200, 201, 409, 429, 503\)\)/, 'hot-sale load must classify designed overload/provider outcomes as expected responses');
+assert.match(checkoutLoadScripts[1], /checkout_unavailable_503:\s*\['rate<0\.02'\]/, 'hot-sale load must still fail if the service returns too many 503 responses');
+assert.match(checkoutLoadScripts[1], /unavailableResponses\.add\(response\.status === 503\)/, 'hot-sale load must measure 503 responses separately from intended 429 rate limiting');
 assert.match(loadSuite, /chmod 0777 \"\$REPORT_ABS\"/, 'k6 summary mount must be writable to the pinned unprivileged container user');
 assert.match(loadSuite, /trap restore_report_permissions EXIT/, 'load-test report directory permissions must be restored');
 assert.match(qualificationWorkflow, /E2E_STAGING_PROVISIONING_CONFIG/);

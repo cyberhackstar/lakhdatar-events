@@ -1,10 +1,10 @@
-NEELASTACK EVENTS v2.0.42 — CI REGRESSION AND RELEASE-PACKAGE CORRECTIONS
-Release: 2.0.42
-Changes: CHANGES-2.0.42-CI-REGRESSION-FIXES.md
-Validation: VALIDATION-2.0.42-CI-REGRESSION-FIXES.md
-Baseline: v2.0.40 single-owner HSTS correction plus v2.0.41 load-qualification corrections; backend/E2E business source preserved.
+NEELASTACK EVENTS v2.0.43 — DAST AND LOAD QUALIFICATION FIXES
+Release: 2.0.43
+Changes: CHANGES-2.0.43-DAST-LOAD-QUALIFICATION-FIXES.md
+Validation: VALIDATION-2.0.43-DAST-LOAD-QUALIFICATION-FIXES.md
+Baseline: v2.0.40 single-owner HSTS correction plus v2.0.41 load-qualification and v2.0.42 CI package corrections; business source preserved.
 Release consistency: VERSION, Maven, frontend, E2E package/lock files, and active runtime metadata are aligned.
 Source distribution: safe placeholder-only dotenv templates are included; populated environment files and secrets are excluded.
-Qualification: early regression checks guard source templates and version alignment; staging/E2E must be rerun on the new commit SHA.
-Known blocker: ZAP alert 10055 (CSP style-src unsafe-inline) remains blocking until a compatible nonce/hash CSP is implemented and verified in browsers with Angular SSR and payment checkout.
+Qualification: regression checks guard source templates, version alignment, nonce propagation, and k6 target parsing; staging/E2E/DAST/load must be rerun on the new commit SHA.
+CSP: style-src uses per-request nonce; style-src-attr is explicitly retained for current dynamic style bindings. DAST must be rerun to verify the specific 10055-6 alert is gone.
 Status: corrected candidate; do not promote to production until CI, staging/E2E, DAST, load qualification, backup/restore, and payment sandbox/webhook reconciliation gates pass.
