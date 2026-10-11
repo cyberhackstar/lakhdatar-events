@@ -1,10 +1,11 @@
-NEELASTACK EVENTS v2.0.43 — DAST AND LOAD QUALIFICATION FIXES
-Release: 2.0.43
-Changes: CHANGES-2.0.43-DAST-LOAD-QUALIFICATION-FIXES.md
-Validation: VALIDATION-2.0.43-DAST-LOAD-QUALIFICATION-FIXES.md
-Baseline: v2.0.40 single-owner HSTS correction plus v2.0.41 load-qualification and v2.0.42 CI package corrections; business source preserved.
-Release consistency: VERSION, Maven, frontend, E2E package/lock files, and active runtime metadata are aligned.
-Source distribution: safe placeholder-only dotenv templates are included; populated environment files and secrets are excluded.
-Qualification: regression checks guard source templates, version alignment, nonce propagation, and k6 target parsing; staging/E2E/DAST/load must be rerun on the new commit SHA.
-CSP: style-src uses per-request nonce; style-src-attr is explicitly retained for current dynamic style bindings. DAST must be rerun to verify the specific 10055-6 alert is gone.
-Status: corrected candidate; do not promote to production until CI, staging/E2E, DAST, load qualification, backup/restore, and payment sandbox/webhook reconciliation gates pass.
+NEELASTACK EVENTS v2.0.44 — CASHFREE CHECKOUT LOAD FIX
+Release: 2.0.44
+Changes: CHANGES-2.0.44-CASHFREE-CHECKOUT-LOAD-FIX.md
+Validation: VALIDATION-2.0.44-CASHFREE-CHECKOUT-LOAD-FIX.md
+Baseline: v2.0.43 (DAST CSP nonce and v2.0.40 single-owner HSTS corrections plus CI/load regression fixes).
+Release consistency: VERSION, Maven, frontend, E2E package/lock files and active runtime metadata are aligned.
+Checkout fixtures: all three k6 checkout scenarios provide a synthetic 10-digit phone and a syntactically ordinary reserved example.com email required/compatible with Cashfree Create Order validation. Idempotency payload/key consistency is retained.
+Diagnostics: unexpected idempotency responses log status and a safe whitelisted API code only; response bodies and sensitive checkout/provider data are never printed; backend Cashfree failure logs now include only a safe provider error code.
+Preservation: no changes to backend business logic, public routes, CSP/HSTS policy, payment provider implementation, database migrations, E2E provisioning, or protected deployment secrets.
+Qualification: rerun CI, staging deployment, E2E, DAST, load tests and payment sandbox/webhook reconciliation on one final commit SHA; do not promote to production until all required gates pass.
+Status: corrected candidate; remote Cashfree checkout success is not claimed until the live load qualification passes.

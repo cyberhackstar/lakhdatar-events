@@ -44,12 +44,12 @@ export const options = {
 };
 
 export default function () {
-  const email = `loadtest-${__VU}-${__ITER}@example.invalid`;
+  const email = `loadtest-${__VU}-${__ITER}@example.com`;
   const body = JSON.stringify({
     eventId: EVENT_ID,
     customerName: `${CUSTOMER_PREFIX} ${__VU}-${__ITER}`,
     customerEmail: email,
-    customerPhone: null,
+    customerPhone: '9876543210',
     idempotencyKey: `LT-${Date.now()}-${__VU}-${__ITER}-${Math.floor(Math.random()*1_000_000_000)}`,
     items: [{ ticketTypeId: TICKET_TYPE_ID, quantity: 1 }]
   });

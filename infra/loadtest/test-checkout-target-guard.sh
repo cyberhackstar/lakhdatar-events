@@ -37,7 +37,15 @@ const checkout = fs.readFileSync('infra/loadtest/checkout.js', 'utf8');
 const hotSale = fs.readFileSync('infra/loadtest/checkout-hot-sale.js', 'utf8');
 assert.match(idempotency, /rate:\s*4,\s*timeUnit:\s*'1s',\s*duration:\s*'1s'/);
 assert.match(idempotency, /customerName:\s*'Idempotency Load Test'/);
-assert.match(idempotency, /customerEmail:\s*'idempotency-load@example\.invalid'/);
+assert.match(idempotency, /customerEmail:\s*'idempotency-load@example\.com'/);
+// Cashfree Create Order requires a 10-digit customer phone. Optional application input
+// must not be represented as null in any payment-provider load fixture.
+for (const [name, source] of [['idempotency', idempotency], ['checkout', checkout], ['hot-sale', hotSale]]) {
+  assert.match(source, /customerPhone:\s*'9876543210'/, `${name} fixture must provide a valid synthetic 10-digit phone`);
+  assert.doesNotMatch(source, /customerPhone:\s*null/, `${name} fixture must not omit Cashfree's required customer_phone`);
+}
+assert.match(idempotency, /safeErrorCode\(r\)/, 'unexpected checkout status must include a safe API error code');
+assert.match(idempotency, /unexpected HTTP status=\$\{r\.status\}/, 'checkout diagnostics must include HTTP status');
 assert.doesNotMatch(idempotency, /customer(?:Name|Email):\s*`[^`]*\$\{__(?:VU|ITER)/);
 assert.match(checkout, /rate:\s*1,\s*timeUnit:\s*'6s',\s*duration:\s*'4m'/);
 assert.match(hotSale, /http\.setResponseCallback\(http\.expectedStatuses\(200, 201, 409, 429, 503\)\)/);

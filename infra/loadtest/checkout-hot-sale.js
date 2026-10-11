@@ -60,8 +60,8 @@ export default function () {
   const body = JSON.stringify({
     eventId: EVENT_ID,
     customerName: `Enterprise Load ${__VU}-${__ITER}`,
-    customerEmail: `enterprise-load-${id}@example.invalid`,
-    customerPhone: null,
+    customerEmail: `enterprise-load-${id}@example.com`,
+    customerPhone: '9876543210',
     idempotencyKey: `ENT-${id}`,
     items: [{ ticketTypeId: TICKET_TYPE_ID, quantity: 1 }],
   });

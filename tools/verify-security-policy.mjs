@@ -13,6 +13,7 @@ const checkoutLoadScripts = ['checkout.js', 'checkout-hot-sale.js', 'checkout-id
 const loadSuite = fs.readFileSync(new URL('../infra/loadtest/run-suite.sh', import.meta.url), 'utf8');
 const qualificationWorkflow = fs.readFileSync(new URL('../.github/workflows/enterprise-release-qualification.yml', import.meta.url), 'utf8');
 const loadWorkflow = fs.readFileSync(new URL('../.github/workflows/load-test.yml', import.meta.url), 'utf8');
+const cashfreeProvider = fs.readFileSync(new URL('../backend/src/main/java/com/neelastack/lakhdatar/service/CashfreeGatewayProvider.java', import.meta.url), 'utf8');
 function locationBlock(source, declaration, label) {
   const start = source.indexOf(declaration);
   assert.notEqual(start, -1, `${label} location must exist`);
@@ -70,7 +71,15 @@ for (const [index, source] of checkoutLoadScripts.entries()) {
 const idempotencyScript = checkoutLoadScripts[2];
 assert.match(idempotencyScript, /rate:\s*4,\s*timeUnit:\s*'1s',\s*duration:\s*'1s'/, 'idempotency probe must stay below the minimum per-email limiter while issuing a concurrent burst');
 assert.match(idempotencyScript, /customerName:\s*'Idempotency Load Test'/, 'idempotency retries must reuse the exact same customer name');
-assert.match(idempotencyScript, /customerEmail:\s*'idempotency-load@example\.invalid'/, 'idempotency retries must reuse the exact same customer email');
+assert.match(idempotencyScript, /customerEmail:\s*'idempotency-load@example\.com'/, 'idempotency retries must reuse the exact same syntactically ordinary reserved example.com test email');
+for (const [index, source] of checkoutLoadScripts.entries()) {
+  assert.match(source, /customerPhone:\s*'9876543210'/, `checkout load script ${index + 1} must supply Cashfree's 10-digit customer_phone`);
+  assert.doesNotMatch(source, /customerPhone:\s*null/, `checkout load script ${index + 1} must not omit Cashfree's required customer_phone`);
+}
+assert.match(idempotencyScript, /safeErrorCode\(r\)/, 'idempotency diagnostics must include a safe API error code for unexpected responses');
+assert.match(cashfreeProvider, /safeProviderErrorCode\(response\.body\(\)\)/, 'Cashfree provider failures must extract a safe machine-readable provider code');
+assert.match(cashfreeProvider, /"provider\.error_code", providerErrorCode/, 'Cashfree provider error code must be emitted as structured metadata');
+assert.doesNotMatch(cashfreeProvider, /EnterpriseLog\.(?:warn|error)\([^;]*response\.body\(\)/s, 'raw provider error response bodies must never be logged');
 assert.doesNotMatch(idempotencyScript, /customer(?:Name|Email):\s*`[^`]*\$\{__(?:VU|ITER)/, 'idempotency retries must not mutate the original checkout payload');
 assert.match(checkoutLoadScripts[0], /rate:\s*1,\s*timeUnit:\s*'6s',\s*duration:\s*'4m'/, 'success-path checkout probe must remain below the default per-client rate limit');
 assert.match(checkoutLoadScripts[1], /http\.setResponseCallback\(http\.expectedStatuses\(200, 201, 409, 429, 503\)\)/, 'hot-sale load must classify designed overload/provider outcomes as expected responses');

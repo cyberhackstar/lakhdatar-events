@@ -19,6 +19,19 @@ const contract = new Rate('idempotency_contract');
 const successfulCreate = new Rate('idempotency_success');
 const serverErrors = new Rate('idempotency_server_errors');
 
+// Log only an HTTP status and a whitelisted machine-readable API code. Never print response
+// bodies, payment-session tokens, customer details, or provider credentials into CI logs.
+function safeErrorCode(response) {
+  try {
+    const payload = response.json();
+    const candidate = payload && (payload.code || payload.errorCode || payload.error_code);
+    return typeof candidate === 'string' && /^[A-Za-z0-9_.-]{1,80}$/.test(candidate)
+      ? candidate : 'unavailable';
+  } catch (_) {
+    return 'unavailable';
+  }
+}
+
 export const options = {
   // Four concurrent retries are enough to exercise idempotency races while staying below the
   // backend's minimum per-email checkout limiter (5 requests/window). Never turn this into a
@@ -36,9 +49,12 @@ export const options = {
 export default function () {
   // Idempotency means the same key AND the same checkout payload on every retry. Changing
   // customer fields with a reused key correctly triggers IDEMPOTENCY_CONFLICT (409).
-  const body = JSON.stringify({ eventId: EVENT_ID, customerName: 'Idempotency Load Test', customerEmail: 'idempotency-load@example.invalid', customerPhone: null, idempotencyKey: TEST_KEY, items: [{ ticketTypeId: TICKET_TYPE_ID, quantity: 1 }] });
+  const body = JSON.stringify({ eventId: EVENT_ID, customerName: 'Idempotency Load Test', customerEmail: 'idempotency-load@example.com', customerPhone: '9876543210', idempotencyKey: TEST_KEY, items: [{ ticketTypeId: TICKET_TYPE_ID, quantity: 1 }] });
   const r = http.post(`${BASE_URL}/api/v1/public/checkout`, body, { headers: { 'Content-Type': 'application/json' }, tags: { endpoint: 'checkout-idempotency' } });
   const deterministic = [200, 201, 409, 429].includes(r.status);
+  if (!deterministic || r.status >= 500) {
+    console.error(`[checkout-idempotency] unexpected HTTP status=${r.status} apiCode=${safeErrorCode(r)}`);
+  }
   contract.add(deterministic);
   successfulCreate.add(r.status === 200 || r.status === 201);
   serverErrors.add(r.status >= 500);

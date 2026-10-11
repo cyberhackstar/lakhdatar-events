@@ -79,7 +79,10 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
                 throw new ApiException(HttpStatus.NOT_FOUND, "PAYMENT_PROVIDER_NOT_FOUND", "Cashfree resource was not found");
             }
             if (response.statusCode() / 100 != 2) {
-                EnterpriseLog.warn(log, "payment.provider.http.failed", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "http.status_code", response.statusCode(), "duration.ms", durationMs);
+                // Capture a provider's machine-readable error code for diagnosis without logging
+                // its response body, customer data, payment tokens, or any echoed credentials.
+                String providerErrorCode = safeProviderErrorCode(response.body());
+                EnterpriseLog.warn(log, "payment.provider.http.failed", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "http.status_code", response.statusCode(), "provider.error_code", providerErrorCode, "duration.ms", durationMs);
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_PROVIDER_ERROR", "Cashfree payment service returned an error");
             }
             EnterpriseLog.debug(log, "payment.provider.http.succeeded", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "http.status_code", response.statusCode(), "duration.ms", durationMs);
@@ -90,6 +93,34 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
             EnterpriseLog.warn(log, "payment.provider.http.failed", "event.category", "payment", "provider", "CASHFREE", "http.method", request.method(), "provider.path", requestPath, "error.type", e.getClass().getSimpleName(), "duration.ms", (System.nanoTime()-started)/1_000_000L);
             throw new ApiException(HttpStatus.GATEWAY_TIMEOUT, "PAYMENT_PROVIDER_UNAVAILABLE", "Cashfree payment service is temporarily unavailable");
         }
+    }
+
+    /** Extract only a strict machine-readable provider code; never log the raw provider body. */
+    private String safeProviderErrorCode(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) return "UNAVAILABLE";
+        try {
+            JsonNode root = mapper.readTree(responseBody);
+            for (String field : List.of("code", "error_code", "errorCode", "sub_code")) {
+                JsonNode value = root.path(field);
+                if (value.isValueNode() && !value.isNull()) {
+                    String candidate = value.asText();
+                    if (candidate.matches("[A-Za-z0-9_.-]{1,80}")) return candidate;
+                }
+            }
+            JsonNode error = root.path("error");
+            if (error.isObject()) {
+                for (String field : List.of("code", "error_code", "errorCode", "sub_code")) {
+                    JsonNode value = error.path(field);
+                    if (value.isValueNode() && !value.isNull()) {
+                        String candidate = value.asText();
+                        if (candidate.matches("[A-Za-z0-9_.-]{1,80}")) return candidate;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Non-JSON/malformed provider errors deliberately map to a non-sensitive placeholder.
+        }
+        return "UNAVAILABLE";
     }
 
     @Override
