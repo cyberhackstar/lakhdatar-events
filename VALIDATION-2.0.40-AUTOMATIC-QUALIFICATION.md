@@ -23,3 +23,7 @@
 - [ ] Complete Cashfree sandbox payment, webhook delivery, ticket issuance, and reconciliation verification.
 
 This workspace does not have Maven or Docker available, and npm dependency installation did not complete here. No claims are made that the real Maven, frontend, Docker/PostgreSQL, ZAP, k6, or gateway tests passed. Mock checks validate orchestration wiring only; they are not substitutes for staging qualification.
+
+## Deployment smoke follow-up (2026-10-11)
+
+The staging deployment log showed backend, web, and edge became healthy before the local smoke gate failed. Comparison against the known-good v2.0.38 archive identified a stale assertion: the v2.0.40 edge suppresses origin HSTS because Cloudflare owns the public header, while the local HTTP smoke script still required HSTS. The staging and production smoke contracts now require zero HSTS headers on plain-HTTP origin requests and exactly one valid HSTS header on public HTTPS requests. A mock-curl regression test is run in CI. Live staging deployment and DAST requalification remain required.

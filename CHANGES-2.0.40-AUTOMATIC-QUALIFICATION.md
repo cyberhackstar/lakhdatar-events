@@ -19,3 +19,7 @@
 - Fixture values are masked in GitHub Actions and never written to artifacts or output variables. The load-test environment is process-local.
 - Statefully generated test event/account data is disposable and cleanup failure fails the run.
 - Real GitHub Actions staging runs are still required to confirm actual database, ZAP, k6 thresholds, browser compatibility, and payment/webhook/reconciliation. Passing mock tests does not certify the live system.
+
+## Staging smoke hotfix (2026-10-11)
+
+Fixed a deployment regression introduced when HSTS ownership moved to Cloudflare: local HTTP smoke tests no longer require an HSTS header from the origin, while public HTTPS qualification explicitly requires exactly one valid HSTS header. Applied the same distinction to production smoke checks so the next production rollout does not encounter the same failure. Added a mock-curl regression test to CI.

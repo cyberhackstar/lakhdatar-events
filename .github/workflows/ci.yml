@@ -27,6 +27,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Verify Cloudflare-owned HSTS smoke contract
+        run: bash infra/smoke/test-hsts-ownership.sh
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v3.0.0
         env:

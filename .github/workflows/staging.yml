@@ -169,14 +169,22 @@ jobs:
           STAGING_URL: https://staging-events.neelastack.com
         run: |
           set -euo pipefail
+          headers_file="$(mktemp)"
+          trap 'rm -f "$headers_file"' EXIT
           for i in $(seq 1 30); do
-            if curl -fsS --max-time 15 "$STAGING_URL/edge-health" >/dev/null && curl -fsS --max-time 15 "$STAGING_URL/robots.txt" >/dev/null; then
-              echo "Staging HTTPS endpoint is healthy."
-              exit 0
+            if curl -fsS --max-time 15 "$STAGING_URL/edge-health" >/dev/null && \
+               curl -fsS --max-time 15 "$STAGING_URL/robots.txt" >/dev/null; then
+              status="$(curl -sS --max-time 15 -D "$headers_file" -o /dev/null -w '%{http_code}' "$STAGING_URL/")" || status=000
+              hsts_count="$(grep -ci '^strict-transport-security:' "$headers_file" || true)"
+              if [[ "$status" == "200" && "$hsts_count" == "1" ]] && grep -Eiq '^strict-transport-security:[[:space:]]*max-age=[1-9][0-9]*' "$headers_file"; then
+                echo "Staging HTTPS endpoint is healthy and emits exactly one HSTS header."
+                exit 0
+              fi
+              echo "Waiting for public HTTPS/HSTS qualification (HTTP $status, HSTS headers: $hsts_count)."
             fi
             sleep 4
           done
-          echo '::error::Staging public HTTPS health check failed.'
+          echo '::error::Staging public HTTPS/HSTS smoke failed; expected HTTP 200 and exactly one HSTS header from the Cloudflare edge.'
           exit 1
 
       - name: Logout and clean SSH material
