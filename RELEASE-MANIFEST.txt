@@ -1,9 +1,10 @@
-NEELASTACK EVENTS v2.0.40 — AUTOMATIC STAGING QUALIFICATION HARDENING
-Release: 2.0.40
-Changes: CHANGES-2.0.40-AUTOMATIC-QUALIFICATION.md
-Validation: VALIDATION-2.0.40-AUTOMATIC-QUALIFICATION.md
-Baseline: v2.0.39 consolidated payment/qualification hardening, with prior known-good edge and E2E setup carried forward.
-Payment fixes retained: payable-order provider recovery filter; Cashfree first-create avoids unnecessary receipt lookup while ambiguous retries retain reconciliation.
-Qualification: stateful k6 scenarios provision and teardown fixtures automatically using E2E_STAGING_PROVISIONING_CONFIG; no manual LOADTEST_* fixture secrets or database URL are required. Existing pinned staging SSH credentials are used only for read-only invariant verification inside the staging database container.
-Security: private SSR cache prevention strengthened; duplicate HSTS removed at origin because Cloudflare owns the public HSTS header; CSP image/connect sources narrowed. ZAP policy triages reviewed informational heuristics only; CSP wildcard and HSTS duplicate findings remain blocking.
-Status: release candidate. Deploy to staging, run complete qualification, review security/load-test artifacts, and verify payment sandbox/webhook/reconciliation before production promotion.
+NEELASTACK EVENTS v2.0.42 — CI REGRESSION AND RELEASE-PACKAGE CORRECTIONS
+Release: 2.0.42
+Changes: CHANGES-2.0.42-CI-REGRESSION-FIXES.md
+Validation: VALIDATION-2.0.42-CI-REGRESSION-FIXES.md
+Baseline: v2.0.40 single-owner HSTS correction plus v2.0.41 load-qualification corrections; backend/E2E business source preserved.
+Release consistency: VERSION, Maven, frontend, E2E package/lock files, and active runtime metadata are aligned.
+Source distribution: safe placeholder-only dotenv templates are included; populated environment files and secrets are excluded.
+Qualification: early regression checks guard source templates and version alignment; staging/E2E must be rerun on the new commit SHA.
+Known blocker: ZAP alert 10055 (CSP style-src unsafe-inline) remains blocking until a compatible nonce/hash CSP is implemented and verified in browsers with Angular SSR and payment checkout.
+Status: corrected candidate; do not promote to production until CI, staging/E2E, DAST, load qualification, backup/restore, and payment sandbox/webhook reconciliation gates pass.

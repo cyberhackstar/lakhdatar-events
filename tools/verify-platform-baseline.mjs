@@ -147,6 +147,19 @@ if (!pom.includes("<postgresql.version>42.7.12</postgresql.version>"))
   problems.push("PostgreSQL driver baseline mismatch");
 if (version !== pkg.version)
   problems.push("release version mismatch between VERSION and package.json");
+const e2ePackage = JSON.parse(read("e2e/package.json"));
+const e2eLock = JSON.parse(read("e2e/package-lock.json"));
+const releaseManifest = read("RELEASE-MANIFEST.txt");
+for (const template of [".env.example", ".env.staging.example", "infra/ha/.env.ha.example"]) {
+  if (!fs.existsSync(path.join(root, template)))
+    problems.push(`safe environment template missing: ${template}`);
+}
+if (e2ePackage.version !== version)
+  problems.push(`E2E package version ${e2ePackage.version} does not match VERSION ${version}`);
+if (e2eLock.version !== version || e2eLock.packages?.[""]?.version !== version)
+  problems.push(`E2E lockfile root version does not match VERSION ${version}`);
+if (!releaseManifest.split(/\r?\n/).includes(`Release: ${version}`))
+  problems.push(`RELEASE-MANIFEST.txt must declare Release: ${version}`);
 if (version !== lock.version)
   problems.push(
     "release version mismatch between VERSION and package-lock.json",

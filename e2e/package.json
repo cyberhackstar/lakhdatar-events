@@ -1,6 +1,6 @@
 {
   "name": "neelastack-events-e2e",
-  "version": "2.0.40",
+  "version": "2.0.42",
   "private": true,
   "type": "commonjs",
   "scripts": {
