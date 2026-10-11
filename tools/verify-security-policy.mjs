@@ -8,38 +8,12 @@ const dast = fs.readFileSync(new URL('../infra/security/dast-staging.sh', import
 const ssr = fs.readFileSync(new URL('../frontend/src/server.ts', import.meta.url), 'utf8');
 const provision = fs.readFileSync(new URL('../e2e/support/provision.js', import.meta.url), 'utf8');
 const runner = fs.readFileSync(new URL('../infra/loadtest/auto-runner.cjs', import.meta.url), 'utf8');
+const catalog = fs.readFileSync(new URL('../infra/loadtest/catalog.js', import.meta.url), 'utf8');
+const loadSuite = fs.readFileSync(new URL('../infra/loadtest/run-suite.sh', import.meta.url), 'utf8');
 const qualificationWorkflow = fs.readFileSync(new URL('../.github/workflows/enterprise-release-qualification.yml', import.meta.url), 'utf8');
 const loadWorkflow = fs.readFileSync(new URL('../.github/workflows/load-test.yml', import.meta.url), 'utf8');
-function locationBlock(source, declaration, label) {
-  const start = source.indexOf(declaration);
-  assert.notEqual(start, -1, `${label} location must exist`);
-  const end = source.indexOf('\n    }', start);
-  assert.notEqual(end, -1, `${label} location must have a closing brace`);
-  return source.slice(start, end);
-}
-
-const edgeServerStart = nginx.indexOf('server {');
-const edgeHealth = nginx.indexOf('location = /edge-health', edgeServerStart);
-assert.ok(edgeServerStart >= 0 && edgeHealth > edgeServerStart, 'edge server block must be present');
-const edgeServerHeaders = nginx.slice(edgeServerStart, edgeHealth);
-const edgeExactCatalog = locationBlock(nginx, 'location = /api/v1/public/events {', 'exact catalogue');
-const edgeCatalogTree = locationBlock(nginx, 'location ^~ /api/v1/public/events/ {', 'catalogue subtree');
-assert.match(edgeServerHeaders, /add_header\s+Strict-Transport-Security\s+"max-age=31536000; includeSubDomains" always;/i, 'edge server must emit HSTS');
-assert.match(edgeExactCatalog, /add_header\s+Strict-Transport-Security/i, 'exact catalogue cache location must set HSTS because child add_header replaces server inheritance');
-assert.match(edgeCatalogTree, /add_header\s+Strict-Transport-Security/i, 'catalogue subtree cache location must set HSTS because child add_header replaces server inheritance');
-assert.equal((nginx.match(/add_header\s+Strict-Transport-Security/ig) || []).length, 3, 'edge must set HSTS exactly at server level and in both cache locations');
+assert.doesNotMatch(nginx, /add_header\s+Strict-Transport-Security/i, 'Cloudflare must be the single public HSTS writer');
 assert.match(nginx, /proxy_hide_header\s+Strict-Transport-Security/i, 'upstream HSTS must be hidden to avoid duplicates');
-
-const haServerStart = haNginx.indexOf('server {');
-const haEdgeHealth = haNginx.indexOf('location = /edge-health', haServerStart);
-assert.ok(haServerStart >= 0 && haEdgeHealth > haServerStart, 'HA edge server block must be present');
-const haServerHeaders = haNginx.slice(haServerStart, haEdgeHealth);
-const haExactCatalog = locationBlock(haNginx, 'location = /api/v1/public/events {', 'HA exact catalogue');
-const haCatalogTree = locationBlock(haNginx, 'location ^~ /api/v1/public/events/ {', 'HA catalogue subtree');
-assert.match(haServerHeaders, /add_header\s+Strict-Transport-Security\s+"max-age=31536000; includeSubDomains" always;/i, 'HA edge must emit HSTS');
-assert.match(haExactCatalog, /add_header\s+Strict-Transport-Security/i, 'HA exact catalogue cache location must set HSTS');
-assert.match(haCatalogTree, /add_header\s+Strict-Transport-Security/i, 'HA catalogue subtree cache location must set HSTS');
-assert.equal((haNginx.match(/add_header\s+Strict-Transport-Security/ig) || []).length, 3, 'HA edge must set HSTS exactly at server level and in both cache locations');
 assert.match(haNginx, /proxy_hide_header\s+Strict-Transport-Security/i, 'HA edge must hide upstream HSTS too');
 assert.doesNotMatch(nginx, /img-src[^;]*\shttps:\s/i, 'CSP img-src must not permit every HTTPS origin');
 assert.match(nginx, /connect-src[^;]*https:\/\/sandbox\.cashfree\.com/i, 'Cashfree sandbox must be explicit in connect-src');
@@ -49,6 +23,9 @@ assert.match(provision, /E2E_FIXTURE_PROFILE/);
 assert.match(runner, /verify-invariants\.sh/, 'stateful load runs must verify database invariants');
 assert.match(runner, /E2E_STAGING_PROVISIONING_CONFIG/, 'fixture provisioning must reuse the existing E2E secret');
 assert.match(runner, /delete loadEnv\.STAGING_DEPLOY_SSH_KEY/, 'SSH private key must not reach k6 subprocesses');
+assert.doesNotMatch(catalog, /TICKET_TOKEN|ADMIN_BEARER|admin\/events|public\/tickets/, 'public catalogue load must not hammer protected APIs with one shared credential');
+assert.match(loadSuite, /chmod 0777 \"\$REPORT_ABS\"/, 'k6 summary mount must be writable to the pinned unprivileged container user');
+assert.match(loadSuite, /trap restore_report_permissions EXIT/, 'load-test report directory permissions must be restored');
 assert.match(qualificationWorkflow, /E2E_STAGING_PROVISIONING_CONFIG/);
 assert.match(loadWorkflow, /E2E_STAGING_PROVISIONING_CONFIG/);
 assert.doesNotMatch(qualificationWorkflow + loadWorkflow, /secrets\.LOADTEST_(?:EVENT_ID|TICKET_ID|TICKET_TOKEN|ADMIN_BEARER|STAFF_BEARER|CHECKIN_QR_TOKENS|DATABASE_URL)/, 'manual per-fixture credentials must not be required');

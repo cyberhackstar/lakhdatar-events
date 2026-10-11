@@ -4,10 +4,6 @@ import { Counter } from 'k6/metrics';
 
 const BASE_URL = (__ENV.BASE_URL || 'http://127.0.0.1:4002').replace(/\/$/, '');
 const EVENT_SLUG = __ENV.EVENT_SLUG || '';
-const TICKET_ID = __ENV.TICKET_ID || '';
-const TICKET_TOKEN = __ENV.TICKET_TOKEN || '';
-const ADMIN_BEARER = __ENV.ADMIN_BEARER || '';
-const ADMIN_EVENT_ID = __ENV.ADMIN_EVENT_ID || '';
 
 export const options = {
   scenarios: {
@@ -46,20 +42,6 @@ export default function () {
     if (EVENT_SLUG) get(`/api/v1/public/events/${encodeURIComponent(EVENT_SLUG)}`, { endpoint: 'event-detail' });
   });
 
-  if (TICKET_ID && TICKET_TOKEN) {
-    group('ticket-access', () => {
-      const r = http.get(`${BASE_URL}/api/v1/public/tickets/${encodeURIComponent(TICKET_ID)}`, { headers: { 'X-Ticket-Token': TICKET_TOKEN }, tags: { endpoint: 'ticket' } });
-      check(r, { 'ticket access ok': x => x.status === 200 });
-    });
-  }
-
-  if (ADMIN_BEARER && ADMIN_EVENT_ID) {
-    group('admin-read', () => {
-      const headers = { Authorization: `Bearer ${ADMIN_BEARER}` };
-      const r1 = http.get(`${BASE_URL}/api/v1/admin/events/${encodeURIComponent(ADMIN_EVENT_ID)}`, { headers, tags: { endpoint: 'admin-event' } });
-      const r2 = http.get(`${BASE_URL}/api/v1/admin/events/${encodeURIComponent(ADMIN_EVENT_ID)}/tickets/cursor?size=50`, { headers, tags: { endpoint: 'admin-tickets-cursor' } });
-      check(r1, { 'admin event ok': x => x.status === 200 });
-      check(r2, { 'admin tickets cursor ok': x => x.status === 200 });
-    });
-  }
+  // Keep this scenario strictly public. Ticket/admin authorization and rate-limit behavior are
+  // covered by fixture-backed ticket-pdf.js and operations.js at their own scenario rates.
 }
