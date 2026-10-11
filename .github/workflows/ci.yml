@@ -29,6 +29,10 @@ jobs:
           fetch-depth: 0
       - name: Verify checkout load-test target guard
         run: bash infra/loadtest/test-checkout-target-guard.sh
+      - name: Verify enterprise certification evidence gate
+        run: bash infra/certification/test-verify-enterprise-evidence.sh
+      - name: Verify release qualification and production certification separation
+        run: bash infra/certification/test-certification-workflow-separation.sh
       - name: Verify load-test rates respect edge limits
         run: bash infra/loadtest/test-scenario-rate-limits.sh
       - name: Verify bounded reservation-expiry invariant retry

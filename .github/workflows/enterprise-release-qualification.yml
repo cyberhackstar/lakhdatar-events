@@ -230,55 +230,47 @@ jobs:
           path: security-results/
           if-no-files-found: warn
 
-  enterprise-evidence:
+  certification:
+    name: Release qualification result (not production certification)
     needs: [backend, frontend, database, browser-e2e, load, dast]
     runs-on: ubuntu-latest
-    environment: enterprise-certification
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_sha }}
           fetch-depth: 1
-      - name: Verify protected enterprise evidence
+      - name: Write release qualification manifest
         env:
-          CERTIFIED_SHA: ${{ inputs.release_sha }}
-          PRODUCTION_TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
-          HA_NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
-          RPO_SECONDS: ${{ vars.RPO_SECONDS }}
-          RTO_SECONDS: ${{ vars.RTO_SECONDS }}
-          MAX_RPO_SECONDS: ${{ vars.MAX_RPO_SECONDS || '300' }}
-          MAX_RTO_SECONDS: ${{ vars.MAX_RTO_SECONDS || '1800' }}
-          HA_FAILOVER_EVIDENCE_ID: ${{ vars.HA_FAILOVER_EVIDENCE_ID }}
-          PITR_EVIDENCE_ID: ${{ vars.PITR_EVIDENCE_ID }}
-          PEN_TEST_EVIDENCE_ID: ${{ vars.PEN_TEST_EVIDENCE_ID }}
-          PAYMENT_CHAOS_EVIDENCE_ID: ${{ vars.PAYMENT_CHAOS_EVIDENCE_ID }}
-          ALERTING_EVIDENCE_ID: ${{ vars.ALERTING_EVIDENCE_ID }}
-          FINANCE_RECONCILIATION_EVIDENCE_ID: ${{ vars.FINANCE_RECONCILIATION_EVIDENCE_ID }}
-          PRIVACY_REVIEW_EVIDENCE_ID: ${{ vars.PRIVACY_REVIEW_EVIDENCE_ID }}
-          MFA_EVIDENCE_ID: ${{ vars.MFA_EVIDENCE_ID }}
-          HA_FAILOVER_STATUS: ${{ vars.HA_FAILOVER_STATUS }}
-          PITR_STATUS: ${{ vars.PITR_STATUS }}
-          PEN_TEST_STATUS: ${{ vars.PEN_TEST_STATUS }}
-          PAYMENT_CHAOS_STATUS: ${{ vars.PAYMENT_CHAOS_STATUS }}
-          ALERTING_STATUS: ${{ vars.ALERTING_STATUS }}
-          FINANCE_RECONCILIATION_STATUS: ${{ vars.FINANCE_RECONCILIATION_STATUS }}
-          PRIVACY_REVIEW_STATUS: ${{ vars.PRIVACY_REVIEW_STATUS }}
-          MFA_STATUS: ${{ vars.MFA_STATUS }}
-        run: bash ./infra/certification/verify-enterprise-evidence.sh
-      - name: Upload certification manifest
-        uses: actions/upload-artifact@v7
-        with:
-          name: enterprise-certification-${{ inputs.release_sha }}
-          path: certification-evidence/enterprise-certification.json
-          if-no-files-found: error
-
-  certification:
-    needs: [backend, frontend, database, browser-e2e, load, dast, enterprise-evidence]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enterprise certification result
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          QUALIFICATION_RUN_ID: ${{ github.run_id }}
+          QUALIFICATION_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           set -euo pipefail
-          echo "CERTIFIED_SHA=${{ inputs.release_sha }}"
-          echo "Application, database, browser, load, DAST and protected enterprise-evidence gates passed."
-          echo "The protected enterprise-certification environment is the authorization boundary for ENTERPRISE_CERTIFIED_SHA."
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release SHA' >&2; exit 2; }
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          mkdir -p qualification-evidence
+          python3 - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          document = {
+              "schemaVersion": 1,
+              "manifestType": "release-qualification-not-production-certification",
+              "status": "PASS",
+              "releaseSha": os.environ["RELEASE_SHA"],
+              "workflowName": "Enterprise Release Qualification",
+              "runId": os.environ["QUALIFICATION_RUN_ID"],
+              "runAttempt": int(os.environ["QUALIFICATION_RUN_ATTEMPT"]),
+              "qualifiedAtUtc": datetime.now(timezone.utc).isoformat(),
+              "gates": ["source-validation", "backend", "frontend", "database", "browser-e2e", "load", "dast"],
+              "productionCertificationGranted": False,
+          }
+          Path("qualification-evidence/release-qualification.json").write_text(json.dumps(document, indent=2) + "\n")
+          print("Release qualification manifest written; no production certification has been granted.")
+          PY
+      - name: Upload release qualification manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-qualification-${{ inputs.release_sha }}
+          path: qualification-evidence/release-qualification.json
+          if-no-files-found: error

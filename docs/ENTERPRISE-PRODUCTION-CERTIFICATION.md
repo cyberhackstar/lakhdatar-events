@@ -2,7 +2,9 @@
 
 ## Certification boundary
 
-v2.0.35 is the enterprise-certification-gated release. The repository enforces a protected promotion boundary: a production deployment must use the exact SHA stored in the protected `ENTERPRISE_CERTIFIED_SHA` variable, and enterprise HA promotion additionally requires the HA topology preflight and signed image/provenance verification.
+Release qualification and enterprise production certification are separate workflows and separate decisions. **Enterprise Release Qualification** checks source/security baselines, backend/frontend, database migrations, browser E2E, staging load tests, and DAST for an exact SHA. Its successful artifact explicitly does not grant production certification.
+
+**Enterprise Production Certification** separately verifies the matching release-qualification artifact and operational evidence in the protected `enterprise-certification` GitHub Environment. The repository keeps the production promotion boundary: a production deployment must use the exact SHA stored in the protected `ENTERPRISE_CERTIFIED_SHA` variable, and enterprise HA promotion additionally requires the HA topology preflight and signed image/provenance verification.
 
 This document intentionally does not claim that HA failover, PITR, penetration testing, payment chaos, real paging, or load qualification has occurred in this repository's local environment. Those are target-environment evidence requirements.
 
@@ -24,7 +26,7 @@ This document intentionally does not claim that HA failover, PITR, penetration t
 
 ## Promotion
 
-The certification workflow creates `certification-evidence/enterprise-certification.json` only after the protected `enterprise-certification` environment supplies the evidence identifiers and PASS attestations. The production HA workflow then refuses to deploy any SHA other than that protected certified SHA.
+The Enterprise Production Certification workflow creates `certification-evidence/enterprise-certification.json` only after it verifies the successful qualification artifact for the same SHA and the protected `enterprise-certification` environment supplies real evidence identifiers, measured RPO/RTO, and PASS attestations. The production workflow then refuses to deploy any SHA other than the protected certified SHA.
 
 ## Operating target
 
