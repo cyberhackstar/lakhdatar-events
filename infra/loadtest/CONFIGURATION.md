@@ -36,7 +36,10 @@ cancelled at the end of the run. The complimentary QR credential is deliberately
 accepted/duplicate scan behavior. Generated access tokens are masked in GitHub Actions, are only passed to the specific k6 container variables that use them, and are not written to artifacts or GitHub step outputs. The provisioning secret and SSH key are removed from the k6 subprocess environment; the SSH key is passed only to the separate invariant-verification process.
 
 Tuning values (`LOADTEST_THOUSANDS_MAX_VUS`, `LOADTEST_THOUSANDS_RAMP`,
-`LOADTEST_THOUSANDS_HOLD`, and `LOADTEST_CHECKOUT_TARGET_RATE`) are optional GitHub environment variables
-with safe defaults; they are not credentials. Non-mutating `catalog.js`, `burst.js` (against the featured endpoint when no slug is supplied), `seo.js`
+`LOADTEST_THOUSANDS_HOLD`, `LOADTEST_CHECKOUT_TARGET_RATE`, `LOADTEST_PDF_RATE`, and
+`LOADTEST_OPERATIONS_RATE`) are optional GitHub environment variables with safe defaults; they are not credentials.
+PDF load is capped at 18 requests/second and operations load at 4 iterations/second (five requests each, four
+of which use the shared 20 requests/second client limiter). These caps keep functional SLO tests below intentional
+per-client throttling; they do not change or bypass the edge rate limit. Non-mutating `catalog.js`, `burst.js` (against the featured endpoint when no slug is supplied), `seo.js`
 and `thousands.js` scenarios can still run without provisioning. Stateful scenarios provision fixtures
 automatically.

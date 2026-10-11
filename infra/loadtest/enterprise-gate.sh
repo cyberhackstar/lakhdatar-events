@@ -58,6 +58,17 @@ fi
 export THOUSANDS_MAX_VUS="${THOUSANDS_MAX_VUS:-1000}"
 export THOUSANDS_RAMP="${THOUSANDS_RAMP:-2m}"
 export THOUSANDS_HOLD="${THOUSANDS_HOLD:-3m}"
+export PDF_RATE="${PDF_RATE:-15}"
+export OPERATIONS_RATE="${OPERATIONS_RATE:-4}"
+
+if ! [[ "$PDF_RATE" =~ ^[1-9][0-9]*$ ]] || (( PDF_RATE > 18 )); then
+  echo "PDF_RATE must be an integer from 1 to 18 RPS to stay below the shared 20 RPS edge API limiter." >&2
+  exit 2
+fi
+if ! [[ "$OPERATIONS_RATE" =~ ^[1-9][0-9]*$ ]] || (( OPERATIONS_RATE > 4 )); then
+  echo "OPERATIONS_RATE must be an integer from 1 to 4 iterations/s (four shared-limiter requests per iteration)." >&2
+  exit 2
+fi
 
 # The standard suite intentionally skips scenarios whose credentials are absent. The runner
 # provisions the full generated set and this gate fails closed before running any critical scenario.

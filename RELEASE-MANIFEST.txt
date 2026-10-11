@@ -1,6 +1,6 @@
-NEELASTACK EVENTS v2.0.46 — JUST-IN-TIME LOAD-TEST TOKEN REFRESH
-Release: 2.0.46
-Base: v2.0.45 load-test rate-limit and reservation-invariant fix
-Changes: CHANGES-2.0.46-JIT-LOADTEST-TOKEN-REFRESH.md
-Validation: VALIDATION-2.0.46-JIT-LOADTEST-TOKEN-REFRESH.md
-Security invariants retained: staging-only test target; production checkout load guard; single-owner HSTS; CSP nonce policy; 429 for deliberate rate limiting; 503 threshold; bounded reservation invariant retry; no live payment gateway usage in load tests.
+NEELASTACK EVENTS v2.0.47 — SCENARIO-SPECIFIC LOAD-TEST RATE CAPS
+Release: 2.0.47
+Base: v2.0.46 just-in-time load-test token refresh
+Changes: CHANGES-2.0.47-LOADTEST-RATE-CAPS.md
+Validation: VALIDATION-2.0.47-LOADTEST-RATE-CAPS.md
+Security invariants retained: staging-only test target; production checkout load guard; single-owner HSTS; CSP nonce policy; 429 for deliberate rate limiting; 503 threshold; bounded reservation invariant retry; no live payment gateway usage in load tests; bounded PDF and operations request profiles.

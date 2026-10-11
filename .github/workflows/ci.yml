@@ -29,6 +29,8 @@ jobs:
           fetch-depth: 0
       - name: Verify checkout load-test target guard
         run: bash infra/loadtest/test-checkout-target-guard.sh
+      - name: Verify load-test rates respect edge limits
+        run: bash infra/loadtest/test-scenario-rate-limits.sh
       - name: Verify bounded reservation-expiry invariant retry
         run: bash infra/loadtest/test-invariant-expiry-retry.sh
       - name: Verify just-in-time load-test access-token refresh

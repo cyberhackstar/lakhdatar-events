@@ -55,6 +55,8 @@ jobs:
           CHECKIN_RATE: ${{ vars.LOADTEST_CHECKIN_RATE || '2' }}
           CHECKIN_DURATION: ${{ vars.LOADTEST_CHECKIN_DURATION || '2m' }}
           RATE: ${{ vars.LOADTEST_RATE || '50' }}
+          PDF_RATE: ${{ vars.LOADTEST_PDF_RATE || '15' }}
+          OPERATIONS_RATE: ${{ vars.LOADTEST_OPERATIONS_RATE || '4' }}
           DURATION: ${{ vars.LOADTEST_DURATION || '2m' }}
           ALLOW_PRODUCTION_CHECKOUT_LOAD: 'false'
         run: node ./infra/loadtest/auto-runner.cjs "$LOADTEST_SCENARIO"

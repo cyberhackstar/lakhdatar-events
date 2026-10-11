@@ -12,6 +12,8 @@ These tests are intended for a staging environment or a dedicated load-test even
 - `checkin.js`: concurrent gate-scan pressure with issued QR credentials.
 - `ticket-pdf.js`: authenticated ticket PDF generation/download pressure.
 - `operations.js`: authenticated event operations, admin health and finance reads.
+
+The suite intentionally uses scenario-specific arrival rates for rate-limited routes. PDF downloads default to 15 RPS (hard maximum 18 RPS); operations defaults to 4 iterations/second because each iteration emits five API requests, four of which count against the shared per-client 20 RPS edge limiter. The generic `RATE=50` applies only to the public catalog/event/SEO profiles and is never reused for PDF or operations. A 429 remains a test failure for these functional service profiles.
 - `seo.js`: robots and sitemap availability.
 
 ## Suggested qualification stages

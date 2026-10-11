@@ -33,6 +33,8 @@ bash "$ROOT/infra/loadtest/run-suite.sh" >/dev/null
 
 grep -q 'CALL|suite|.*STAFF_BEARER=mock-fresh-staff-token.*checkin.json' "$MOCK_DOCKER_LOG"
 grep -q 'CALL|suite|.*ADMIN_BEARER=mock-fresh-admin-token.*operations.json' "$MOCK_DOCKER_LOG"
+grep -q 'CALL|suite|.*PDF_RATE=15.*OPERATIONS_RATE=4.*ticket-pdf.json' "$MOCK_DOCKER_LOG"
+grep -q 'CALL|suite|.*OPERATIONS_RATE=4.*operations.json' "$MOCK_DOCKER_LOG"
 if grep -qE 'never-forward-this-(staff|admin)-password|STAFF_PASSWORD=|ADMIN_REFRESH_PASSWORD=|ADMIN_REFRESH_TOTP_SECRET=' "$MOCK_DOCKER_LOG"; then
   echo 'FAIL: a password/TOTP secret reached the k6 container arguments' >&2
   exit 1

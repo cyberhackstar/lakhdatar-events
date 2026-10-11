@@ -196,6 +196,8 @@ jobs:
           THOUSANDS_RAMP: ${{ vars.LOADTEST_THOUSANDS_RAMP || '2m' }}
           THOUSANDS_HOLD: ${{ vars.LOADTEST_THOUSANDS_HOLD || '3m' }}
           CHECKOUT_TARGET_RATE: ${{ vars.LOADTEST_CHECKOUT_TARGET_RATE || '100' }}
+          PDF_RATE: ${{ vars.LOADTEST_PDF_RATE || '15' }}
+          OPERATIONS_RATE: ${{ vars.LOADTEST_OPERATIONS_RATE || '4' }}
           ALLOW_PRODUCTION_CHECKOUT_LOAD: 'false'
         run: node ./infra/loadtest/auto-runner.cjs enterprise-gate
       - name: Upload load-test evidence
