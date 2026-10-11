@@ -35,6 +35,9 @@ import fs from 'node:fs';
 const idempotency = fs.readFileSync('infra/loadtest/checkout-idempotency.js', 'utf8');
 const checkout = fs.readFileSync('infra/loadtest/checkout.js', 'utf8');
 const hotSale = fs.readFileSync('infra/loadtest/checkout-hot-sale.js', 'utf8');
+const edgeNginx = fs.readFileSync('edge/nginx.conf', 'utf8');
+const haNginx = fs.readFileSync('infra/ha/nginx-ha.conf.example', 'utf8');
+const invariantVerifier = fs.readFileSync('infra/loadtest/verify-invariants.sh', 'utf8');
 assert.match(idempotency, /rate:\s*4,\s*timeUnit:\s*'1s',\s*duration:\s*'1s'/);
 assert.match(idempotency, /customerName:\s*'Idempotency Load Test'/);
 assert.match(idempotency, /customerEmail:\s*'idempotency-load@example\.com'/);
@@ -51,5 +54,15 @@ assert.match(checkout, /rate:\s*1,\s*timeUnit:\s*'6s',\s*duration:\s*'4m'/);
 assert.match(hotSale, /http\.setResponseCallback\(http\.expectedStatuses\(200, 201, 409, 429, 503\)\)/);
 assert.match(hotSale, /checkout_unavailable_503:\s*\['rate<0\.02'\]/);
 assert.match(hotSale, /unavailableResponses\.add\(response\.status === 503\)/);
-console.log('Checkout idempotency, rate-budget, and overload-response regression tests passed.');
+assert.match(hotSale, /checkout_rate_limited_429/);
+assert.match(hotSale, /rateLimitedResponses\.add\(response\.status === 429\)/);
+for (const [name, source] of [['edge', edgeNginx], ['HA', haNginx]]) {
+  assert.match(source, /limit_req_status\s+429\s*;/, `${name} edge must report request throttling as HTTP 429`);
+  assert.match(source, /limit_conn_status\s+429\s*;/, `${name} edge must report connection throttling as HTTP 429`);
+}
+assert.match(invariantVerifier, /MAX_VERIFY_ATTEMPTS=15/);
+assert.match(invariantVerifier, /VERIFY_RETRY_DELAY_SECONDS=2/);
+assert.match(invariantVerifier, /grep -q 'EXPIRED_HELD_RESERVATIONS_REMAIN'/, 'only the expiry-worker race may be retried');
+assert.doesNotMatch(invariantVerifier, /\|\|\s*true\s*$/m, 'invariant failures must not be swallowed');
+console.log('Checkout idempotency, explicit rate-limit status, bounded reservation-sweep retry, and overload-response regression tests passed.');
 NODE

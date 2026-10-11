@@ -25,6 +25,7 @@ if (IS_PRODUCTION_EVENTS_HOST && __ENV.ALLOW_PRODUCTION_CHECKOUT_LOAD !== 'true'
 const contract = new Rate('checkout_contract');
 const serverErrors = new Rate('checkout_server_errors');
 const unavailableResponses = new Rate('checkout_unavailable_503');
+const rateLimitedResponses = new Rate('checkout_rate_limited_429');
 
 // Treat designed overload/provider responses as expected HTTP outcomes so http_req_failed
 // remains a signal for transport errors and unexpected statuses. Keep 503 separately capped so
@@ -73,5 +74,6 @@ export default function () {
   contract.add(ok);
   serverErrors.add(response.status >= 500 && response.status !== 503);
   unavailableResponses.add(response.status === 503);
+  rateLimitedResponses.add(response.status === 429);
   check(response, { 'checkout has an explicit overload/provider response': r => ok });
 }

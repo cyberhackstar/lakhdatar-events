@@ -1,11 +1,11 @@
-NEELASTACK EVENTS v2.0.44 — CASHFREE CHECKOUT LOAD FIX
-Release: 2.0.44
-Changes: CHANGES-2.0.44-CASHFREE-CHECKOUT-LOAD-FIX.md
-Validation: VALIDATION-2.0.44-CASHFREE-CHECKOUT-LOAD-FIX.md
-Baseline: v2.0.43 (DAST CSP nonce and v2.0.40 single-owner HSTS corrections plus CI/load regression fixes).
-Release consistency: VERSION, Maven, frontend, E2E package/lock files and active runtime metadata are aligned.
-Checkout fixtures: all three k6 checkout scenarios provide a synthetic 10-digit phone and a syntactically ordinary reserved example.com email required/compatible with Cashfree Create Order validation. Idempotency payload/key consistency is retained.
-Diagnostics: unexpected idempotency responses log status and a safe whitelisted API code only; response bodies and sensitive checkout/provider data are never printed; backend Cashfree failure logs now include only a safe provider error code.
-Preservation: no changes to backend business logic, public routes, CSP/HSTS policy, payment provider implementation, database migrations, E2E provisioning, or protected deployment secrets.
-Qualification: rerun CI, staging deployment, E2E, DAST, load tests and payment sandbox/webhook reconciliation on one final commit SHA; do not promote to production until all required gates pass.
-Status: corrected candidate; remote Cashfree checkout success is not claimed until the live load qualification passes.
+NEELASTACK EVENTS v2.0.45 — LOAD-TEST RATE-LIMIT AND RESERVATION-INVARIANT FIX
+Release: 2.0.45
+Changes: CHANGES-2.0.45-LOADTEST-RATE-LIMIT-FIX.md
+Validation: VALIDATION-2.0.45-LOADTEST-RATE-LIMIT-FIX.md
+Baseline: v2.0.44 (Cashfree checkout fixture correction, CSP nonce handling, and single-owner HSTS).
+Rate-limit semantics: edge NGINX keeps the same rate and burst limits, but emits HTTP 429 for rate-limit/connection-limit rejection instead of NGINX's default HTTP 503. Application/provider-generated HTTP 503 responses remain unchanged and continue to count against the hot-sale unavailable threshold.
+Invariant verification: only EXPIRED_HELD_RESERVATIONS_REMAIN is retried, for a bounded 28-second window, to allow the scheduled reservation-expiry sweep (15-second default) to finish. All other database invariant failures still fail immediately.
+Diagnostics: checkout hot-sale records the 429 rate separately from the 503 unavailable rate; thresholds are not relaxed.
+Preservation: no changes to Angular application source, backend payment/order business logic, database schema, CSP nonce handling, HSTS ownership, payment provider credentials, or E2E fixture provisioning.
+Qualification: rerun CI, staging deployment, E2E, DAST, and the full load gate on one final commit SHA. Do not promote until all required live gates pass.
+Status: targeted source correction; live staging qualification is still required.

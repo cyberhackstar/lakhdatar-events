@@ -46,6 +46,9 @@ gzip_types application/json application/javascript application/xml text/plain te
 log_format edge_json escape=json '{"time":"$time_iso8601","request_id":"$request_id","status":$status,"method":"$request_method","uri":"$uri","remote_ip":"$client_rate_key","request_time":$request_time,"upstream_time":"$upstream_response_time","host":"$host","correlation_id":"$edge_correlation_id"}';
 
 server {
+    # NGINX defaults rate-limit rejections to 503; use 429 so throttling is not confused with service failure.
+    limit_req_status 429;
+    limit_conn_status 429;
     listen 8080;
     server_name _;
     access_log /dev/stdout edge_json;
