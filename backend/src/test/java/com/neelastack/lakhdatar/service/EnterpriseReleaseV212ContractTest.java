@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EnterpriseReleaseV212ContractTest {
@@ -32,14 +33,22 @@ class EnterpriseReleaseV212ContractTest {
     }
 
     @Test
-    void enterpriseCertificationGateIsFailClosed() throws Exception {
+    void enterpriseCertificationGateIsFailClosedAndSeparatedFromReleaseQualification() throws Exception {
         String script = Files.readString(Path.of("../infra/certification/verify-enterprise-evidence.sh"));
-        String workflow = Files.readString(Path.of("../.github/workflows/enterprise-release-qualification.yml"));
+        String qualificationWorkflow = Files.readString(Path.of("../.github/workflows/enterprise-release-qualification.yml"));
+        String certificationWorkflow = Files.readString(Path.of("../.github/workflows/enterprise-production-certification.yml"));
+
+        // Application/release qualification must run without requiring external production-operational evidence.
+        assertFalse(qualificationWorkflow.contains("environment: enterprise-certification"),
+                "release qualification must not require the protected production-certification environment");
+
+        // The separate production certification workflow remains protected and fail-closed.
+        assertTrue(certificationWorkflow.contains("environment: enterprise-certification"));
+        assertTrue(certificationWorkflow.contains("verify-enterprise-evidence.sh"));
+        assertTrue(certificationWorkflow.contains("actions/download-artifact@v7"));
         assertTrue(script.contains("require_id HA_FAILOVER_EVIDENCE_ID"));
         assertTrue(script.contains("require_status HA_FAILOVER_STATUS"));
         assertTrue(script.contains("PRODUCTION_TOPOLOGY"));
-        assertTrue(workflow.contains("environment: enterprise-certification"));
-        assertTrue(workflow.contains("verify-enterprise-evidence.sh"));
     }
 
     @Test

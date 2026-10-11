@@ -1,6 +1,6 @@
-NEELASTACK EVENTS v2.0.48 — RELEASE QUALIFICATION / PRODUCTION CERTIFICATION SEPARATION
-Release: 2.0.48
-Base: v2.0.47 scenario-specific load-test rate caps
-Changes: CHANGES-2.0.48-ENTERPRISE-CERTIFICATION-GATE-SEPARATION.md
-Validation: VALIDATION-2.0.48-ENTERPRISE-CERTIFICATION-GATE-SEPARATION.md
-Security invariants retained: release-qualified SHA manifest is not production certification; separate certification requires matching qualification artifact plus protected operational evidence; production and production-HA workflows still require ENTERPRISE_CERTIFIED_SHA; HSTS/CSP policy, strict load-test thresholds, shared edge rate limits, checkout guard, token refresh, and reservation invariant retry are retained.
+NEELASTACK EVENTS v2.0.49 — BACKEND CERTIFICATION CONTRACT TEST FIX
+Release: 2.0.49
+Base: v2.0.48 release qualification / production certification separation
+Changes: CHANGES-2.0.49-BACKEND-CERTIFICATION-CONTRACT-FIX.md
+Validation: VALIDATION-2.0.49-BACKEND-CERTIFICATION-CONTRACT-FIX.md
+Security invariants retained: release qualification is not production certification; separate production certification requires matching successful qualification artifact plus protected operational evidence; production and production-HA workflows still require ENTERPRISE_CERTIFIED_SHA; HSTS/CSP policy, strict load-test thresholds, shared edge rate limits, checkout guard, token refresh, and reservation invariant retry are retained.
