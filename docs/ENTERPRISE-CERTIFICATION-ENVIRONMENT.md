@@ -2,7 +2,7 @@
 
 ## Protected GitHub environment
 
-Create a protected GitHub Environment named `enterprise-certification` and require reviewer approval. Add the following as **GitHub Environment Variables** (Settings → Environments → `enterprise-certification` → Environment variables), because the workflow reads them from the `${{ vars.NAME }}` context. Creating same-named secrets will not populate those expressions.
+Create a protected GitHub Environment named `enterprise-certification` and require reviewer approval. This evidence set is only for multi-node enterprise HA certification. For the current single-node architecture, use `docs/SINGLE-NODE-PRODUCTION-READINESS.md` and the separate `single-node-production-readiness` environment; do not configure single-node values here or weaken the HA validator. Add the following as **GitHub Environment Variables** (Settings → Environments → `enterprise-certification` → Environment variables), because the workflow reads them from the `${{ vars.NAME }}` context. Creating same-named secrets will not populate those expressions.
 
 Populate the settings only after their corresponding real exercise/review has been completed, results have been reviewed, and the supporting report or immutable evidence record is retained. Never use placeholder IDs or set a status to `PASS` to make CI green.
 

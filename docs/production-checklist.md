@@ -1,15 +1,28 @@
 # Production checklist
 
-## Enterprise certification
+## Production operational readiness
 
 - [ ] Exact release SHA passed `enterprise-release-qualification.yml`
-- [ ] `ENTERPRISE_CERTIFIED_SHA` is set only after reviewing all CI/staging evidence
 - [ ] DAST report reviewed and findings retested
 - [ ] Independent penetration test completed for the production-equivalent release
-- [ ] HA failover drill evidence attached
-- [ ] PITR/restore drill evidence attached
-- [ ] RPO/RTO and SLO targets approved
+- [ ] PITR/restore and off-host backup drill evidence attached
+- [ ] RPO/RTO measured and targets approved
 - [ ] Real Alertmanager paging destination configured and tested
+- [ ] Payment recovery/reconciliation, privacy review and privileged MFA evidence retained
+
+### Current one-node production path
+
+- [ ] `PRODUCTION_TOPOLOGY=single-node` and `HA_NODE_COUNT=1`
+- [ ] Single-node restart/recovery drill completed (does not count as HA failover)
+- [ ] `Single-Node Production Readiness` workflow passes for the exact qualified SHA
+- [ ] After reviewer approval, `SINGLE_NODE_CERTIFIED_SHA` in the protected `production` environment equals that exact SHA
+- [ ] `SINGLE-NODE-BREAK-GLASS` is entered when dispatching single-node production; accept that a VM failure causes downtime until recovery
+
+### Enterprise HA path only
+
+- [ ] At least two real application nodes in separate failure domains, plus supporting HA database/Redis/ingress
+- [ ] `Enterprise Production Certification` passes with actual HA failover evidence
+- [ ] After reviewer approval, `ENTERPRISE_CERTIFIED_SHA` is set for the HA promotion workflow
 
 ## Application
 

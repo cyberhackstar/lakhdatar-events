@@ -1,3 +1,10 @@
+# v2.0.50 — Single-node production readiness
+
+- Adds a separate protected Single-Node Production Readiness workflow for the current one-VM topology, with same-SHA release qualification verification and fail-closed operational evidence.
+- Requires measured backup/recovery RPO/RTO, off-host backup, restore/PITR, recovery drill, security, payment recovery, alerting, finance reconciliation, privacy and MFA evidence.
+- Produces a distinct single-node readiness manifest that explicitly does not grant enterprise HA certification.
+- Single-node production promotion requires `SINGLE_NODE_CERTIFIED_SHA`, exact SHA matching, `PRODUCTION_TOPOLOGY=single-node`, `HA_NODE_COUNT=1`, explicit risk acknowledgement, signed image/provenance and smoke checks. Enterprise HA gates remain unchanged.
+
 # v2.0.48 — Release qualification and enterprise certification gate separation
 
 - Separates source/backend/frontend/database/browser/load/DAST qualification from the external operational evidence required for enterprise production certification.

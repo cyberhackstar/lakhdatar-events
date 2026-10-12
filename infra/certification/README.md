@@ -7,3 +7,7 @@ The separate **Enterprise Production Certification** workflow requires the match
 Evidence IDs and PASS states must only be populated after the corresponding exercises are actually completed and reviewed. The certification gate is deliberately fail-closed and never fabricates certification. Missing configuration is reported as one aggregated checklist to prevent repeated runs for each missing variable.
 
 The database qualification gate uses digest-pinned PostgreSQL and Flyway images supplied through protected/reviewed CI configuration (`POSTGRES_CERTIFICATION_IMAGE`, `FLYWAY_CERTIFICATION_IMAGE`).
+
+## Single-node production readiness
+
+For a one-VM production deployment, use the separate `Single-Node Production Readiness` workflow and `docs/SINGLE-NODE-PRODUCTION-READINESS.md`. It requires actual single-node recovery, off-host backup, restore/PITR, security, payment recovery, alerting, finance, privacy and MFA evidence plus measured RPO/RTO. Its artifact intentionally sets `enterpriseHACertificationGranted=false`; it cannot satisfy the HA promotion workflow. After reviewing the artifact and reports, an authorized reviewer sets `SINGLE_NODE_CERTIFIED_SHA` in the protected `production` environment to the exact qualified/readiness-approved SHA. The production environment must also declare `PRODUCTION_TOPOLOGY=single-node` and `HA_NODE_COUNT=1`.

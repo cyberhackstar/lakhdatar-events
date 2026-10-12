@@ -4,7 +4,7 @@
 
 Release qualification and enterprise production certification are separate workflows and separate decisions. **Enterprise Release Qualification** checks source/security baselines, backend/frontend, database migrations, browser E2E, staging load tests, and DAST for an exact SHA. Its successful artifact explicitly does not grant production certification.
 
-**Enterprise Production Certification** separately verifies the matching release-qualification artifact and operational evidence in the protected `enterprise-certification` GitHub Environment. The repository keeps the production promotion boundary: a production deployment must use the exact SHA stored in the protected `ENTERPRISE_CERTIFIED_SHA` variable, and enterprise HA promotion additionally requires the HA topology preflight and signed image/provenance verification.
+**Enterprise Production Certification** separately verifies the matching release-qualification artifact and multi-node operational evidence in the protected `enterprise-certification` GitHub Environment. This is the enterprise-HA attestation path; its validator remains fail-closed for `PRODUCTION_TOPOLOGY=enterprise-ha` and at least two nodes. The single-node path is separately documented in `docs/SINGLE-NODE-PRODUCTION-READINESS.md`; it emits a distinct single-node readiness manifest and never grants HA certification. Single-node production promotion requires the exact reviewed SHA in the protected `SINGLE_NODE_CERTIFIED_SHA` variable; enterprise HA promotion continues to use `ENTERPRISE_CERTIFIED_SHA`, the HA topology preflight and signed image/provenance verification.
 
 This document intentionally does not claim that HA failover, PITR, penetration testing, payment chaos, real paging, or load qualification has occurred in this repository's local environment. Those are target-environment evidence requirements.
 
@@ -26,7 +26,7 @@ This document intentionally does not claim that HA failover, PITR, penetration t
 
 ## Promotion
 
-The Enterprise Production Certification workflow creates `certification-evidence/enterprise-certification.json` only after it verifies the successful qualification artifact for the same SHA and the protected `enterprise-certification` environment supplies real evidence identifiers, measured RPO/RTO, and PASS attestations. The production workflow then refuses to deploy any SHA other than the protected certified SHA.
+The Enterprise Production Certification workflow creates `certification-evidence/enterprise-certification.json` only after it verifies the successful qualification artifact for the same SHA and the protected `enterprise-certification` environment supplies real evidence identifiers, measured RPO/RTO, and PASS attestations. The single-node production workflow refuses to deploy any SHA other than the protected `SINGLE_NODE_CERTIFIED_SHA`; the HA promotion workflow continues to require `ENTERPRISE_CERTIFIED_SHA`.
 
 ## Operating target
 

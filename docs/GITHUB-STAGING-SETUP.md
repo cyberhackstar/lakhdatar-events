@@ -27,7 +27,7 @@ The enterprise release qualification workflow additionally needs reviewed, diges
 - `FLYWAY_CERTIFICATION_IMAGE`
 - `ZAP_IMAGE`
 
-Release qualification (build, migration, browser, load and DAST) is intentionally independent from production certification. After it passes, the separate Enterprise Production Certification workflow requires the actual operational evidence listed in `docs/ENTERPRISE-CERTIFICATION-ENVIRONMENT.md`. Configure those as GitHub Environment Variables in the protected `enterprise-certification` environment; never fabricate evidence merely to make a workflow pass.
+Release qualification (build, migration, browser, load and DAST) is intentionally independent from operational readiness. For the current one-VM deployment, configure and complete the evidence listed in `docs/SINGLE-NODE-PRODUCTION-READINESS.md`, then run the protected **Single-Node Production Readiness** workflow. It does not certify HA. The separate **Enterprise Production Certification** workflow and `enterprise-certification` environment are for a real multi-node HA topology only. Never fabricate evidence or mark an unperformed drill PASS. After review, the production environment variable `SINGLE_NODE_CERTIFIED_SHA` must equal the exact SHA approved for single-node promotion.
 
 ## Public hostname
 

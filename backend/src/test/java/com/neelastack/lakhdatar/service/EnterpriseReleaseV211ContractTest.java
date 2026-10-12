@@ -29,13 +29,15 @@ class EnterpriseReleaseV211ContractTest {
         String alerts = Files.readString(Path.of("../infra/monitoring/alerts.yml"));
         String smoke = Files.readString(Path.of("../infra/smoke/production-smoke.sh"));
         String production = Files.readString(Path.of("../.github/workflows/production.yml"));
+        String haProduction = Files.readString(Path.of("../.github/workflows/production-ha.yml"));
         assertTrue(metrics.contains("lakhdatar.webhooks.dead_letters"));
         assertTrue(metrics.contains("lakhdatar.refunds.manual_review"));
         assertTrue(alerts.contains("LakhdatarWebhookDeadLetters"));
         assertTrue(alerts.contains("LakhdatarRefundManualReview"));
         assertTrue(smoke.contains("Content-Security-Policy"));
         assertTrue(smoke.contains("Invalid ticket token was not rejected"));
-        assertTrue(production.contains("ENTERPRISE_CERTIFIED_SHA"));
+        assertTrue(production.contains("SINGLE_NODE_CERTIFIED_SHA"));
+        assertTrue(haProduction.contains("ENTERPRISE_CERTIFIED_SHA"));
     }
 
     @Test

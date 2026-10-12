@@ -51,6 +51,23 @@ class EnterpriseReleaseV212ContractTest {
         assertTrue(script.contains("PRODUCTION_TOPOLOGY"));
     }
 
+
+    @Test
+    void singleNodeReadinessDoesNotGrantEnterpriseHaCertification() throws Exception {
+        String workflow = Files.readString(Path.of("../.github/workflows/single-node-production-readiness.yml"));
+        String validator = Files.readString(Path.of("../infra/certification/verify-single-node-readiness.sh"));
+        String production = Files.readString(Path.of("../.github/workflows/production.yml"));
+        String haProduction = Files.readString(Path.of("../.github/workflows/production-ha.yml"));
+        assertTrue(workflow.contains("environment: single-node-production-readiness"));
+        assertTrue(workflow.contains("verify-single-node-readiness.sh"));
+        assertTrue(validator.contains("PRODUCTION_TOPOLOGY must be single-node"));
+        assertTrue(validator.contains("enterpriseHACertificationGranted': False"));
+        assertTrue(validator.contains("OFFSITE_BACKUP_EVIDENCE_ID"));
+        assertTrue(production.contains("SINGLE_NODE_CERTIFIED_SHA"));
+        assertTrue(production.contains("SINGLE-NODE-BREAK-GLASS"));
+        assertTrue(haProduction.contains("ENTERPRISE_CERTIFIED_SHA"));
+    }
+
     @Test
     void statefulBrowserTestsCannotRetryAndConsumeStateTwice() throws Exception {
         String source = Files.readString(Path.of("../e2e/tests/critical-business.spec.js"));

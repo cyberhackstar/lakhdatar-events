@@ -1,0 +1,116 @@
+name: Single-Node Production Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact 40-character SHA that passed Enterprise Release Qualification
+        required: true
+        type: string
+      qualification_run_id:
+        description: GitHub Actions run ID that produced the matching release-qualification artifact
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: single-node-production-readiness-${{ inputs.release_sha }}
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    name: Verify single-node operational evidence
+    runs-on: ubuntu-latest
+    environment: single-node-production-readiness
+    steps:
+      - name: Validate input format
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          QUALIFICATION_RUN_ID: ${{ inputs.qualification_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::release_sha must be the exact 40-character lowercase Git SHA' >&2; exit 2; }
+          [[ "$QUALIFICATION_RUN_ID" =~ ^[0-9]+$ ]] || { echo '::error::qualification_run_id must be a numeric GitHub Actions run ID' >&2; exit 2; }
+
+      - name: Download release qualification manifest
+        uses: actions/download-artifact@v7
+        with:
+          name: release-qualification-${{ inputs.release_sha }}
+          path: qualification-artifact
+          run-id: ${{ inputs.qualification_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify successful qualification artifact belongs to this SHA and run
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          QUALIFICATION_RUN_ID: ${{ inputs.qualification_run_id }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          path = Path('qualification-artifact/release-qualification.json')
+          if not path.is_file():
+              sys.exit('::error::Release qualification manifest is missing')
+          data = json.loads(path.read_text())
+          expected = {
+              'status': 'PASS',
+              'manifestType': 'release-qualification-not-production-certification',
+              'workflowName': 'Enterprise Release Qualification',
+              'releaseSha': os.environ['RELEASE_SHA'],
+              'runId': os.environ['QUALIFICATION_RUN_ID'],
+              'productionCertificationGranted': False,
+          }
+          for key, value in expected.items():
+              if data.get(key) != value:
+                  sys.exit(f'::error::Qualification manifest mismatch for {key}')
+          required_gates = {'source-validation', 'backend', 'frontend', 'database', 'browser-e2e', 'load', 'dast'}
+          if not required_gates.issubset(set(data.get('gates', []))):
+              sys.exit('::error::Qualification manifest omits one or more required gates')
+          print('Verified matching release qualification. Single-node operational readiness remains a separate gate.')
+          PY
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+
+      - name: Verify protected single-node operational evidence
+        env:
+          CERTIFIED_SHA: ${{ inputs.release_sha }}
+          PRODUCTION_TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+          HA_NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
+          RPO_SECONDS: ${{ vars.RPO_SECONDS }}
+          RTO_SECONDS: ${{ vars.RTO_SECONDS }}
+          MAX_RPO_SECONDS: ${{ vars.MAX_RPO_SECONDS || '300' }}
+          MAX_RTO_SECONDS: ${{ vars.MAX_RTO_SECONDS || '1800' }}
+          SINGLE_NODE_RECOVERY_EVIDENCE_ID: ${{ vars.SINGLE_NODE_RECOVERY_EVIDENCE_ID }}
+          OFFSITE_BACKUP_EVIDENCE_ID: ${{ vars.OFFSITE_BACKUP_EVIDENCE_ID }}
+          PITR_EVIDENCE_ID: ${{ vars.PITR_EVIDENCE_ID }}
+          PEN_TEST_EVIDENCE_ID: ${{ vars.PEN_TEST_EVIDENCE_ID }}
+          PAYMENT_CHAOS_EVIDENCE_ID: ${{ vars.PAYMENT_CHAOS_EVIDENCE_ID }}
+          ALERTING_EVIDENCE_ID: ${{ vars.ALERTING_EVIDENCE_ID }}
+          FINANCE_RECONCILIATION_EVIDENCE_ID: ${{ vars.FINANCE_RECONCILIATION_EVIDENCE_ID }}
+          PRIVACY_REVIEW_EVIDENCE_ID: ${{ vars.PRIVACY_REVIEW_EVIDENCE_ID }}
+          MFA_EVIDENCE_ID: ${{ vars.MFA_EVIDENCE_ID }}
+          SINGLE_NODE_RECOVERY_STATUS: ${{ vars.SINGLE_NODE_RECOVERY_STATUS }}
+          OFFSITE_BACKUP_STATUS: ${{ vars.OFFSITE_BACKUP_STATUS }}
+          PITR_STATUS: ${{ vars.PITR_STATUS }}
+          PEN_TEST_STATUS: ${{ vars.PEN_TEST_STATUS }}
+          PAYMENT_CHAOS_STATUS: ${{ vars.PAYMENT_CHAOS_STATUS }}
+          ALERTING_STATUS: ${{ vars.ALERTING_STATUS }}
+          FINANCE_RECONCILIATION_STATUS: ${{ vars.FINANCE_RECONCILIATION_STATUS }}
+          PRIVACY_REVIEW_STATUS: ${{ vars.PRIVACY_REVIEW_STATUS }}
+          MFA_STATUS: ${{ vars.MFA_STATUS }}
+        run: bash ./infra/certification/verify-single-node-readiness.sh
+
+      - name: Upload single-node readiness manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: single-node-production-readiness-${{ inputs.release_sha }}
+          path: certification-evidence/single-node-production-readiness.json
+          if-no-files-found: error

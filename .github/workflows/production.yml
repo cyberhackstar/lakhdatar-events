@@ -63,19 +63,21 @@ jobs:
         env:
           CONFIRM: ${{ inputs.confirm_single_node }}
           TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+          NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
         run: |
           set -euo pipefail
-          [[ "$TOPOLOGY" != "enterprise-ha" ]] || { echo 'Enterprise HA releases must use production-ha.yml'; exit 1; }
+          [[ "$TOPOLOGY" == "single-node" ]] || { echo 'This production workflow is only for PRODUCTION_TOPOLOGY=single-node; enterprise HA releases must use production-ha.yml'; exit 1; }
+          [[ "$NODE_COUNT" == "1" ]] || { echo 'Single-node production requires HA_NODE_COUNT=1'; exit 1; }
           [[ "$CONFIRM" == "SINGLE-NODE-BREAK-GLASS" ]] || { echo 'Explicit SINGLE-NODE-BREAK-GLASS confirmation is required'; exit 1; }
 
-      - name: Require enterprise certification for this exact release SHA
+      - name: Require reviewed single-node readiness for this exact release SHA
         env:
-          CERTIFIED_RELEASE_SHA: ${{ vars.ENTERPRISE_CERTIFIED_SHA }}
+          CERTIFIED_RELEASE_SHA: ${{ vars.SINGLE_NODE_CERTIFIED_SHA }}
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
         run: |
           set -euo pipefail
-          [[ "$CERTIFIED_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Production deployment requires environment variable ENTERPRISE_CERTIFIED_SHA to be a 40-character immutable Git SHA that has passed release qualification."; exit 1; }
-          [[ "$CERTIFIED_RELEASE_SHA" == "$RELEASE_SHA" ]] || { echo "::error::Release SHA $RELEASE_SHA is not the certified SHA $CERTIFIED_RELEASE_SHA. Run enterprise release qualification first."; exit 1; }
+          [[ "$CERTIFIED_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Production deployment requires SINGLE_NODE_CERTIFIED_SHA to be the exact 40-character SHA reviewed after the Single-Node Production Readiness workflow passed."; exit 1; }
+          [[ "$CERTIFIED_RELEASE_SHA" == "$RELEASE_SHA" ]] || { echo "::error::Release SHA $RELEASE_SHA is not the reviewed single-node-ready SHA $CERTIFIED_RELEASE_SHA. Run release qualification and Single-Node Production Readiness for this exact SHA first."; exit 1; }
 
       - name: Install Cosign for immutable image verification
         uses: sigstore/cosign-installer@v4.1.2
@@ -194,6 +196,15 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     steps:
+      - name: Require single-node topology for rollback
+        env:
+          TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+          NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
+        run: |
+          set -euo pipefail
+          [[ "$TOPOLOGY" == "single-node" ]] || { echo 'This rollback workflow is only for PRODUCTION_TOPOLOGY=single-node; use the HA rollback workflow for enterprise HA.'; exit 1; }
+          [[ "$NODE_COUNT" == "1" ]] || { echo 'Single-node rollback requires HA_NODE_COUNT=1'; exit 1; }
+
       - name: Verify deployment secrets
         shell: bash
         env:

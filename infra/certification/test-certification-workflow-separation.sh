@@ -8,9 +8,11 @@ import fs from 'node:fs';
 const read = (p) => fs.readFileSync(p, 'utf8');
 const qualification = read('.github/workflows/enterprise-release-qualification.yml');
 const certification = read('.github/workflows/enterprise-production-certification.yml');
+const singleNode = read('.github/workflows/single-node-production-readiness.yml');
 const production = read('.github/workflows/production.yml');
 const haProduction = read('.github/workflows/production-ha.yml');
 const validator = read('infra/certification/verify-enterprise-evidence.sh');
+const singleNodeValidator = read('infra/certification/verify-single-node-readiness.sh');
 
 // Ordinary qualification must cover application/release gates without requiring external operational attestation.
 assert.doesNotMatch(qualification, /^  enterprise-evidence:/m, 'operational evidence gate must live in the separate certification workflow');
@@ -30,11 +32,19 @@ assert.match(certification, /infra\/certification\/verify-enterprise-evidence\.s
 assert.match(certification, /name: enterprise-certification-\$\{\{ inputs\.release_sha \}\}/);
 
 // The production deployment gate must continue to require the separately protected certified SHA.
-assert.match(production, /CERTIFIED_RELEASE_SHA: \$\{\{ vars\.ENTERPRISE_CERTIFIED_SHA \}\}/);
-assert.match(production, /Production deployment requires environment variable ENTERPRISE_CERTIFIED_SHA/);
+assert.match(singleNode, /environment: single-node-production-readiness/);
+assert.match(singleNode, /infra\/certification\/verify-single-node-readiness\.sh/);
+assert.match(singleNode, /single-node-production-readiness-\$\{\{ inputs\.release_sha \}\}/);
+assert.match(singleNodeValidator, /enterpriseHACertificationGranted': False/);
+assert.match(singleNodeValidator, /PRODUCTION_TOPOLOGY must be single-node/);
+assert.match(singleNodeValidator, /OFFSITE_BACKUP_EVIDENCE_ID/);
+assert.match(production, /CERTIFIED_RELEASE_SHA: \$\{\{ vars\.SINGLE_NODE_CERTIFIED_SHA \}\}/);
+assert.match(production, /SINGLE_NODE_CERTIFIED_SHA/);
+assert.match(production, /NODE_COUNT.*vars\.HA_NODE_COUNT/);
+assert.match(production, /TOPOLOGY.*single-node/);
 assert.match(haProduction, /CERTIFIED_RELEASE_SHA: \$\{\{ vars\.ENTERPRISE_CERTIFIED_SHA \}\}/);
 assert.match(validator, /attestedByProtectedEnvironment': True/);
 assert.match(validator, /Measured RPO/);
 assert.match(validator, /Measured RTO/);
-console.log('PASS: release qualification and production certification are separate; production promotion remains blocked without the protected certified SHA.');
+console.log('PASS: release qualification remains separate; enterprise HA certification remains fail-closed; single-node readiness is a separate attestation and single-node promotion requires its exact reviewed SHA.');
 NODE
