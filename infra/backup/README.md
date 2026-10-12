@@ -14,10 +14,12 @@ Example (Cloudflare R2):
 BACKUP_REMOTE_REQUIRED=true
 BACKUP_REMOTE_URI=s3://neelastack-events-backups/postgres
 BACKUP_S3_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
-BACKUP_S3_SSE=AES256
-# For AWS KMS instead: BACKUP_S3_SSE=aws:kms and set BACKUP_S3_KMS_KEY_ID=<key-arn-or-id>
-AWS_ACCESS_KEY_ID=<R2 access key>
-AWS_SECRET_ACCESS_KEY=<R2 secret>
+BACKUP_AWS_PROFILE=neelastack-r2
+BACKUP_S3_SSE=none
+BACKUP_MAX_REMOTE_BYTES=7000000000
+# R2 encrypts objects at rest automatically; do not pass the ordinary S3 --sse header to R2.
+# For AWS S3 you may use BACKUP_S3_SSE=AES256 or BACKUP_S3_SSE=aws:kms with BACKUP_S3_KMS_KEY_ID.
+# Keep R2 credentials in the Ubuntu user's ~/.aws/credentials file under the named profile.
 ```
 
 Use bucket lifecycle rules to keep daily/weekly/monthly recovery points. The deploy script verifies the local backup before release; the backup script verifies the remote object was created before reporting success.
@@ -30,4 +32,4 @@ Run `infra/backup/restore-drill.sh` against a disposable PostgreSQL target after
 
 ### Backup storage invariants
 
-The backup job rejects malformed `s3://bucket[/prefix]` destinations and verifies both the dump and checksum object with `head-object`. Backups are uploaded with explicit server-side encryption (`AES256` by default or AWS KMS when configured); do not rely on bucket defaults as the only encryption control.
+The backup job rejects malformed `s3://bucket[/prefix]` destinations, selects the configured AWS CLI profile, checks the bucket's listed object bytes against `BACKUP_MAX_REMOTE_BYTES`, verifies uploaded object sizes and checksum sidecar, and streams the remote dump back through SHA-256 before reporting success. The guard is an application-level safety threshold, not a Cloudflare billing cap; monitor account-level R2 usage too. Cloudflare R2 encrypts objects at rest automatically, so use `BACKUP_S3_SSE=none` for R2 (the ordinary S3 `x-amz-server-side-encryption` header is not supported by R2). Do not put credentials in the repository or `.env`; store them in the protected Ubuntu user's AWS CLI credentials file.
