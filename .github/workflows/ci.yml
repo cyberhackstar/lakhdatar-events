@@ -111,6 +111,20 @@ jobs:
         run: mvn -B -ntp -DskipTests compile
       - name: Analyze
         uses: github/codeql-action/analyze@v4.38.2
+        with:
+          # Private repositories on plans without Code Security cannot upload SARIF to the
+          # GitHub code-scanning API. Keep analysis enabled and retain results as an artifact.
+          output: codeql-results
+          upload: never
+          upload-database: false
+      - name: Preserve CodeQL SARIF for private-repository review
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: codeql-sarif-${{ matrix.language }}-${{ github.run_id }}
+          path: codeql-results/
+          if-no-files-found: error
+          retention-days: 14
 
   backend:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
