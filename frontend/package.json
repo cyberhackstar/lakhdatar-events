@@ -54,5 +54,11 @@
   },
   "engines": {
     "node": ">=22.19.0 <23 || >=24.0.0 <25"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.6.0": true,
+    "esbuild@0.28.1": true,
+    "lmdb@3.4.2": true,
+    "msgpackr-extract@3.0.4": true
   }
 }

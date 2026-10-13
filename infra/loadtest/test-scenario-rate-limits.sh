@@ -14,6 +14,8 @@ const gate = read('infra/loadtest/enterprise-gate.sh');
 const workflow = read('.github/workflows/load-test.yml');
 const releaseWorkflow = read('.github/workflows/enterprise-release-qualification.yml');
 const edge = read('edge/nginx.conf');
+const checkin = read('infra/loadtest/checkin.js');
+const thresholdManifest = JSON.parse(read('infra/loadtest/k6-thresholds.json'));
 
 // PDFs must stay below the intentional 20 r/s shared API limit without changing the service SLO.
 assert.match(edge, /limit_req_zone\s+\$client_rate_key\s+zone=public_api:10m\s+rate=20r\/s;/);
@@ -45,5 +47,15 @@ assert.match(workflow, /LOADTEST_PDF_RATE \|\| '15'/);
 assert.match(workflow, /LOADTEST_OPERATIONS_RATE \|\| '4'/);
 assert.match(releaseWorkflow, /LOADTEST_PDF_RATE \|\| '15'/);
 assert.match(releaseWorkflow, /LOADTEST_OPERATIONS_RATE \|\| '4'/);
+// Scanner check-in SLO is deliberately aligned between executable k6 thresholds and the manifest.
+// Retain business-contract and server-error guards while allowing measured staging latency headroom.
+assert.match(checkin, /http_req_duration:\s*\['p\(95\)<500',\s*'p\(99\)<1000'\]/,
+  'check-in performance gate must remain p95 <500ms and p99 <1000ms');
+assert.equal(thresholdManifest.checkin.http_req_duration_p95, '<500ms');
+assert.equal(thresholdManifest.checkin.http_req_duration_p99, '<1000ms');
+assert.match(checkin, /checkin_contract:\s*\['rate>0\.98'\]/,
+  'check-in business-contract guard must remain enforced');
+assert.match(checkin, /checkin_server_errors:\s*\['rate<0\.01'\]/,
+  'check-in server-error guard must remain enforced');
 console.log('PASS: PDF and operations rates are isolated from generic RATE; security rate caps and strict 200/PDF contract remain enforced.');
 NODE

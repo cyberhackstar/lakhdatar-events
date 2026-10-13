@@ -24,10 +24,12 @@ for name in \
 done
 [[ ! -e "$TMP/empty/certification-evidence/enterprise-certification.json" ]] || { echo 'A failed evidence check must not create a certification manifest' >&2; exit 1; }
 
+MIN_EVIDENCE_ID=abcdef
+MAX_EVIDENCE_ID="$(printf '%256s' '' | tr ' ' 'a')"
 COMMON_ENV=(
   PRODUCTION_TOPOLOGY=enterprise-ha HA_NODE_COUNT=10 RPO_SECONDS=60 RTO_SECONDS=300
   MAX_RPO_SECONDS=300 MAX_RTO_SECONDS=1800 CERTIFIED_SHA=0123456789abcdef0123456789abcdef01234567
-  HA_FAILOVER_EVIDENCE_ID=fixture-ha-001 PITR_EVIDENCE_ID=fixture-pitr-001
+  HA_FAILOVER_EVIDENCE_ID="$MIN_EVIDENCE_ID" PITR_EVIDENCE_ID="$MAX_EVIDENCE_ID"
   PEN_TEST_EVIDENCE_ID=fixture-pentest-001 PAYMENT_CHAOS_EVIDENCE_ID=fixture-payment-001
   ALERTING_EVIDENCE_ID=fixture-alerting-001 FINANCE_RECONCILIATION_EVIDENCE_ID=fixture-finance-001
   PRIVACY_REVIEW_EVIDENCE_ID=fixture-privacy-001 MFA_EVIDENCE_ID=fixture-mfa-001
@@ -57,4 +59,12 @@ set -e
 [[ "$limit_rc" -eq 2 ]] || { printf 'Expected over-limit RPO rc=2, got %s\n%s\n' "$limit_rc" "$limit_output" >&2; exit 1; }
 grep -q 'Measured RPO (301s) exceeds MAX_RPO_SECONDS (300s)' <<< "$limit_output"
 [[ ! -e "$TMP/over-limit/certification-evidence/enterprise-certification.json" ]]
-echo 'PASS: enterprise evidence validation aggregates missing settings, preserves hard RPO/RTO checks, accepts valid multi-digit HA counts, and never emits a manifest for invalid evidence.'
+
+set +e
+id_output="$(cd "$TMP/over-limit" && env -i PATH="$PATH" "${COMMON_ENV[@]}" HA_FAILOVER_EVIDENCE_ID="${MAX_EVIDENCE_ID}a" bash "$SCRIPT" 2>&1)"
+id_rc=$?
+set -e
+[[ "$id_rc" -eq 2 ]] || { printf 'Expected out-of-range evidence ID rc=2, got %s\n%s\n' "$id_rc" "$id_output" >&2; exit 1; }
+grep -q 'HA_FAILOVER_EVIDENCE_ID is missing or invalid' <<< "$id_output"
+[[ ! -e "$TMP/over-limit/certification-evidence/enterprise-certification.json" ]]
+echo 'PASS: enterprise evidence validation is portable across regex implementations, accepts 6- and 256-character IDs, rejects 257-character IDs, aggregates missing settings, preserves hard RPO/RTO checks, and never emits a manifest for invalid evidence.'

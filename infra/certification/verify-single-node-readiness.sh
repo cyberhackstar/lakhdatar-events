@@ -7,7 +7,14 @@ issues=()
 add_issue() { issues+=("$1"); }
 require_id() {
   local name="$1" value="${!1:-}"
-  [[ "$value" =~ ^[A-Za-z0-9._:/-]{6,256}$ ]] || add_issue "$name is missing or invalid (expected a stable 6-256 character evidence identifier)"
+  # Keep the character check portable across GNU Bash and Git Bash/MSYS.
+  # Some POSIX regex implementations reject repetition upper bounds above 255,
+  # so enforce the length with Bash string arithmetic instead of {6,256}.
+  if [[ "$value" =~ ^[A-Za-z0-9._:/-]+$ ]] && (( ${#value} >= 6 && ${#value} <= 256 )); then
+    :
+  else
+    add_issue "$name is missing or invalid (expected a stable 6-256 character evidence identifier)"
+  fi
 }
 require_status() {
   local name="$1" value="${!1:-}"

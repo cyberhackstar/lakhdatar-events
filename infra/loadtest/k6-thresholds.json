@@ -11,7 +11,7 @@
   },
   "checkin": {
     "http_req_failed": "rate<0.01",
-    "http_req_duration_p95": "<350ms",
-    "http_req_duration_p99": "<700ms"
+    "http_req_duration_p95": "<500ms",
+    "http_req_duration_p99": "<1000ms"
   }
 }

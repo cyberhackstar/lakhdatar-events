@@ -15,9 +15,11 @@ for name in SINGLE_NODE_RECOVERY_EVIDENCE_ID OFFSITE_BACKUP_EVIDENCE_ID PITR_EVI
   grep -q "$name" <<< "$missing_output" || { echo "Missing aggregated diagnostic for $name" >&2; exit 1; }
 done
 [[ ! -e "$TMP/missing/certification-evidence/single-node-production-readiness.json" ]] || { echo 'Stale manifest survived invalid rerun' >&2; exit 1; }
+MIN_EVIDENCE_ID=abcdef
+MAX_EVIDENCE_ID="$(printf '%256s' '' | tr ' ' 'a')"
 COMMON_ENV=(
  PRODUCTION_TOPOLOGY=single-node HA_NODE_COUNT=1 RPO_SECONDS=60 RTO_SECONDS=300 MAX_RPO_SECONDS=300 MAX_RTO_SECONDS=1800 CERTIFIED_SHA=0123456789abcdef0123456789abcdef01234567
- SINGLE_NODE_RECOVERY_EVIDENCE_ID=fixture-recovery-001 OFFSITE_BACKUP_EVIDENCE_ID=fixture-backup-001 PITR_EVIDENCE_ID=fixture-pitr-001 PEN_TEST_EVIDENCE_ID=fixture-pentest-001 PAYMENT_CHAOS_EVIDENCE_ID=fixture-payment-001 ALERTING_EVIDENCE_ID=fixture-alerting-001 FINANCE_RECONCILIATION_EVIDENCE_ID=fixture-finance-001 PRIVACY_REVIEW_EVIDENCE_ID=fixture-privacy-001 MFA_EVIDENCE_ID=fixture-mfa-001
+ SINGLE_NODE_RECOVERY_EVIDENCE_ID="$MIN_EVIDENCE_ID" OFFSITE_BACKUP_EVIDENCE_ID="$MAX_EVIDENCE_ID" PITR_EVIDENCE_ID=fixture-pitr-001 PEN_TEST_EVIDENCE_ID=fixture-pentest-001 PAYMENT_CHAOS_EVIDENCE_ID=fixture-payment-001 ALERTING_EVIDENCE_ID=fixture-alerting-001 FINANCE_RECONCILIATION_EVIDENCE_ID=fixture-finance-001 PRIVACY_REVIEW_EVIDENCE_ID=fixture-privacy-001 MFA_EVIDENCE_ID=fixture-mfa-001
  SINGLE_NODE_RECOVERY_STATUS=PASS OFFSITE_BACKUP_STATUS=PASS PITR_STATUS=PASS PEN_TEST_STATUS=PASS PAYMENT_CHAOS_STATUS=PASS ALERTING_STATUS=PASS FINANCE_RECONCILIATION_STATUS=PASS PRIVACY_REVIEW_STATUS=PASS MFA_STATUS=PASS
 )
 (cd "$TMP/valid" && env -i PATH="$PATH" "${COMMON_ENV[@]}" bash "$SCRIPT")
@@ -44,4 +46,11 @@ rpo_rc=$?
 set -e
 [[ "$rpo_rc" -eq 2 ]] && grep -q 'Measured RPO (301s) exceeds MAX_RPO_SECONDS (300s)' <<< "$rpo_output"
 [[ ! -e "$TMP/over-limit/certification-evidence/single-node-production-readiness.json" ]]
-echo 'PASS: single-node readiness aggregates missing evidence, deletes stale output, validates topology/RPO, and never grants HA certification.'
+set +e
+id_output="$(cd "$TMP/over-limit" && env -i PATH="$PATH" "${COMMON_ENV[@]}" SINGLE_NODE_RECOVERY_EVIDENCE_ID="${MAX_EVIDENCE_ID}a" bash "$SCRIPT" 2>&1)"
+id_rc=$?
+set -e
+[[ "$id_rc" -eq 2 ]] || { printf 'Expected out-of-range evidence ID rc=2, got %s\n%s\n' "$id_rc" "$id_output" >&2; exit 1; }
+grep -q 'SINGLE_NODE_RECOVERY_EVIDENCE_ID is missing or invalid' <<< "$id_output"
+[[ ! -e "$TMP/over-limit/certification-evidence/single-node-production-readiness.json" ]]
+echo 'PASS: single-node readiness uses portable evidence-ID validation, accepts 6- and 256-character IDs, rejects 257-character IDs, aggregates missing evidence, deletes stale output, validates topology/RPO, and never grants HA certification.'

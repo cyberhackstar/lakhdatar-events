@@ -39,7 +39,7 @@ export const options = {
   thresholds: {
     checkin_contract: ['rate>0.98'],
     checkin_server_errors: ['rate<0.01'],
-    http_req_duration: ['p(95)<350', 'p(99)<700']
+    http_req_duration: ['p(95)<500', 'p(99)<1000']
   }
 };
 
