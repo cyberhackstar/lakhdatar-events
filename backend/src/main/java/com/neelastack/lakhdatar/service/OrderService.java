@@ -114,9 +114,25 @@ public class OrderService {
         // same ticket-type -> event ordering, with ticket types acquired in a deterministic order.
         List<TicketTypeRequest> requestedTypes = new ArrayList<>(merged.size());
         for (Map.Entry<UUID,Integer> entry : merged.entrySet()) {
-            TicketType tt=ticketTypes.findByPublicId(entry.getKey()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"TICKET_TYPE_NOT_FOUND","Ticket type not found"));
-            if(!tt.getEventId().equals(event.getId())) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_CART","Ticket type does not belong to this event");
-            requestedTypes.add(new TicketTypeRequest(entry.getKey(), tt.getId(), entry.getValue()));
+            TicketTypeRepository.TicketTypeIdentity tt =
+        ticketTypes.findIdentityByPublicId(entry.getKey())
+            .orElseThrow(() -> new ApiException(
+                HttpStatus.NOT_FOUND,
+                "TICKET_TYPE_NOT_FOUND",
+                "Ticket type not found"
+            ));
+
+if (!Objects.equals(tt.getEventId(), event.getId())) {
+    throw new ApiException(
+        HttpStatus.BAD_REQUEST,
+        "INVALID_CART",
+        "Ticket type does not belong to this event"
+    );
+}
+
+requestedTypes.add(new TicketTypeRequest(
+        entry.getKey(), tt.getId(), entry.getValue()
+));
         }
         requestedTypes.sort(Comparator.comparing(TicketTypeRequest::ticketTypeId));
 
