@@ -30,10 +30,12 @@ jobs:
           ref: ${{ inputs.release_sha }}
           fetch-depth: 1
       - name: Validate exact release SHA
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
           set -euo pipefail
-          [[ '${{ inputs.release_sha }}' =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a 40-character lowercase Git SHA'; exit 2; }
-          grep -qx '${{ inputs.release_sha }}' <(git rev-parse HEAD)
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a 40-character lowercase Git SHA'; exit 2; }
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -42,6 +44,67 @@ jobs:
           set -euo pipefail
           node tools/verify-platform-baseline.mjs
           node tools/verify-frontend-lock.mjs
+
+  staging-release-identity:
+    name: Verify requested SHA is deployed to staging
+    needs: [source-validation]
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 5
+    steps:
+      - name: Validate exact staging release and public target
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          STAGING_URL: ${{ inputs.staging_url }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a 40-character lowercase Git SHA'; exit 2; }
+          [[ "$STAGING_URL" == 'https://staging-events.neelastack.com' ]] || { echo 'Release qualification must target https://staging-events.neelastack.com'; exit 2; }
+
+      - name: Configure read-only staging SSH check
+        env:
+          STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
+          STAGING_DEPLOY_SSH_KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
+          STAGING_DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for name in STAGING_DEPLOY_HOST STAGING_DEPLOY_SSH_KEY STAGING_DEPLOY_KNOWN_HOSTS; do
+            [[ -n "${!name}" ]] || { echo "Missing staging SSH secret: $name"; exit 1; }
+          done
+          [[ "$STAGING_DEPLOY_HOST" =~ ^[A-Za-z0-9._:@-]+$ ]] || { echo 'STAGING_DEPLOY_HOST contains invalid characters'; exit 2; }
+          case "$STAGING_DEPLOY_HOST" in
+            *@*) STAGING_SSH_TARGET="$STAGING_DEPLOY_HOST" ;;
+            *) STAGING_SSH_TARGET="ubuntu@$STAGING_DEPLOY_HOST" ;;
+          esac
+          echo "STAGING_SSH_TARGET=$STAGING_SSH_TARGET" >> "$GITHUB_ENV"
+          printf '%s\n' "$STAGING_DEPLOY_SSH_KEY" > deploy_key
+          chmod 600 deploy_key
+          printf '%s\n' "$STAGING_DEPLOY_KNOWN_HOSTS" > known_hosts
+          chmod 644 known_hosts
+          ssh-keygen -y -f deploy_key >/dev/null
+
+      - name: Require exact successful staging deployment marker
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release SHA'; exit 2; }
+          ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$STAGING_SSH_TARGET" "RELEASE_SHA='$RELEASE_SHA' bash -s" <<'REMOTE'
+          set -euo pipefail
+          marker='/home/ubuntu/apps/lakhdatar-events-staging/.deploy-current'
+          deployed="$(cat "$marker" 2>/dev/null || true)"
+          if [[ "$deployed" != "$RELEASE_SHA" ]]; then
+            echo 'Staging deployment marker does not match the requested release SHA.' >&2
+            echo "Requested SHA: $RELEASE_SHA" >&2
+            echo "Deployed SHA: ${deployed:-<missing>}" >&2
+            exit 1
+          fi
+          echo "Staging deployment marker matches requested release SHA: $RELEASE_SHA"
+          REMOTE
+
+      - name: Clean staging SSH material
+        if: always()
+        run: rm -f deploy_key known_hosts
 
   database:
     needs: source-validation
@@ -108,7 +171,7 @@ jobs:
         run: npm run test:unit
 
   browser-e2e:
-    needs: [backend, frontend]
+    needs: [backend, frontend, staging-release-identity]
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 30
@@ -162,7 +225,7 @@ jobs:
 
   load:
     # Keep synthetic user-facing/browser actions and load traffic from contending on staging.
-    needs: [backend, frontend, browser-e2e]
+    needs: [backend, frontend, browser-e2e, staging-release-identity]
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -209,7 +272,7 @@ jobs:
           if-no-files-found: warn
 
   dast:
-    needs: [backend, frontend]
+    needs: [backend, frontend, staging-release-identity]
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -232,7 +295,7 @@ jobs:
 
   certification:
     name: Release qualification result (not production certification)
-    needs: [backend, frontend, database, browser-e2e, load, dast]
+    needs: [backend, frontend, database, staging-release-identity, browser-e2e, load, dast]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -262,7 +325,7 @@ jobs:
               "runId": os.environ["QUALIFICATION_RUN_ID"],
               "runAttempt": int(os.environ["QUALIFICATION_RUN_ATTEMPT"]),
               "qualifiedAtUtc": datetime.now(timezone.utc).isoformat(),
-              "gates": ["source-validation", "backend", "frontend", "database", "browser-e2e", "load", "dast"],
+              "gates": ["source-validation", "backend", "frontend", "database", "staging-release-identity", "browser-e2e", "load", "dast"],
               "productionCertificationGranted": False,
           }
           Path("qualification-evidence/release-qualification.json").write_text(json.dumps(document, indent=2) + "\n")

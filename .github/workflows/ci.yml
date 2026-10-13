@@ -47,6 +47,8 @@ jobs:
         run: node tools/verify-security-policy.mjs
       - name: Verify private-repository release workflow compatibility
         run: bash infra/certification/test-private-repo-workflow-compat.sh
+      - name: Verify staging deployment package contract
+        run: bash infra/certification/test-staging-deploy-package.sh
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v3.0.0
         env:
@@ -202,7 +204,7 @@ jobs:
           exit 1
 
   docker:
-    needs: [backend, frontend, security]
+    needs: [backend, frontend, security, codeql]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 75

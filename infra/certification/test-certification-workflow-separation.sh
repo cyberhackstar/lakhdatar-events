@@ -16,7 +16,10 @@ const singleNodeValidator = read('infra/certification/verify-single-node-readine
 
 // Ordinary qualification must cover application/release gates without requiring external operational attestation.
 assert.doesNotMatch(qualification, /^  enterprise-evidence:/m, 'operational evidence gate must live in the separate certification workflow');
-assert.match(qualification, /needs: \[backend, frontend, database, browser-e2e, load, dast\]/);
+assert.match(qualification, /needs: \[backend, frontend, database, staging-release-identity, browser-e2e, load, dast\]/);
+assert.match(qualification, /staging-release-identity:[\s\S]*?\.deploy-current/);
+assert.match(qualification, /needs: \[backend, frontend, staging-release-identity\]/);
+assert.match(qualification, /RELEASE_SHA: \$\{\{ inputs\.release_sha \}\}[\s\S]*?test "\$\(git rev-parse HEAD\)" = "\$RELEASE_SHA"/);
 assert.match(qualification, /"manifestType": "release-qualification-not-production-certification"/);
 assert.match(qualification, /"productionCertificationGranted": False/);
 assert.match(qualification, /name: release-qualification-\$\{\{ inputs\.release_sha \}\}/);

@@ -68,7 +68,7 @@ jobs:
           for key, value in expected.items():
               if data.get(key) != value:
                   sys.exit(f'::error::Qualification manifest mismatch for {key}')
-          required_gates = {'source-validation', 'backend', 'frontend', 'database', 'browser-e2e', 'load', 'dast'}
+          required_gates = {'source-validation', 'backend', 'frontend', 'database', 'staging-release-identity', 'browser-e2e', 'load', 'dast'}
           if not required_gates.issubset(set(data.get('gates', []))):
               sys.exit('::error::Qualification manifest omits one or more required gates')
           print('Verified the matching release qualification manifest; operational certification remains a separate gate.')

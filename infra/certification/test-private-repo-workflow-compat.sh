@@ -21,6 +21,9 @@ for f in "$STAGING" "$PRODUCTION" "$PRODUCTION_HA"; do
   grep -q 'Authenticate GitHub Actions runner to GHCR' "$f" || grep -q 'Authenticate release runner to GHCR' "$f"
 done
 
+# Release images must not be published if any required code/security job failed.
+grep -q 'needs: \[backend, frontend, security, codeql\]' "$CI"
+
 # All images keep BuildKit provenance/SBOM and mandatory keyless Cosign signing.
 [[ "$(grep -c 'provenance: true' "$CI")" -eq 3 ]]
 [[ "$(grep -c 'sbom: true' "$CI")" -eq 3 ]]

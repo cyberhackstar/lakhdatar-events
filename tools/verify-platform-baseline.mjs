@@ -28,6 +28,7 @@ const stagingDeploy = read("infra/deploy/deploy-staging.sh");
 const stagingSmoke = read("infra/smoke/staging-smoke.sh");
 const stagingCloudflare = read("infra/cloudflare/config.staging.example.yml");
 const stagingWorkflow = read(".github/workflows/staging.yml");
+const qualificationWorkflow = read(".github/workflows/enterprise-release-qualification.yml");
 const productionWorkflow = read(".github/workflows/production.yml");
 const productionHaWorkflow = read(".github/workflows/production-ha.yml");
 const version = read("VERSION").trim();
@@ -267,6 +268,12 @@ if ((ci.match(/provenance: true/g) ?? []).length !== 3 ||
   problems.push("All three release images must retain BuildKit provenance and SBOM attestations");
 if (!ci.includes("cosign sign --yes") || !ci.includes("cosign verify --certificate-identity-regexp"))
   problems.push("CI must sign and verify all immutable release images with Cosign");
+if (!ci.includes("needs: [backend, frontend, security, codeql]"))
+  problems.push("Release image publication must wait for backend, frontend, security, and CodeQL jobs");
+if (!qualificationWorkflow.includes("staging-release-identity:") ||
+    !qualificationWorkflow.includes("/home/ubuntu/apps/lakhdatar-events-staging/.deploy-current") ||
+    !qualificationWorkflow.includes("needs: [backend, frontend, staging-release-identity]"))
+  problems.push("Release qualification must verify the exact deployed staging SHA before staging tests");
 for (const [label, workflow] of [
   ["staging", stagingWorkflow],
   ["production", productionWorkflow],
@@ -754,6 +761,18 @@ if (!stagingDeploy.includes("staging-events.neelastack.com"))
   problems.push("staging deploy host guard missing");
 if (!stagingDeploy.includes("4003"))
   problems.push("staging deploy port contract missing");
+if (!stagingWorkflow.includes('VERSION "$STAGING_SSH_TARGET:$remote/VERSION"'))
+  problems.push("staging workflow must install the root VERSION file required by deploy-staging.sh");
+if (
+  !stagingWorkflow.includes("test -s '$remote/VERSION'") ||
+  !stagingWorkflow.includes("tr -d")
+)
+  problems.push("staging workflow must normalize and verify VERSION and all remote deployment files before replacing staging .env");
+if (
+  !stagingWorkflow.includes("tmp='$remote/.env.next'") ||
+  !stagingWorkflow.includes("mv -f")
+)
+  problems.push("staging workflow must atomically replace the active .env file");
 if (!stagingSmoke.includes("staging-events.neelastack.com"))
   problems.push("staging smoke host guard missing");
 if (!stagingSmoke.includes("x-robots-tag:.*noindex"))
@@ -765,6 +784,8 @@ if (
   problems.push("staging Cloudflare ingress example missing");
 if (!stagingWorkflow.includes("staging-events.neelastack.com"))
   problems.push("staging deployment workflow default origin missing");
+if (!stagingWorkflow.includes("PRODUCTION_TOPOLOGY=enterprise-ha"))
+  problems.push("staging workflow must reject production HA topology in its environment");
 if (
   !read(
     "backend/src/main/java/com/neelastack/lakhdatar/controller/AdminController.java",

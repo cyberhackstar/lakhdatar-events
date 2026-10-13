@@ -21,6 +21,7 @@ dotenv_get() {
 TAG="${1:-}"
 [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "Usage: $0 <immutable-image-tag>" >&2; exit 2; }
 [[ -f "$ROOT/.env" ]] || { echo "Missing $ROOT/.env" >&2; exit 2; }
+[[ -s "$ROOT/VERSION" ]] || { echo "Missing required release VERSION file: $ROOT/VERSION (the staging workflow must install it before deployment)" >&2; exit 2; }
 APP_VERSION="$(tr -d '\r\n' < "$ROOT/VERSION")"
 [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION file for APP_VERSION: $APP_VERSION" >&2; exit 2; }
 OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-$(dotenv_get OTEL_RESOURCE_ATTRIBUTES)}"
@@ -152,11 +153,16 @@ echo "[2/5] Starting PostgreSQL + Redis"
 IMAGE_TAG="$TAG" "${COMPOSE[@]}" up -d postgres redis
 
 DEPLOY_STAGE=3
-echo "[3/5] Starting backend and waiting for readiness"
+echo "[3/5] Starting backend"
+# From the moment backend startup is invoked, Flyway may change the staging schema—even if
+# docker compose returns an error after partially starting the backend. Never auto-switch
+# back to old application images past this boundary; a schema rollback is not performed.
+DEPLOY_STAGE=4
 IMAGE_TAG="$TAG" "${COMPOSE[@]}" up -d backend
+echo "Waiting for backend readiness"
 wait_backend
 
-DEPLOY_STAGE=4
+DEPLOY_STAGE=5
 echo "[4/5] Starting SSR web + staging edge"
 IMAGE_TAG="$TAG" "${COMPOSE[@]}" up -d web edge
 wait_edge
