@@ -79,9 +79,18 @@ class EnterpriseReleaseV212ContractTest {
     void productionPromotionVerifiesSignedImages() throws Exception {
         String workflow = Files.readString(Path.of("../.github/workflows/production.yml"));
         String haWorkflow = Files.readString(Path.of("../.github/workflows/production-ha.yml"));
-        assertTrue(workflow.contains("cosign verify"));
-        assertTrue(workflow.contains("gh attestation verify"));
-        assertTrue(haWorkflow.contains("cosign verify"));
-        assertTrue(haWorkflow.contains("gh attestation verify"));
+        String stagingWorkflow = Files.readString(Path.of("../.github/workflows/staging.yml"));
+        assertTrue(workflow.contains("cosign verify --certificate-identity-regexp"));
+        assertTrue(haWorkflow.contains("cosign verify --certificate-identity-regexp"));
+        assertTrue(stagingWorkflow.contains("cosign verify --certificate-identity-regexp"));
+        assertTrue(stagingWorkflow.contains("Authenticate GitHub Actions runner to GHCR"));
+        assertTrue(workflow.contains("Authenticate GitHub Actions runner to GHCR"));
+        assertTrue(haWorkflow.contains("Authenticate release runner to GHCR"));
+        assertTrue(workflow.contains("Verify GitHub artifact attestations (public repositories only)"));
+        assertTrue(haWorkflow.contains("Verify GitHub artifact attestations (public repositories only)"));
+        assertTrue(stagingWorkflow.contains("Verify GitHub artifact attestations (public repositories only)"));
+        assertTrue(workflow.contains("if: github.event.repository.visibility == 'public'"));
+        assertTrue(haWorkflow.contains("if: github.event.repository.visibility == 'public'"));
+        assertTrue(stagingWorkflow.contains("if: github.event.repository.visibility == 'public'"));
     }
 }

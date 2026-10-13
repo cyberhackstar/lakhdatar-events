@@ -28,6 +28,8 @@ const stagingDeploy = read("infra/deploy/deploy-staging.sh");
 const stagingSmoke = read("infra/smoke/staging-smoke.sh");
 const stagingCloudflare = read("infra/cloudflare/config.staging.example.yml");
 const stagingWorkflow = read(".github/workflows/staging.yml");
+const productionWorkflow = read(".github/workflows/production.yml");
+const productionHaWorkflow = read(".github/workflows/production-ha.yml");
 const version = read("VERSION").trim();
 
 const expected = {
@@ -147,6 +149,22 @@ if (!pom.includes("<postgresql.version>42.7.12</postgresql.version>"))
   problems.push("PostgreSQL driver baseline mismatch");
 if (version !== pkg.version)
   problems.push("release version mismatch between VERSION and package.json");
+const runtimeVersionFiles = [
+  [".env.example", read(".env.example")],
+  [".env.staging.example", read(".env.staging.example")],
+  ["infra/ha/.env.ha.example", read("infra/ha/.env.ha.example")],
+  ["backend/src/main/resources/application.yml", read("backend/src/main/resources/application.yml")],
+  ["infra/docker-compose.prod.yml", prodCompose],
+  ["infra/docker-compose.staging.yml", stagingCompose],
+  ["infra/ha/docker-compose.ha.example.yml", read("infra/ha/docker-compose.ha.example.yml")],
+];
+for (const [file, content] of runtimeVersionFiles)
+  if (content.includes("2.0.44"))
+    problems.push(`${file} retains a stale 2.0.44 runtime version default`);
+if (!deploy.includes("export APP_VERSION OTEL_RESOURCE_ATTRIBUTES"))
+  problems.push("Production deploy must normalize runtime version/OTEL metadata from VERSION");
+if (!stagingDeploy.includes("export APP_VERSION OTEL_RESOURCE_ATTRIBUTES"))
+  problems.push("Staging deploy must normalize runtime version/OTEL metadata from VERSION");
 const e2ePackage = JSON.parse(read("e2e/package.json"));
 const e2eLock = JSON.parse(read("e2e/package-lock.json"));
 const releaseManifest = read("RELEASE-MANIFEST.txt");
@@ -230,11 +248,39 @@ if (!ci.includes("artifact-metadata: write"))
   problems.push("GitHub artifact attestation permission missing");
 if (ci.match(/uses: actions\/attest@v4/g)?.length !== 3)
   problems.push("GitHub artifact attestation steps mismatch");
+const publicAttestationGuard = "if: github.event.repository.visibility == 'public'";
+const ciLines = ci.split(/\r?\n/);
+const attestUseLines = ciLines
+  .map((line, index) => line.includes("uses: actions/attest@v4") ? index : -1)
+  .filter((index) => index >= 0);
+if (attestUseLines.length !== 3 || attestUseLines.some((index) =>
+  !ciLines.slice(Math.max(0, index - 3), index).some((line) => line.trim() === publicAttestationGuard)))
+  problems.push("GitHub artifact attestation generation must be conditional on public repository visibility");
+if (!ci.includes("Verify GitHub artifact provenance (public repositories only)") ||
+    !ci.includes(publicAttestationGuard) || !ci.includes("gh attestation verify"))
+  problems.push("Public-only GitHub artifact provenance verification missing or unguarded");
 for (const id of ["push-backend", "push-web", "push-edge"])
   if (!ci.includes(`id: ${id}`))
     problems.push(`Docker build output id missing: ${id}`);
-if (!ci.includes("gh attestation verify"))
-  problems.push("GitHub artifact provenance verification missing");
+if ((ci.match(/provenance: true/g) ?? []).length !== 3 ||
+    (ci.match(/sbom: true/g) ?? []).length !== 3)
+  problems.push("All three release images must retain BuildKit provenance and SBOM attestations");
+if (!ci.includes("cosign sign --yes") || !ci.includes("cosign verify --certificate-identity-regexp"))
+  problems.push("CI must sign and verify all immutable release images with Cosign");
+for (const [label, workflow] of [
+  ["staging", stagingWorkflow],
+  ["production", productionWorkflow],
+  ["production HA", productionHaWorkflow],
+]) {
+  if (!workflow.includes("cosign verify --certificate-identity-regexp"))
+    problems.push(`${label} promotion must verify the CI Cosign identity`);
+  if (!workflow.includes("Authenticate GitHub Actions runner to GHCR") &&
+      !workflow.includes("Authenticate release runner to GHCR"))
+    problems.push(`${label} promotion must authenticate the workflow runner to GHCR before private image verification`);
+  if (!workflow.includes("Verify GitHub artifact attestations (public repositories only)") ||
+      !workflow.includes(publicAttestationGuard) || !workflow.includes("gh attestation verify"))
+    problems.push(`${label} GitHub artifact attestation verification must be public-only`);
+}
 if (!ci.includes("Regression-test edge container startup"))
   problems.push("edge container startup regression test missing");
 if (

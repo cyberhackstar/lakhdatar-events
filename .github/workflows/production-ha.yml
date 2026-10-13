@@ -54,7 +54,20 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
-      - name: Verify signed images and provenance
+      - name: Verify signed images
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+          identity="^https://github.com/${REPOSITORY}/\.github/workflows/ci\.yml@refs/heads/main$"
+          for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
+            ref="ghcr.io/${OWNER}/${image}:${RELEASE_SHA}"
+            cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
+          done
+      - name: Verify GitHub artifact attestations (public repositories only)
+        if: github.event.repository.visibility == 'public'
         env:
           GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
@@ -62,12 +75,11 @@ jobs:
           RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
           set -euo pipefail
-          identity="^https://github.com/${REPOSITORY}/.github/workflows/ci.yml@refs/heads/main$"
           for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
             ref="ghcr.io/${OWNER}/${image}:${RELEASE_SHA}"
-            cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
             gh attestation verify "oci://$ref" -R "$REPOSITORY"
           done
+
       - name: Validate HA deployment inputs
         env:
           HOST_A: ${{ secrets.DEPLOY_HOST_A }}

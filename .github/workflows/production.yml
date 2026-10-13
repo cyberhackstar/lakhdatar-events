@@ -79,21 +79,40 @@ jobs:
           [[ "$CERTIFIED_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Production deployment requires SINGLE_NODE_CERTIFIED_SHA to be the exact 40-character SHA reviewed after the Single-Node Production Readiness workflow passed."; exit 1; }
           [[ "$CERTIFIED_RELEASE_SHA" == "$RELEASE_SHA" ]] || { echo "::error::Release SHA $RELEASE_SHA is not the reviewed single-node-ready SHA $CERTIFIED_RELEASE_SHA. Run release qualification and Single-Node Production Readiness for this exact SHA first."; exit 1; }
 
+      - name: Authenticate GitHub Actions runner to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+
       - name: Install Cosign for immutable image verification
         uses: sigstore/cosign-installer@v4.1.2
-      - name: Verify signed container images and provenance
+      - name: Verify signed container images
         env:
-          GH_TOKEN: ${{ github.token }}
           OWNER: ${{ github.repository_owner }}
           REPOSITORY: ${{ github.repository }}
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          identity="^https://github.com/${REPOSITORY}/.github/workflows/ci.yml@refs/heads/main$"
+          identity="^https://github.com/${REPOSITORY}/\.github/workflows/ci\.yml@refs/heads/main$"
           for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
             ref="ghcr.io/${OWNER}/${image}:${RELEASE_SHA}"
             cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
+          done
+
+      - name: Verify GitHub artifact attestations (public repositories only)
+        if: github.event.repository.visibility == 'public'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          set -euo pipefail
+          for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
+            ref="ghcr.io/${OWNER}/${image}:${RELEASE_SHA}"
             gh attestation verify "oci://$ref" -R "$REPOSITORY"
           done
 

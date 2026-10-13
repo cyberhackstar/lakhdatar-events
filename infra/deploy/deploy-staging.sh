@@ -21,6 +21,17 @@ dotenv_get() {
 TAG="${1:-}"
 [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "Usage: $0 <immutable-image-tag>" >&2; exit 2; }
 [[ -f "$ROOT/.env" ]] || { echo "Missing $ROOT/.env" >&2; exit 2; }
+APP_VERSION="$(tr -d '\r\n' < "$ROOT/VERSION")"
+[[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION file for APP_VERSION: $APP_VERSION" >&2; exit 2; }
+OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-$(dotenv_get OTEL_RESOURCE_ATTRIBUTES)}"
+if [[ -z "$OTEL_RESOURCE_ATTRIBUTES" ]]; then
+  OTEL_RESOURCE_ATTRIBUTES="service.version=${APP_VERSION},deployment.environment=staging"
+elif [[ "$OTEL_RESOURCE_ATTRIBUTES" == *service.version=* ]]; then
+  OTEL_RESOURCE_ATTRIBUTES="$(printf '%s\n' "$OTEL_RESOURCE_ATTRIBUTES" | sed -E "s/(^|,)service\.version=[^,]*/\\1service.version=${APP_VERSION}/")"
+else
+  OTEL_RESOURCE_ATTRIBUTES="service.version=${APP_VERSION},${OTEL_RESOURCE_ATTRIBUTES}"
+fi
+export APP_VERSION OTEL_RESOURCE_ATTRIBUTES
 
 PUBLIC_HOST="${PUBLIC_HOST:-$(dotenv_get PUBLIC_HOST)}"
 PUBLIC_HOST="${PUBLIC_HOST:-staging-events.neelastack.com}"

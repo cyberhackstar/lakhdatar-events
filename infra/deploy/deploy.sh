@@ -56,6 +56,17 @@ WEB_READINESS_INTERVAL_SECONDS="${WEB_READINESS_INTERVAL_SECONDS:-3}"
 
 [[ -n "$TAG" ]] || { echo "Usage: $0 <immutable-image-tag>" >&2; exit 2; }
 [[ -f "$ROOT/.env" ]] || { echo "Missing $ROOT/.env" >&2; exit 2; }
+APP_VERSION="$(tr -d '\r\n' < "$ROOT/VERSION")"
+[[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid VERSION file for APP_VERSION: $APP_VERSION" >&2; exit 2; }
+OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-$(dotenv_get OTEL_RESOURCE_ATTRIBUTES)}"
+if [[ -z "$OTEL_RESOURCE_ATTRIBUTES" ]]; then
+  OTEL_RESOURCE_ATTRIBUTES="service.version=${APP_VERSION},deployment.environment=production"
+elif [[ "$OTEL_RESOURCE_ATTRIBUTES" == *service.version=* ]]; then
+  OTEL_RESOURCE_ATTRIBUTES="$(printf '%s\n' "$OTEL_RESOURCE_ATTRIBUTES" | sed -E "s/(^|,)service\.version=[^,]*/\\1service.version=${APP_VERSION}/")"
+else
+  OTEL_RESOURCE_ATTRIBUTES="service.version=${APP_VERSION},${OTEL_RESOURCE_ATTRIBUTES}"
+fi
+export APP_VERSION OTEL_RESOURCE_ATTRIBUTES
 PREVIOUS_TAG="$(cat "$CURRENT" 2>/dev/null || true)"
 IMAGE_NAMESPACE="${IMAGE_NAMESPACE:-$(dotenv_get IMAGE_NAMESPACE)}"
 [[ -n "${IMAGE_NAMESPACE:-}" ]] || { echo "IMAGE_NAMESPACE is required (e.g. ghcr.io/owner)" >&2; exit 2; }
@@ -194,6 +205,12 @@ BACKUP_REMOTE_URI="$(dotenv_get BACKUP_REMOTE_URI)"
 BACKUP_S3_ENDPOINT_URL="$(dotenv_get BACKUP_S3_ENDPOINT_URL)"
 BACKUP_S3_SSE="$(dotenv_get BACKUP_S3_SSE)"
 BACKUP_S3_KMS_KEY_ID="$(dotenv_get BACKUP_S3_KMS_KEY_ID)"
+if [[ -z "$BACKUP_S3_SSE" ]]; then
+  case "$BACKUP_S3_ENDPOINT_URL" in
+    https://*.r2.cloudflarestorage.com) BACKUP_S3_SSE="none" ;;
+    *) BACKUP_S3_SSE="AES256" ;;
+  esac
+fi
 BACKUP_AWS_PROFILE="$(dotenv_get BACKUP_AWS_PROFILE)"
 BACKUP_AWS_PROFILE="${BACKUP_AWS_PROFILE:-default}"
 BACKUP_MAX_REMOTE_BYTES="$(dotenv_get BACKUP_MAX_REMOTE_BYTES)"
@@ -225,7 +242,7 @@ BACKUP_RETENTION_DAYS="$BACKUP_RETENTION_DAYS" \
 BACKUP_REMOTE_REQUIRED="$BACKUP_REMOTE_REQUIRED" \
 BACKUP_REMOTE_URI="$BACKUP_REMOTE_URI" \
 BACKUP_S3_ENDPOINT_URL="$BACKUP_S3_ENDPOINT_URL" \
-BACKUP_S3_SSE="${BACKUP_S3_SSE:-AES256}" \
+BACKUP_S3_SSE="$BACKUP_S3_SSE" \
 BACKUP_S3_KMS_KEY_ID="$BACKUP_S3_KMS_KEY_ID" \
 BACKUP_AWS_PROFILE="$BACKUP_AWS_PROFILE" \
 BACKUP_MAX_REMOTE_BYTES="$BACKUP_MAX_REMOTE_BYTES" \
