@@ -32,7 +32,7 @@
     <jackson2.version>2.21.7</jackson2.version>
     <jackson3.version>3.1.7</jackson3.version>
     <httpcomponents-core5.version>5.4.3</httpcomponents-core5.version>
-    <tomcat.version>11.0.26</tomcat.version>
+    <tomcat.version>11.0.27</tomcat.version>
     <!-- Empty by default so `mvn verify` runs everything. Use -Punit to skip Docker-backed integration tests. -->
     <test.excludedGroups></test.excludedGroups>
   </properties>
