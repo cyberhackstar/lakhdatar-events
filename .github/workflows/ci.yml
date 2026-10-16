@@ -106,7 +106,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4.38.2
+        uses: github/codeql-action/init@v4.38.3
         with:
           languages: ${{ matrix.language }}
       - name: Build Java for CodeQL
@@ -114,7 +114,7 @@ jobs:
         working-directory: backend
         run: mvn -B -ntp -DskipTests compile
       - name: Analyze
-        uses: github/codeql-action/analyze@v4.38.2
+        uses: github/codeql-action/analyze@v4.38.3
         with:
           # Private repositories on plans without Code Security cannot upload SARIF to the
           # GitHub code-scanning API. Keep analysis enabled and retain results as an artifact.
