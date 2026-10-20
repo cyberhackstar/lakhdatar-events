@@ -11,6 +11,9 @@ public interface PaymentGatewayProvider {
     record ProviderPayment(String id, String orderId, long amount, String currency, String status, String errorDescription, long amountRefunded, String refundStatus, boolean captured) {}
     record ProviderRefund(String id, String status, long amount, String receipt) {}
     ProviderOrder createOrder(long amount, String currency, String receipt, String customerName, String customerEmail, String customerPhone);
+    default ProviderOrder createOrder(long amount, String currency, String receipt, String customerName, String customerEmail, String customerPhone, java.time.Instant orderExpiryTime) {
+        return createOrder(amount, currency, receipt, customerName, customerEmail, customerPhone);
+    }
     ProviderOrder fetchOrder(String orderId);
     Optional<ProviderOrder> findOrderByReceipt(String receipt);
     List<ProviderPayment> fetchPaymentsForOrder(String orderId);

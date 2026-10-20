@@ -1,3 +1,10 @@
+# v2.0.51 — Cashfree order expiry alignment
+
+- Passes reservation expiry when provisioning a new Cashfree payment order.
+- Preserves compatibility with the existing payment-provider method contract.
+- Adds an HTTP contract regression test for `order_expiry_time`.
+- Does not modify or reconcile previously created provider orders.
+- Production approval remains subject to the release qualification and operational readiness gates.
 # v2.0.50 — Single-node production readiness
 
 - Adds a separate protected Single-Node Production Readiness workflow for the current one-VM topology, with same-SHA release qualification verification and fail-closed operational evidence.

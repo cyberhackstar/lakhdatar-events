@@ -125,6 +125,11 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
 
     @Override
     public ProviderOrder createOrder(long amount, String currency, String receipt, String customerName, String customerEmail, String customerPhone) {
+        return createOrder(amount, currency, receipt, customerName, customerEmail, customerPhone, null);
+    }
+
+    @Override
+    public ProviderOrder createOrder(long amount, String currency, String receipt, String customerName, String customerEmail, String customerPhone, java.time.Instant orderExpiryTime) {
         try {
             var body = mapper.createObjectNode();
             body.put("order_id", receipt);
@@ -139,6 +144,7 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
             var meta = body.putObject("order_meta");
             meta.put("return_url", props.publicBaseUrl() + "/payment/success?order_id={order_id}");
             meta.put("notify_url", props.publicBaseUrl() + "/api/v1/webhooks/cashfree");
+            if (orderExpiryTime != null) body.put("order_expiry_time", orderExpiryTime.toString());
             HttpRequest request = req("/orders")
                     .header("x-idempotency-key", deterministicIdempotencyKey("order", receipt))
                     .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))

@@ -297,7 +297,7 @@ requestedTypes.add(new TicketTypeRequest(
                 }); });
             }
             PaymentGatewayProvider.ProviderOrder rp;
-            try { rp=gateways.forProvider(context.provider()).createOrder(context.amountMinor(),context.currency(),context.orderNumber(), context.customerName(), context.customerEmail(), context.customerPhone()); }
+            try { rp=gateways.forProvider(context.provider()).createOrder(context.amountMinor(),context.currency(),context.orderNumber(), context.customerName(), context.customerEmail(), context.customerPhone(), context.reservationExpiresAt()); }
             catch (RuntimeException ex) {
                 // A timeout may mean Razorpay created the order even though the response was lost. Re-check by receipt before retrying.
                 try {

@@ -85,6 +85,21 @@ class CashfreeGatewayProviderHttpTest {
         assertEquals("2025-01-01", paymentLookup.header("x-api-version"));
     }
 
+    @Test
+    void createOrderSendsReservationExpiryWhenProvided() throws Exception {
+        CashfreeGatewayProvider provider = new CashfreeGatewayProvider(properties(), mapper);
+        java.time.Instant expiresAt = java.time.Instant.parse("2030-01-01T00:00:00Z");
+
+        PaymentGatewayProvider.ProviderOrder created = provider.createOrder(
+                10_000, "INR", "LK-TEST12345678", "E2E Customer",
+                "e2e@example.test", "9876543210", expiresAt);
+
+        assertEquals("LK-TEST12345678", created.id());
+        assertEquals(1, requests.size());
+        JsonNode requestBody = mapper.readTree(requests.getFirst().body());
+        assertEquals(expiresAt.toString(), requestBody.path("order_expiry_time").asText());
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         requests.add(new CapturedRequest(exchange.getRequestMethod(), exchange.getRequestURI().getPath(),

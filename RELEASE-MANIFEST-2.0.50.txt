@@ -1,0 +1,6 @@
+NEELASTACK EVENTS v2.0.50 — SINGLE-NODE PRODUCTION READINESS
+Release: 2.0.50
+Base: v2.0.49 backend certification contract fix
+Changes: CHANGES-2.0.50-SINGLE-NODE-READINESS.md
+Validation: VALIDATION-2.0.50-SINGLE-NODE-READINESS.md
+Security invariants retained: release qualification is not operational certification; single-node readiness requires matching qualification evidence and protected measured recovery/security evidence; single-node readiness explicitly grants no enterprise HA certification; enterprise HA certification and HA promotion remain fail-closed; production deployment requires the exact reviewed SINGLE_NODE_CERTIFIED_SHA, explicit single-node risk acknowledgement, signed images/provenance, and production smoke checks. HSTS/CSP policy, strict load-test thresholds, shared edge rate limits, checkout guard, token refresh, and reservation invariant retry are retained.

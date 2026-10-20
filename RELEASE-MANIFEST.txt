@@ -1,6 +1,8 @@
-NEELASTACK EVENTS v2.0.50 — SINGLE-NODE PRODUCTION READINESS
-Release: 2.0.50
-Base: v2.0.49 backend certification contract fix
-Changes: CHANGES-2.0.50-SINGLE-NODE-READINESS.md
-Validation: VALIDATION-2.0.50-SINGLE-NODE-READINESS.md
-Security invariants retained: release qualification is not operational certification; single-node readiness requires matching qualification evidence and protected measured recovery/security evidence; single-node readiness explicitly grants no enterprise HA certification; enterprise HA certification and HA promotion remain fail-closed; production deployment requires the exact reviewed SINGLE_NODE_CERTIFIED_SHA, explicit single-node risk acknowledgement, signed images/provenance, and production smoke checks. HSTS/CSP policy, strict load-test thresholds, shared edge rate limits, checkout guard, token refresh, and reservation invariant retry are retained.
+NEELASTACK EVENTS v2.0.51 — CASHFREE ORDER EXPIRY
+Release: 2.0.51
+Base: v2.0.50
+Changes: CHANGES-2.0.51-CASHFREE-ORDER-EXPIRY.md
+Validation: VALIDATION-2.0.51-CASHFREE-ORDER-EXPIRY.md
+Status: Local validation passed; staging E2E, release qualification, and operational production readiness remain pending. This manifest does not authorize production deployment.
+Scope: Aligns newly provisioned Cashfree provider orders with reservation expiry. Existing provider orders are not modified or reconciled by this change.
+Security and release gates: Release qualification is not operational certification. Production promotion still requires the protected single-node readiness evidence and exact certified SHA. Enterprise HA certification remains separate and is not granted by this release.

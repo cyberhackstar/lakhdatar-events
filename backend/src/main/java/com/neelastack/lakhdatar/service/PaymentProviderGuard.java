@@ -54,6 +54,9 @@ public final class PaymentProviderGuard {
         @Override public ProviderOrder createOrder(long amount, String currency, String receipt, String customerName, String customerEmail, String customerPhone) {
             return state.call("create-order", () -> delegate.createOrder(amount, currency, receipt, customerName, customerEmail, customerPhone));
         }
+        @Override public ProviderOrder createOrder(long amount, String currency, String receipt, String customerName, String customerEmail, String customerPhone, java.time.Instant orderExpiryTime) {
+            return state.call("create-order", () -> delegate.createOrder(amount, currency, receipt, customerName, customerEmail, customerPhone, orderExpiryTime));
+        }
         @Override public ProviderOrder fetchOrder(String orderId) { return state.call("fetch-order", () -> delegate.fetchOrder(orderId)); }
         @Override public Optional<ProviderOrder> findOrderByReceipt(String receipt) { return state.call("find-order", () -> delegate.findOrderByReceipt(receipt)); }
         @Override public List<ProviderPayment> fetchPaymentsForOrder(String orderId) { return state.call("fetch-payments", () -> delegate.fetchPaymentsForOrder(orderId)); }
