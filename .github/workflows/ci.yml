@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: '23 2 * * 1'
+    - cron: "23 2 * * 1"
 
 permissions:
   contents: read
@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: read
       security-events: write
     steps:
       - uses: actions/checkout@v7
@@ -35,6 +36,8 @@ jobs:
         run: bash infra/certification/test-certification-workflow-separation.sh
       - name: Verify load-test rates respect edge limits
         run: bash infra/loadtest/test-scenario-rate-limits.sh
+      - name: Verify scanner check-in latency SLO contract
+        run: bash infra/loadtest/test-checkin-thresholds.sh
       - name: Verify bounded reservation-expiry invariant retry
         run: bash infra/loadtest/test-invariant-expiry-retry.sh
       - name: Verify just-in-time load-test access-token refresh
@@ -47,12 +50,15 @@ jobs:
         run: node tools/verify-security-policy.mjs
       - name: Verify private-repository release workflow compatibility
         run: bash infra/certification/test-private-repo-workflow-compat.sh
+      - name: Verify staging browser failure artifact contract
+        run: node infra/certification/test-browser-artifact-contract.mjs
       - name: Verify staging deployment package contract
         run: bash infra/certification/test-staging-deploy-package.sh
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v3.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
       - name: Verify frontend dependency lock before install
         working-directory: frontend
         run: npm run verify:dependencies
@@ -75,7 +81,7 @@ jobs:
           scanners: vuln,misconfig,secret
           severity: CRITICAL,HIGH
           ignore-unfixed: false
-          exit-code: '1'
+          exit-code: "1"
           format: table
 
   codeql:
@@ -96,7 +102,7 @@ jobs:
         uses: actions/setup-java@v6.0.1
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
           cache: maven
       - name: Set up Node for CodeQL JavaScript/TypeScript build context
         if: matrix.language == 'javascript-typescript'
@@ -138,7 +144,7 @@ jobs:
       - uses: actions/setup-java@v6.0.1
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
           cache: maven
       - name: Build and test
         working-directory: backend
@@ -330,7 +336,7 @@ jobs:
           format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: false
-          exit-code: '1'
+          exit-code: "1"
           timeout: 15m0s
           scanners: vuln,secret
           vuln-type: os,library
@@ -348,7 +354,7 @@ jobs:
           format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: false
-          exit-code: '1'
+          exit-code: "1"
           timeout: 15m0s
           scanners: vuln,secret
           vuln-type: os,library
@@ -366,7 +372,7 @@ jobs:
           format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: false
-          exit-code: '1'
+          exit-code: "1"
           timeout: 15m0s
           scanners: vuln,secret
           vuln-type: os,library

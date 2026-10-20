@@ -1,3 +1,13 @@
+# v2.0.52 — Cashfree phone normalization and E2E diagnostics
+
+- Normalize common Indian phone formats to Cashfree's 10-digit `customer_phone` contract.
+- Reject malformed phone values before making a payment-provider request.
+- Add Cashfree HTTP-contract regression tests for country-code normalization and invalid input.
+- Restore the CI check-in latency SLO contract test removed from the v2.0.51 workflow.
+- Upload both Playwright HTML reports and `test-results` traces for failed staging E2E runs.
+- Keep the HTML reporter enabled in release qualification; do not override it with line-only reporting.
+- Staging E2E and payment verification must pass before production promotion; this release does not certify production readiness.
+
 # v2.0.51 — Cashfree order expiry alignment
 
 - Passes reservation expiry when provisioning a new Cashfree payment order.
