@@ -100,6 +100,32 @@ class CashfreeGatewayProviderHttpTest {
         assertEquals(expiresAt.toString(), requestBody.path("order_expiry_time").asText());
     }
 
+    @Test
+    void createOrderNormalizesIndianCountryCodeToTenDigitCashfreePhone() throws Exception {
+        CashfreeGatewayProvider provider = new CashfreeGatewayProvider(properties(), mapper);
+
+        provider.createOrder(10_000, "INR", "LK-TEST12345678", "E2E Customer",
+                "e2e@example.test", "+91 99999-99999");
+
+        assertEquals(1, requests.size());
+        JsonNode requestBody = mapper.readTree(requests.getFirst().body());
+        assertEquals("9999999999", requestBody.path("customer_details").path("customer_phone").asText());
+    }
+
+    @Test
+    void createOrderRejectsMalformedPhoneBeforeSendingProviderRequest() {
+        CashfreeGatewayProvider provider = new CashfreeGatewayProvider(properties(), mapper);
+
+        com.neelastack.lakhdatar.exception.ApiException error = assertThrows(
+                com.neelastack.lakhdatar.exception.ApiException.class,
+                () -> provider.createOrder(10_000, "INR", "LK-TEST12345678", "E2E Customer",
+                        "e2e@example.test", "1234"));
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, error.status());
+        assertEquals("INVALID_CUSTOMER_PHONE", error.code());
+        assertTrue(requests.isEmpty(), "Invalid phone should be rejected before calling Cashfree");
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         requests.add(new CapturedRequest(exchange.getRequestMethod(), exchange.getRequestURI().getPath(),

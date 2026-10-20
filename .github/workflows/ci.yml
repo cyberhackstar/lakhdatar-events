@@ -35,6 +35,8 @@ jobs:
         run: bash infra/certification/test-certification-workflow-separation.sh
       - name: Verify load-test rates respect edge limits
         run: bash infra/loadtest/test-scenario-rate-limits.sh
+      - name: Verify scanner check-in latency SLO contract
+        run: bash infra/loadtest/test-checkin-thresholds.sh
       - name: Verify bounded reservation-expiry invariant retry
         run: bash infra/loadtest/test-invariant-expiry-retry.sh
       - name: Verify just-in-time load-test access-token refresh
@@ -47,6 +49,8 @@ jobs:
         run: node tools/verify-security-policy.mjs
       - name: Verify private-repository release workflow compatibility
         run: bash infra/certification/test-private-repo-workflow-compat.sh
+      - name: Verify staging browser failure artifact contract
+        run: node infra/certification/test-browser-artifact-contract.mjs
       - name: Verify staging deployment package contract
         run: bash infra/certification/test-staging-deploy-package.sh
       - name: Secret scan

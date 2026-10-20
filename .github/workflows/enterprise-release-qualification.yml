@@ -214,13 +214,16 @@ jobs:
           E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
         run: |
           npm run selftest
-          npm test -- --reporter=line
+          # Use the configured line + HTML reporters so the HTML report is actually generated.
+          npm test
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: enterprise-browser-${{ inputs.release_sha }}
-          path: e2e/playwright-report/
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
           if-no-files-found: warn
 
   load:

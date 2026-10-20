@@ -48,6 +48,25 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
 
     private boolean present(String value) { return value != null && !value.isBlank(); }
 
+    /**
+     * Cashfree's Create Order API expects customer_phone as a 10-digit phone number.
+     * Checkout accepts normal Indian user input such as +91 98765-43210, so normalize
+     * the country/trunk prefix at the provider boundary instead of forwarding 12 digits.
+     */
+    private String normalizeCustomerPhone(String value) {
+        String digits = value == null ? "" : value.replaceAll("\\D", "");
+        if (digits.length() == 12 && digits.startsWith("91")) {
+            digits = digits.substring(2);
+        } else if (digits.length() == 11 && digits.startsWith("0")) {
+            digits = digits.substring(1);
+        }
+        if (!digits.matches("[0-9]{10}")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CUSTOMER_PHONE",
+                    "Enter a valid 10-digit mobile number for Cashfree checkout");
+        }
+        return digits;
+    }
+
     private HttpRequest.Builder req(String path) {
         return HttpRequest.newBuilder(URI.create(props.cashfree().baseUrl().replaceAll("/$", "") + path))
                 .timeout(Duration.ofMillis(Math.max(2000, props.cashfree().httpReadTimeoutMs())))
@@ -139,8 +158,7 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
             customer.put("customer_id", receipt);
             customer.put("customer_name", customerName == null || customerName.isBlank() ? "Customer" : customerName);
             customer.put("customer_email", customerEmail == null ? "" : customerEmail);
-            String normalizedPhone = customerPhone == null ? "" : customerPhone.replaceAll("\\D", "");
-            if (!normalizedPhone.isBlank()) customer.put("customer_phone", normalizedPhone);
+            customer.put("customer_phone", normalizeCustomerPhone(customerPhone));
             var meta = body.putObject("order_meta");
             meta.put("return_url", props.publicBaseUrl() + "/payment/success?order_id={order_id}");
             meta.put("notify_url", props.publicBaseUrl() + "/api/v1/webhooks/cashfree");

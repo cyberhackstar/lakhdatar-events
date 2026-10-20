@@ -112,6 +112,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: enterprise-e2e-report-${{ github.run_id }}-${{ github.run_attempt }}
-          path: e2e/playwright-report/
-          if-no-files-found: ignore
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          if-no-files-found: warn
           retention-days: 14
