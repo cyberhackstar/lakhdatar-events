@@ -7,8 +7,10 @@ COPY src ./src
 RUN mvn -B -ntp clean package -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine
-RUN apk add --no-cache wget \
-    && addgroup -S app && adduser -S app -G app
+RUN apk upgrade --no-cache \
+    && apk add --no-cache 'libexpat>=2.9.0-r0' wget \
+    && addgroup -S app \
+    && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /build/target/lakhdatar-events-*.jar app.jar
 RUN chown app:app /app/app.jar
