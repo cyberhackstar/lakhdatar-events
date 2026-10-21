@@ -55,7 +55,20 @@ public record AppProperties(
         }
         public Qr(String signingSecret, int imageSize){this(signingSecret,imageSize,"");}
     }
-    public record Reservation(Duration hold, Duration sweep) {}
+    public record Reservation(Duration hold, Duration sweep) {
+        /**
+         * Cashfree rejects Create Order requests whose order_expiry_time is too close to "now"
+         * (order_expiry_time_invalid). The local reservation hold is also sent to the provider,
+         * so it must never be shorter than this floor.
+         */
+        public static final Duration MIN_PROVIDER_SAFE_HOLD = Duration.ofMinutes(16);
+
+        /** The hold actually applied: configured value, never below the provider-safe floor. */
+        public Duration effectiveHold() {
+            if (hold == null || hold.compareTo(MIN_PROVIDER_SAFE_HOLD) < 0) return MIN_PROVIDER_SAFE_HOLD;
+            return hold;
+        }
+    }
     public record Branding(String neelastackName, String neelastackPublicUrl, String neelastackLogoUrl,
                            String defaultOrganizerLogoUrl, boolean promoEnabled, String promoTitle,
                            String promoDescription, String promoCta) {}

@@ -97,7 +97,32 @@ class CashfreeGatewayProviderHttpTest {
         assertEquals("LK-TEST12345678", created.id());
         assertEquals(1, requests.size());
         JsonNode requestBody = mapper.readTree(requests.getFirst().body());
-        assertEquals("2030-01-01T00:00:00Z", requestBody.path("order_expiry_time").asText());
+        assertEquals("2030-01-01T05:30:00+05:30", requestBody.path("order_expiry_time").asText());
+    }
+
+    @Test
+    void createOrderNeverSendsExpiryCloserThanProviderMinimumLead() throws Exception {
+        CashfreeGatewayProvider provider = new CashfreeGatewayProvider(properties(), mapper);
+        java.time.Instant tooSoon = java.time.Instant.now().plus(java.time.Duration.ofMinutes(12));
+        java.time.Instant before = java.time.Instant.now();
+
+        provider.createOrder(10_000, "INR", "LK-TEST12345678", "E2E Customer",
+                "e2e@example.test", "9876543210", tooSoon);
+
+        JsonNode requestBody = mapper.readTree(requests.getFirst().body());
+        String sent = requestBody.path("order_expiry_time").asText();
+        assertTrue(sent.endsWith("+05:30"), sent);
+        java.time.Instant parsed = java.time.OffsetDateTime.parse(sent).toInstant();
+        assertTrue(parsed.isAfter(before.plus(java.time.Duration.ofMinutes(15))),
+                "expiry must keep at least 15 minutes of lead time but was " + sent);
+    }
+
+    @Test
+    void reservationHoldIsNeverBelowProviderSafeFloor() {
+        assertEquals(java.time.Duration.ofMinutes(16),
+                new AppProperties.Reservation(java.time.Duration.ofMinutes(12), java.time.Duration.ofSeconds(30)).effectiveHold());
+        assertEquals(java.time.Duration.ofMinutes(20),
+                new AppProperties.Reservation(java.time.Duration.ofMinutes(20), java.time.Duration.ofSeconds(30)).effectiveHold());
     }
 
     @Test

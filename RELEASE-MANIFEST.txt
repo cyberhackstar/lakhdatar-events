@@ -1,8 +1,8 @@
-NEELASTACK EVENTS v2.0.53 — CASHFREE ORDER EXPIRY COMPATIBILITY
-Release: 2.0.53
-Base: v2.0.52
-Changes: CHANGES-2.0.53-CASHFREE-ORDER-EXPIRY-COMPATIBILITY.md
-Validation: VALIDATION-2.0.53-CASHFREE-ORDER-EXPIRY-COMPATIBILITY.md
-Status: Candidate only. Backend/frontend tests, CI, staging E2E, Cashfree sandbox order creation, checkout idempotency, payment confirmation, ticket issuance, release qualification, and operational production readiness remain pending for this exact SHA. This manifest does not authorize production deployment.
-Scope: Increase default reservation hold to 20 minutes so the local reservation expiry provides headroom; serialize Cashfree order expiry with UTC second precision; add a regression test for fractional Instant values. Previously created provider orders are not modified or reconciled.
+NEELASTACK EVENTS v2.0.54 — CASHFREE EXPIRY ROOT-CAUSE FIX (production-readiness candidate)
+Release: 2.0.54
+Base: v2.0.53
+Changes: CHANGES-2.0.54-CASHFREE-EXPIRY-ROOT-CAUSE.md
+Validation: VALIDATION-2.0.54-CASHFREE-EXPIRY-ROOT-CAUSE.md
+Status: Candidate. Backend Maven verification, CI, staging deployment and the mutation-enabled staging E2E (Cashfree sandbox checkout, idempotent retry, payment confirmation, QR scan) must still pass for this exact SHA. This manifest does not authorize production deployment.
+Scope: Reservation hold default actually raised to 20m in application.yml, both compose files, HA compose and env templates (v2.0.53 documented this but never changed them); effective hold floored at 16m in code; Cashfree order_expiry_time emitted as ISO-8601 with +05:30 offset and whole seconds and never closer than 16 minutes to now; regression tests added.
 Security and release gates: Qualification is not operational certification. Production promotion still requires protected single-node readiness evidence and exact certified SHA. Enterprise HA certification remains separate and is not granted by this release.

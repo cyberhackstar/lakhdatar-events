@@ -68,6 +68,22 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
         return digits;
     }
 
+    private static final java.time.ZoneOffset IST = java.time.ZoneOffset.ofHoursMinutes(5, 30);
+    /** Provider-side minimum lead time (kept above Cashfree's rejection threshold). */
+    static final Duration MIN_EXPIRY_LEAD = Duration.ofMinutes(16);
+
+    /**
+     * Cashfree documents order_expiry_time as ISO-8601 with an explicit offset (e.g. 2021-07-02T10:20:12+05:30).
+     * Always emit whole seconds (ISO_OFFSET_DATE_TIME never drops them) and never a value closer than
+     * MIN_EXPIRY_LEAD to now, which the provider rejects with order_expiry_time_invalid.
+     */
+    static String formatOrderExpiry(java.time.Instant requested) {
+        java.time.Instant floor = java.time.Instant.now().plus(MIN_EXPIRY_LEAD);
+        java.time.Instant effective = requested.isBefore(floor) ? floor : requested;
+        return java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME
+                .format(effective.truncatedTo(ChronoUnit.SECONDS).atOffset(IST));
+    }
+
     private HttpRequest.Builder req(String path) {
         return HttpRequest.newBuilder(URI.create(props.cashfree().baseUrl().replaceAll("/$", "") + path))
                 .timeout(Duration.ofMillis(Math.max(2000, props.cashfree().httpReadTimeoutMs())))
@@ -166,7 +182,7 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
             if (orderExpiryTime != null) {
                 // Cashfree expects an ISO-8601 order expiry. Normalize the runtime Instant to
                 // whole-second UTC precision rather than sending nanosecond fractions.
-                body.put("order_expiry_time", orderExpiryTime.truncatedTo(ChronoUnit.SECONDS).toString());
+                body.put("order_expiry_time", formatOrderExpiry(orderExpiryTime));
             }
             HttpRequest request = req("/orders")
                     .header("x-idempotency-key", deterministicIdempotencyKey("order", receipt))
