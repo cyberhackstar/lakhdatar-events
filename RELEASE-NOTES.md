@@ -1,3 +1,11 @@
+# v2.0.53 — Cashfree order-expiry compatibility
+
+- Keep the local ticket reservation and Cashfree order expiry aligned while increasing the default hold to 20 minutes to provide provider-validation headroom.
+- Serialize `order_expiry_time` at whole-second UTC precision (`...Z`) instead of passing the nanosecond precision emitted by a live `Instant`.
+- Extend the Cashfree HTTP contract test to cover an expiry Instant with fractional nanoseconds.
+- Explicitly set `RESERVATION_HOLD=20m` in the staging example; deployment environment overrides must be reviewed because they supersede Compose defaults.
+- This is a staging candidate only. The provider's `order_expiry_time_invalid` response must be cleared by a real sandbox checkout before production promotion.
+
 # v2.0.52 — Cashfree phone normalization and E2E diagnostics
 
 - Normalize common Indian phone formats to Cashfree's 10-digit `customer_phone` contract.

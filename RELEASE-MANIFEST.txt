@@ -1,8 +1,8 @@
-NEELASTACK EVENTS v2.0.52 — CASHFREE PHONE NORMALIZATION AND E2E DIAGNOSTICS
-Release: 2.0.52
-Base: v2.0.51
-Changes: CHANGES-2.0.52-CASHFREE-PHONE-AND-E2E-DIAGNOSTICS.md
-Validation: VALIDATION-2.0.52-CASHFREE-PHONE-AND-E2E-DIAGNOSTICS.md
-Status: Candidate only. Local contract/syntax tests must pass; staging E2E, Cashfree sandbox order creation, release qualification, and operational production readiness remain pending. This manifest does not authorize production deployment.
-Scope: Normalize Cashfree phone format, add contract tests, restore check-in SLO regression gate, and upload staging browser traces. No previous provider orders are modified or reconciled.
+NEELASTACK EVENTS v2.0.53 — CASHFREE ORDER EXPIRY COMPATIBILITY
+Release: 2.0.53
+Base: v2.0.52
+Changes: CHANGES-2.0.53-CASHFREE-ORDER-EXPIRY-COMPATIBILITY.md
+Validation: VALIDATION-2.0.53-CASHFREE-ORDER-EXPIRY-COMPATIBILITY.md
+Status: Candidate only. Backend/frontend tests, CI, staging E2E, Cashfree sandbox order creation, checkout idempotency, payment confirmation, ticket issuance, release qualification, and operational production readiness remain pending for this exact SHA. This manifest does not authorize production deployment.
+Scope: Increase default reservation hold to 20 minutes so the local reservation expiry provides headroom; serialize Cashfree order expiry with UTC second precision; add a regression test for fractional Instant values. Previously created provider orders are not modified or reconciled.
 Security and release gates: Qualification is not operational certification. Production promotion still requires protected single-node readiness evidence and exact certified SHA. Enterprise HA certification remains separate and is not granted by this release.

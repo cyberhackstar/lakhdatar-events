@@ -24,7 +24,7 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   application:
     name: lakhdatar-events-backend
-    version: ${APP_VERSION:2.0.52}
+    version: ${APP_VERSION:2.0.53}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}
@@ -182,7 +182,7 @@ app:
     previous-signing-secret: ${QR_SIGNING_SECRET_PREVIOUS:}
     image-size: ${QR_IMAGE_SIZE:512}
   reservation:
-    hold: ${RESERVATION_HOLD:12m}
+    hold: ${RESERVATION_HOLD:20m}
     sweep: ${RESERVATION_SWEEP:15s}
     sweep-batch-size: ${RESERVATION_SWEEP_BATCH_SIZE:500}
     sweep-max-batches: ${RESERVATION_SWEEP_MAX_BATCHES:8}

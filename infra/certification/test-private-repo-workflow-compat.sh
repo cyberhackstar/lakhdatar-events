@@ -40,7 +40,7 @@ done
 # Baseline and Java tests must describe the new supported workflow, not require attestations on private repos.
 grep -q 'publicAttestationGuard' "$BASELINE"
 grep -q 'public repositories only' "$ROOT/backend/src/test/java/com/neelastack/lakhdatar/service/EnterpriseReleaseV212ContractTest.java"
-[[ "$(tr -d '\r\n' < "$ROOT/VERSION")" == "2.0.52" ]]
+[[ "$(tr -d '\r\n' < "$ROOT/VERSION")" == "2.0.53" ]]
 ! grep -Rqs '2.0.44' \
   "$ROOT/.env.example" "$ROOT/.env.staging.example" "$ROOT/infra/ha/.env.ha.example" \
   "$ROOT/backend/src/main/resources/application.yml" "$ROOT/infra/docker-compose.prod.yml" \
