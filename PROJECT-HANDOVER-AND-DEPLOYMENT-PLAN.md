@@ -1,7 +1,7 @@
 # Project handover and deployment plan — Neelastack Events
 
 Date: 20 October 2026
-Candidate: v2.0.52
+Candidate: v2.0.53 — Cashfree expiry compatibility
 Base source: uploaded v2.0.51 ZIP (`lakhdatar-events-main`), compared with v2.0.50 ZIP
 
 ## 1. Product and architecture

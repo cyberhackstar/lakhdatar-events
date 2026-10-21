@@ -13,7 +13,7 @@ This candidate addresses the field-specific Cashfree error `order_expiry_time_in
 
 ## Required staging checks
 
-1. Confirm deployed staging SHA equals the release SHA. In the backend container, inspect only `RESERVATION_HOLD` and confirm it is `20m`; do not print secrets.
+1. Confirm deployed staging SHA equals the release SHA. In the backend container, inspect only `RESERVATION_HOLD` and confirm it is `12m` for this qualification; do not print secrets.
 2. Verify both Cashfree keys are a matched sandbox pair without displaying either value.
 3. Run the mutation-enabled Playwright qualification on `https://staging-events.neelastack.com` using disposable fixtures.
 4. Confirm Cashfree Create Order returns success; same-key retry resolves to the same logical order; payment confirmation reconciles; ticket issuance succeeds; scanner accepts the generated ticket exactly once.

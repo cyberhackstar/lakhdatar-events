@@ -13,7 +13,7 @@ Staging backend logs for the v2.0.52 checkout failure show Cashfree Create Order
 
 ## Deployment configuration requirement
 
-`RESERVATION_HOLD` is a runtime environment override. The staging deployment secret `STAGING_ENV_FILE` must set `RESERVATION_HOLD=20m` or omit the key to inherit the new Compose default. If it explicitly remains `12m`, updating source defaults alone will not change the running application. Do not print or paste the full `STAGING_ENV_FILE`.
+`RESERVATION_HOLD` is a runtime environment override. The staging deployment secret `STAGING_ENV_FILE` should retain `RESERVATION_HOLD=12m` for this qualification. Confirm the effective value after deployment; do not change the reservation duration while testing timestamp precision. Do not print or paste the full `STAGING_ENV_FILE`.
 
 The supplied diagnostic also showed the Cashfree App ID had a `TEST` prefix while the secret key did not. This did not cause the reported field-specific error, but verify in the Cashfree merchant dashboard that both values are a matching sandbox credential pair. Never substitute live credentials for staging.
 
