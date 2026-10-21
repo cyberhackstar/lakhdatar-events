@@ -182,7 +182,7 @@ app:
     previous-signing-secret: ${QR_SIGNING_SECRET_PREVIOUS:}
     image-size: ${QR_IMAGE_SIZE:512}
   reservation:
-    hold: ${RESERVATION_HOLD:20m}
+    hold: ${RESERVATION_HOLD:12m}
     sweep: ${RESERVATION_SWEEP:15s}
     sweep-batch-size: ${RESERVATION_SWEEP_BATCH_SIZE:500}
     sweep-max-batches: ${RESERVATION_SWEEP_MAX_BATCHES:8}
