@@ -18,7 +18,7 @@ if (pkg.version !== expectedVersion) failures.push(`frontend/package.json versio
 if (lock.version !== expectedVersion || rootPkg?.version !== expectedVersion) failures.push(`package-lock root version is not ${expectedVersion}`);
 const angularPackages = ['@angular/common','@angular/compiler','@angular/core','@angular/forms','@angular/platform-browser','@angular/platform-server','@angular/router','@angular/ssr'];
 for (const name of angularPackages) {
-  const want = name === '@angular/ssr' ? '20.3.39' : '20.3.33';
+  const want = name === '@angular/ssr' ? '20.3.40' : '20.3.34';
   if (pkg.dependencies?.[name] !== want) failures.push(`${name} must be pinned to ${want}`);
 }
 if (pkg.overrides?.tinypool !== '2.2.0') failures.push('tinypool override must be 2.2.0 (fixes critical GHSA-5gmw-xhrv-c9v3 / GHSA-85c8-ppgw-ccpr)');
@@ -27,7 +27,8 @@ if (!tinypoolLock || tinypoolLock.version !== '2.2.0') failures.push(`lockfile t
 const angularDevPackages = ['@angular/build','@angular/cli','@angular/compiler-cli'];
 if (pkg.devDependencies?.['@types/node'] !== '22.20.5') failures.push(`@types/node must be pinned to 22.20.5, got ${pkg.devDependencies?.['@types/node']}`);
 for (const name of angularDevPackages) {
-  if (pkg.devDependencies?.[name] !== '20.3.33') failures.push(`${name} must be pinned to 20.3.33`);
+  const want = (name === '@angular/build' || name === '@angular/cli') ? '20.3.40' : '20.3.34';
+  if (pkg.devDependencies?.[name] !== want) failures.push(`${name} must be pinned to ${want}`);
 }
 if (pkg.dependencies?.['@angular/animations']) failures.push('@angular/animations must not be a direct dependency');
 if (pkg.dependencies?.['@angular/platform-browser-dynamic']) failures.push('@angular/platform-browser-dynamic must not be a direct dependency');
@@ -76,9 +77,9 @@ if (testingBuild?.outputMode !== 'static') failures.push('Angular testing build 
 if (testingBuild?.ssr !== false) failures.push('Angular testing build must disable SSR');
 
 const mcpOverride = pkg.overrides?.['@modelcontextprotocol/sdk'];
-if (mcpOverride !== '1.31.0') failures.push(`@modelcontextprotocol/sdk override must be 1.31.0, got ${mcpOverride}`);
+if (mcpOverride !== '1.32.1') failures.push(`@modelcontextprotocol/sdk override must be 1.32.1, got ${mcpOverride}`);
 const mcpLock = lock.packages?.['node_modules/@modelcontextprotocol/sdk'];
-if (mcpLock && mcpLock.version !== '1.31.0') failures.push(`lockfile @modelcontextprotocol/sdk version ${mcpLock.version} != 1.31.0`);
+if (mcpLock && mcpLock.version !== '1.32.1') failures.push(`lockfile @modelcontextprotocol/sdk version ${mcpLock.version} != 1.32.1`);
 const rawLock = fs.readFileSync(new URL('package-lock.json', root), 'utf8');
 if (rawLock.includes('inherits-2.0.5.tgz')) failures.push('stale inherits-2.0.5.tgz tarball reference remains');
 if (rawLock.includes('hasown-2.0.5.tgz')) failures.push('stale hasown-2.0.5.tgz tarball reference remains');
@@ -96,7 +97,7 @@ if (rawLock.includes('colorette-2.0.21.tgz')) failures.push('unavailable coloret
 
 const angularLockVersions = angularPackages.concat(angularDevPackages).map(name => [name, lock.packages?.[`node_modules/${name}`]?.version]);
 for (const [name, version] of angularLockVersions) {
-  const want = name === '@angular/ssr' ? '20.3.39' : '20.3.33';
+  const want = ['@angular/ssr', '@angular/build', '@angular/cli'].includes(name) ? '20.3.40' : '20.3.34';
   if (version !== want) failures.push(`lockfile ${name} version ${version} != ${want}`);
 }
 for (const [path, entry] of Object.entries(lock.packages || {})) {
@@ -109,7 +110,7 @@ for (const [path, entry] of Object.entries(lock.packages || {})) {
   if (path === 'node_modules/karma' || path.endsWith('/karma')) failures.push(`legacy Karma remains at ${path}`);
 }
 const mcpLockStrict = lock.packages?.['node_modules/@modelcontextprotocol/sdk'];
-if (!mcpLockStrict || mcpLockStrict.version !== '1.31.0') failures.push('lockfile must contain @modelcontextprotocol/sdk 1.31.0');
+if (!mcpLockStrict || mcpLockStrict.version !== '1.32.1') failures.push('lockfile must contain @modelcontextprotocol/sdk 1.32.1');
 if (failures.length) {
   console.error('Frontend dependency verification: FAIL');
   for (const failure of failures) console.error(`- ${failure}`);

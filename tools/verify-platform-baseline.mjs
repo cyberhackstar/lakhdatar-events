@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptDir, "..");
-const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
+const read = (p) => fs.readFileSync(path.join(root, p), "utf8").replace(/\r\n/g, "\n");
 const pkg = JSON.parse(read("frontend/package.json"));
 const lock = JSON.parse(read("frontend/package-lock.json"));
 const pom = read("backend/pom.xml");
@@ -34,14 +34,14 @@ const productionHaWorkflow = read(".github/workflows/production-ha.yml");
 const version = read("VERSION").trim();
 
 const expected = {
-  "@angular/common": "20.3.33",
-  "@angular/compiler": "20.3.33",
-  "@angular/core": "20.3.33",
-  "@angular/forms": "20.3.33",
-  "@angular/platform-browser": "20.3.33",
-  "@angular/platform-server": "20.3.33",
-  "@angular/router": "20.3.33",
-  "@angular/ssr": "20.3.39",
+  "@angular/common": "20.3.34",
+  "@angular/compiler": "20.3.34",
+  "@angular/core": "20.3.34",
+  "@angular/forms": "20.3.34",
+  "@angular/platform-browser": "20.3.34",
+  "@angular/platform-server": "20.3.34",
+  "@angular/router": "20.3.34",
+  "@angular/ssr": "20.3.40",
   rxjs: "7.8.2",
   tslib: "2.8.1",
   "zone.js": "0.15.1",
@@ -62,11 +62,11 @@ if (!supportedExpressTypesSpecs.has(pkg.devDependencies["@types/express"]))
   problems.push(
     `@types/express: expected one of ${[...supportedExpressTypesSpecs].join(", ")}, got ${pkg.devDependencies["@types/express"]}`,
   );
-if (pkg.devDependencies["@angular/build"] !== "20.3.33")
+if (pkg.devDependencies["@angular/build"] !== "20.3.40")
   problems.push("@angular/build baseline mismatch");
-if (pkg.devDependencies["@angular/cli"] !== "20.3.33")
+if (pkg.devDependencies["@angular/cli"] !== "20.3.40")
   problems.push("@angular/cli baseline mismatch");
-if (pkg.devDependencies["@angular/compiler-cli"] !== "20.3.33")
+if (pkg.devDependencies["@angular/compiler-cli"] !== "20.3.34")
   problems.push("@angular/compiler-cli baseline mismatch");
 if (pkg.devDependencies["@types/node"] !== "22.20.5")
   problems.push("@types/node baseline mismatch");

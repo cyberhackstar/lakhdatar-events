@@ -1,12 +1,12 @@
 # Neelastack Events / Lakhdatar Events Platform
 
-Version: `2.0.52` (candidate package; staging and production gates still required)
+Version: `2.0.53` (candidate package; staging and production gates still required)
 
 A multi-event ticketing and check-in platform with a Spring Boot backend, Angular SSR frontend, PostgreSQL, Redis, QR ticket credentials, staff mobile scanning, and payment-provider adapters for Razorpay and Cashfree. The repository also contains CI/CD, staging browser E2E, load-test, backup, rollback, and release-qualification workflows.
 
 ## Current release candidate
 
-The v2.0.52 candidate targets a staging checkout failure observed in v2.0.51: Cashfree expects a 10-digit `customer_phone`, while an E2E request sent `+919999999999` and the adapter stripped punctuation but retained the `91` country code. The adapter now normalizes common Indian input formats and has mock HTTP regression tests. The candidate also restores the check-in latency SLO contract check, saves Playwright traces from staging runs, and stops release qualification from overriding the configured HTML reporter with line-only output. This is a code-level fix candidate, not proof that the external provider or deployed environment now passes. The workflow configuration in the supplied ZIP differs from the pasted run log on the missing-artifact policy; merge the targeted changes into the current Windows Git checkout and do not replace its `.git` folder or unreviewed newer changes.
+The v2.0.53 candidate targets the staging Cashfree response `order_expiry_time_invalid` observed after v2.0.52. The source had passed the reservation expiry to Cashfree, but the default local reservation hold was 12 minutes; the candidate raises the default hold to 20 minutes and serializes the provider expiry at whole-second UTC precision. A regression test exercises an `Instant` with fractional nanoseconds. This is a targeted compatibility candidate, not proof that Cashfree has accepted a real order. The actual deployed `RESERVATION_HOLD` in the protected `STAGING_ENV_FILE` can override defaults and must be `20m` (or be omitted to inherit the new Compose default) during staging qualification.
 
 ## Layout
 
@@ -31,7 +31,7 @@ The v2.0.52 candidate targets a staging checkout failure observed in v2.0.51: Ca
 6. Run `Enterprise Release Qualification` and the protected single-node production-readiness workflow with all required operational evidence bound to the same SHA.
 7. Promote only the exact certified SHA through the production workflow, with environment approval. Backups, readiness, smoke checks, immutable images, signing/provenance verification and rollback constraints still apply.
 
-See `docs/STAGING-RELEASE-FLOW.md`, `docs/PRODUCTION-RELEASE-CHECKLIST.md`, `docs/deployment.md`, `STAGING-QUALIFICATION-SETUP.md`, and `VALIDATION-2.0.52-CASHFREE-PHONE-AND-E2E-DIAGNOSTICS.md`.
+See `docs/STAGING-RELEASE-FLOW.md`, `docs/PRODUCTION-RELEASE-CHECKLIST.md`, `docs/deployment.md`, `STAGING-QUALIFICATION-SETUP.md`, and `VALIDATION-2.0.53-CASHFREE-ORDER-EXPIRY-COMPATIBILITY.md`.
 
 ## Important environment separation
 
@@ -43,4 +43,4 @@ See `docs/STAGING-RELEASE-FLOW.md`, `docs/PRODUCTION-RELEASE-CHECKLIST.md`, `doc
 
 ## Release status
 
-This archive is not certified for production. The latest supplied staging browser log had successful provisioning/self-tests but one failing checkout idempotency test (HTTP 502). A format mismatch has been fixed in this candidate and regression-tested locally when the backend test suite is run, but staging confirmation is still required. Never bypass the failing test or disable payment mutations to declare the release ready.
+This archive is not certified for production. The previous staging browser run had successful provisioning/self-tests but checkout failed with HTTP 502 after Cashfree returned HTTP 400 `order_expiry_time_invalid`. The candidate updates the expiry policy and serialization, but real sandbox checkout/idempotency, payment confirmation, ticket issuance, scanning, and full release qualification must pass on the exact SHA. Never bypass a failing test or disable payment mutations to declare the release ready.

@@ -28,7 +28,7 @@ const expectedReleaseVersion = fs.readFileSync(new URL("../VERSION", import.meta
 if (pkg.version !== expectedReleaseVersion) failures.push(`frontend package version must match ../VERSION (${expectedReleaseVersion}), found ${pkg.version}`);
 if (pkg.devDependencies?.vitest !== "3.2.7") failures.push("Vitest must be pinned to 3.2.7");
 if (pkg.devDependencies?.jsdom !== "29.1.1") failures.push("JSDOM must be pinned to 29.1.1");
-if (pkg.overrides?.["@modelcontextprotocol/sdk"] !== "1.31.0") failures.push("MCP SDK override must be 1.31.0");
+if (pkg.overrides?.["@modelcontextprotocol/sdk"] !== "1.32.1") failures.push("MCP SDK override must be 1.32.1");
 if (pkg.devDependencies?.karma || pkg.devDependencies?.jasmine) failures.push("Legacy Karma/Jasmine test dependencies must not be declared");
 
 if (failures.length) {

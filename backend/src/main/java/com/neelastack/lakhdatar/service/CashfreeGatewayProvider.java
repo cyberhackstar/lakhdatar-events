@@ -23,6 +23,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Component
@@ -162,7 +163,11 @@ public class CashfreeGatewayProvider implements PaymentGatewayProvider {
             var meta = body.putObject("order_meta");
             meta.put("return_url", props.publicBaseUrl() + "/payment/success?order_id={order_id}");
             meta.put("notify_url", props.publicBaseUrl() + "/api/v1/webhooks/cashfree");
-            if (orderExpiryTime != null) body.put("order_expiry_time", orderExpiryTime.toString());
+            if (orderExpiryTime != null) {
+                // Cashfree expects an ISO-8601 order expiry. Normalize the runtime Instant to
+                // whole-second UTC precision rather than sending nanosecond fractions.
+                body.put("order_expiry_time", orderExpiryTime.truncatedTo(ChronoUnit.SECONDS).toString());
+            }
             HttpRequest request = req("/orders")
                     .header("x-idempotency-key", deterministicIdempotencyKey("order", receipt))
                     .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))

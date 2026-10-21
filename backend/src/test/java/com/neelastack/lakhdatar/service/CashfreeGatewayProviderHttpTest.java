@@ -88,7 +88,7 @@ class CashfreeGatewayProviderHttpTest {
     @Test
     void createOrderSendsReservationExpiryWhenProvided() throws Exception {
         CashfreeGatewayProvider provider = new CashfreeGatewayProvider(properties(), mapper);
-        java.time.Instant expiresAt = java.time.Instant.parse("2030-01-01T00:00:00Z");
+        java.time.Instant expiresAt = java.time.Instant.parse("2030-01-01T00:00:00.987654321Z");
 
         PaymentGatewayProvider.ProviderOrder created = provider.createOrder(
                 10_000, "INR", "LK-TEST12345678", "E2E Customer",
@@ -97,7 +97,7 @@ class CashfreeGatewayProviderHttpTest {
         assertEquals("LK-TEST12345678", created.id());
         assertEquals(1, requests.size());
         JsonNode requestBody = mapper.readTree(requests.getFirst().body());
-        assertEquals(expiresAt.toString(), requestBody.path("order_expiry_time").asText());
+        assertEquals("2030-01-01T00:00:00Z", requestBody.path("order_expiry_time").asText());
     }
 
     @Test
