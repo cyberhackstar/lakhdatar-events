@@ -2,7 +2,7 @@
 
 ## Scope
 
-This candidate addresses the field-specific Cashfree error `order_expiry_time_invalid` recorded in staging on v2.0.52. It changes both the reservation lifetime default and the wire timestamp precision.
+This candidate addresses the field-specific Cashfree error `order_expiry_time_invalid` recorded in staging on v2.0.52. It preserves the existing 12-minute reservation lifetime default and changes only the Cashfree wire timestamp precision.
 
 ## Required local checks
 
