@@ -1,3 +1,19 @@
+# IMPLEMENTATION STATUS 2.0.54
+
+## Completed in this package
+- Root cause of the staging E2E failure (Cashfree `order_expiry_time_invalid` -> 502) identified: the 2.0.53 hold increase was documented but never applied to any config file.
+- Hold default 20m in application.yml, staging/prod/HA compose, `.env.example`, `.env.staging.example`.
+- Code-level floor (`effectiveHold()`, 16m) and provider-side floor/format in `CashfreeGatewayProvider.formatOrderExpiry()`.
+- Regression tests added/updated; version bumped to 2.0.54 consistently; docs corrected.
+
+## NOT completed / not verified
+- Backend not compiled or tested here (no Maven in the working environment). Run `mvn clean verify` before merging.
+- Staging deployment and the Playwright run were not executed here; the fix is unproven until a real Cashfree sandbox checkout succeeds.
+- `STAGING_ENV_FILE` / production env secrets must be edited by you to drop `RESERVATION_HOLD=12m`.
+- Production readiness evidence, HA certification and Cashfree sandbox credential pairing remain manual gates.
+
+---
+
 # v1.9.50 — Enterprise observability + publish gate
 
 Status: implementation packaged; authoritative CI remains GitHub Actions.

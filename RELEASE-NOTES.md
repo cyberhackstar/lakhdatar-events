@@ -1,4 +1,11 @@
-# v2.0.53 — Cashfree order-expiry compatibility
+# v2.0.54 — Cashfree expiry root-cause fix
+
+- The v2.0.53 notes claimed a 20-minute default hold but no config had changed; staging stayed on 12m and Cashfree kept rejecting `order_expiry_time`. The default is now really 20m everywhere and the effective hold is floored at 16m in code.
+- Cashfree `order_expiry_time` is sent as ISO-8601 with `+05:30` offset, whole seconds, and never less than 16 minutes ahead.
+- Operators: remove `RESERVATION_HOLD=12m` from the staging/production env files (or set 20m).
+- Staging candidate; production gates unchanged. See `CHANGES-2.0.54-CASHFREE-EXPIRY-ROOT-CAUSE.md`.
+
+# v2.0.53 — Cashfree order-expiry compatibility (superseded by 2.0.54)
 
 - Keep the local ticket reservation and Cashfree order expiry aligned while increasing the default hold to 20 minutes to provide provider-validation headroom.
 - Serialize `order_expiry_time` at whole-second UTC precision (`...Z`) instead of passing the nanosecond precision emitted by a live `Instant`.

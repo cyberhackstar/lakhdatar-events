@@ -11,6 +11,8 @@ Staging backend logs for the v2.0.52 checkout failure show Cashfree Create Order
 - Add a regression assertion proving fractional nanoseconds are not forwarded.
 - Keep local reservation expiry and provider expiry aligned; do not simply omit the provider expiry, as that can allow a payment order to remain valid after local ticket inventory is released.
 
+> **Correction (v2.0.54):** the guidance below to keep `RESERVATION_HOLD=12m` was wrong; 12 minutes is what Cashfree rejected. Use 20m. See CHANGES-2.0.54.
+
 ## Deployment configuration requirement
 
 `RESERVATION_HOLD` is a runtime environment override. The staging deployment secret `STAGING_ENV_FILE` should retain `RESERVATION_HOLD=12m` for this qualification. Confirm the effective value after deployment; do not change the reservation duration while testing timestamp precision. Do not print or paste the full `STAGING_ENV_FILE`.

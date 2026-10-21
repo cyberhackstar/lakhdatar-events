@@ -154,7 +154,7 @@ requestedTypes.add(new TicketTypeRequest(
         if (commitBookingBlock != null) {
             throw new ApiException(HttpStatus.CONFLICT, commitBookingBlock, bookingBlockMessage(commitBookingBlock));
         }
-        Instant expires=Instant.now().plus(props.reservation().hold());
+        Instant expires=Instant.now().plus(props.reservation().effectiveHold());
         Order order=new Order(); order.setOrderNumber(orderNumber()); order.setEventId(lockedEvent.getId()); order.setCustomerName(request.customerName().trim());
         order.setCustomerEmail(request.customerEmail().trim().toLowerCase(java.util.Locale.ROOT)); order.setCustomerPhone(normalizePhone(request.customerPhone())); order.setTotalMinorUnits(total); order.setCurrency(lockedEvent.getCurrency());
 
