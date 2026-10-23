@@ -107,7 +107,7 @@ jobs:
         run: bash ./infra/certification/verify-enterprise-evidence.sh
 
       - name: Upload enterprise certification manifest
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-certification-${{ inputs.release_sha }}
           path: certification-evidence/enterprise-certification.json
