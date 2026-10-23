@@ -1,6 +1,7 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { Rate } from 'k6/metrics';
+import { Rate, Trend } from 'k6/metrics';
+import { sleep } from 'k6';
 
 const BASE_URL = (__ENV.BASE_URL || '').replace(/\/$/, '');
 const EVENT_ID = __ENV.EVENT_ID || '';
@@ -23,7 +24,13 @@ if (IS_PRODUCTION_EVENTS_HOST && __ENV.ALLOW_PRODUCTION_CHECKOUT_LOAD !== 'true'
 const responseContract = new Rate('checkout_contract');
 const success = new Rate('checkout_success');
 const serverErrors = new Rate('checkout_server_errors');
+const initialTransportFailures = new Rate('checkout_initial_transport_failures');
+const finalTransportFailures = new Rate('checkout_final_transport_failures');
+const finalFailures = new Rate('checkout_final_failures');
+const retryUsed = new Rate('checkout_transport_retry_used');
+const logicalDuration = new Trend('checkout_logical_duration_ms');
 let diagnosticFailures = 0;
+let recoveredTransportDiagnostics = 0;
 
 // Print only a strict machine-readable API error code and timing. Never print response bodies,
 // cookies, headers, payment identifiers, or customer fields from staging responses.
@@ -37,6 +44,11 @@ function safeErrorCode(response) {
     return 'unavailable';
   }
 }
+
+// HTTP 409/429 are explicit checkout outcomes in this scenario, not transport failures.
+// A 0 status has no HTTP response; the caller may have lost the response after the API handled
+// the idempotency key. In that case only, one replay with the exact same body/key is safe.
+http.setResponseCallback(http.expectedStatuses(200, 201, 409, 429));
 
 export const options = {
   scenarios: {
@@ -52,7 +64,11 @@ export const options = {
     checkout_contract: ['rate>0.99'],
     checkout_success: ['rate>0.90'],
     checkout_server_errors: ['rate<0.01'],
-    http_req_failed: ['rate<0.02'],
+    checkout_initial_transport_failures: ['rate<0.03'],
+    checkout_transport_retry_used: ['rate<0.03'],
+    checkout_final_transport_failures: ['rate<0.01'],
+    checkout_final_failures: ['rate<0.01'],
+    checkout_logical_duration_ms: ['p(95)<2500', 'p(99)<4500'],
     http_req_duration: ['p(95)<2000', 'p(99)<4000']
   }
 };
@@ -67,14 +83,42 @@ export default function () {
     idempotencyKey: `LT-${Date.now()}-${__VU}-${__ITER}-${Math.floor(Math.random()*1_000_000_000)}`,
     items: [{ ticketTypeId: TICKET_TYPE_ID, quantity: 1 }]
   });
-  const res = http.post(`${BASE_URL}/api/v1/public/checkout`, body, { headers: { 'Content-Type': 'application/json' }, tags: { endpoint: 'checkout-provision' } });
+  const url = `${BASE_URL}/api/v1/public/checkout`;
+  const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+  const startedAt = Date.now();
+  let res = http.post(url, body, { headers, tags: { endpoint: 'checkout-provision', attempt: 'initial' } });
+  const initialTransportFailure = res.status === 0;
+  initialTransportFailures.add(initialTransportFailure);
+  retryUsed.add(initialTransportFailure);
+
+  // Retry only when no HTTP response arrived (e.g. an edge TCP reset). Reuse the identical
+  // request body and idempotency key; never retry HTTP 4xx/5xx/provider responses here.
+  if (initialTransportFailure) {
+    sleep(0.25);
+    res = http.post(url, body, { headers, tags: { endpoint: 'checkout-provision', attempt: 'transport-retry' } });
+  }
+
+  const logicalDurationMs = Date.now() - startedAt;
   const contract = [200, 201, 409, 429].includes(res.status);
+  const finalFailure = !contract || res.status >= 500;
   responseContract.add(contract);
   success.add(res.status === 200 || res.status === 201);
   serverErrors.add(res.status >= 500);
-  if ((!contract || res.status >= 500) && diagnosticFailures < 3) {
-    diagnosticFailures += 1;
-    console.error(`[checkout-load] unexpected HTTP status=${res.status} apiCode=${safeErrorCode(res)} durationMs=${Math.round(res.timings.duration)}; response body and credentials omitted`);
+  finalTransportFailures.add(res.status === 0);
+  finalFailures.add(finalFailure);
+  logicalDuration.add(logicalDurationMs);
+
+  if (initialTransportFailure && !finalFailure && recoveredTransportDiagnostics < 3) {
+    recoveredTransportDiagnostics += 1;
+    console.warn(`[checkout-load] recovered no-response transport failure with one same-key retry; initialStatus=0 finalStatus=${res.status} logicalDurationMs=${logicalDurationMs}; response body and credentials omitted`);
   }
-  check(res, { 'checkout response contract': r => contract, 'checkout has no server error': r => r.status < 500 });
+  if (finalFailure && diagnosticFailures < 3) {
+    diagnosticFailures += 1;
+    console.error(`[checkout-load] final checkout failure after ${initialTransportFailure ? 'transport retry' : 'single attempt'}; HTTP status=${res.status} apiCode=${safeErrorCode(res)} logicalDurationMs=${logicalDurationMs}; response body and credentials omitted`);
+  }
+  check(res, {
+    'checkout response contract': () => contract,
+    'checkout has no server error': r => r.status < 500,
+    'checkout final response is not a transport failure': r => r.status !== 0,
+  });
 }

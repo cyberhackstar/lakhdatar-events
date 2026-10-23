@@ -1,12 +1,18 @@
-# IMPLEMENTATION STATUS 2.0.54
+# IMPLEMENTATION STATUS 2.0.56
 
-## Completed in this package
+## Current release / qualification status
+- Current application version: `2.0.56`; deployed staging SHA: `44fddc6a02c7219807fa85a1b470bb1f5d90e174`.
+- Enterprise qualification run `39984461601` passed backend, frontend, database, exact staging SHA, browser E2E and DAST. The load job failed on one `status=0` checkout request with a TCP reset by the Cloudflare edge; final checkout metrics were 39/40 contract-compliant responses, 0 server errors, p95 522.95 ms and p99 656.39 ms.
+- This patch changes only the qualification harness/workflow: one same-idempotency-key retry for a no-response transport failure and separate immutable `testHarnessSha` metadata. It does not change app runtime code and does not require a staging app redeploy.
+- Production is **HOLD** until a new exact-SHA enterprise qualification and the protected single-node readiness workflow both pass.
+
+## Historical implementation details for v2.0.54
 - Root cause of the staging E2E failure (Cashfree `order_expiry_time_invalid` -> 502) identified: the 2.0.53 hold increase was documented but never applied to any config file.
 - Hold default 20m in application.yml, staging/prod/HA compose, `.env.example`, `.env.staging.example`.
 - Code-level floor (`effectiveHold()`, 16m) and provider-side floor/format in `CashfreeGatewayProvider.formatOrderExpiry()`.
 - Regression tests added/updated; version bumped to 2.0.54 consistently; docs corrected.
 
-## NOT completed / not verified
+## NOT completed / not verified at the v2.0.54 review (historical)
 - Backend not compiled or tested here (no Maven in the working environment). Run `mvn clean verify` before merging.
 - Staging deployment and the Playwright run were not executed here; the fix is unproven until a real Cashfree sandbox checkout succeeds.
 - `STAGING_ENV_FILE` / production env secrets must be edited by you to drop `RESERVATION_HOLD=12m`.

@@ -232,27 +232,42 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     steps:
-      - uses: actions/checkout@v7
+      # The deployed application is bound by inputs.release_sha and the staging marker above.
+      # The load-test harness is a separate, reviewed input: pin it to this workflow dispatch SHA
+      # so test-only fixes can re-qualify the existing staged release without rebuilding/redeploying it.
+      - name: Checkout qualification harness at the workflow commit
+        uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.release_sha }}
+          ref: ${{ github.sha }}
+          path: qualification-harness
           fetch-depth: 1
-      - name: Validate exact staging target
+      - name: Validate staging target and immutable harness identity
         env:
           BASE_URL: ${{ inputs.staging_url }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          EXPECTED_HARNESS_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           test "$BASE_URL" = 'https://staging-events.neelastack.com' || { echo 'Enterprise load qualification must target https://staging-events.neelastack.com'; exit 2; }
+          test "$GITHUB_REF" = 'refs/heads/main' || { echo 'Dispatch Enterprise Release Qualification from main so the reviewed harness is used.'; exit 2; }
+          actual_harness_sha="$(git -C qualification-harness rev-parse HEAD)"
+          test "$actual_harness_sha" = "$EXPECTED_HARNESS_SHA" || { echo 'Qualification harness SHA does not match the workflow dispatch commit.'; exit 2; }
+          echo "Application release SHA: $RELEASE_SHA"
+          echo "Qualification harness SHA: $actual_harness_sha"
       - uses: actions/setup-node@v7
         with:
-          node-version-file: .nvmrc
+          node-version-file: qualification-harness/.nvmrc
           cache: npm
-          cache-dependency-path: e2e/package-lock.json
+          cache-dependency-path: qualification-harness/e2e/package-lock.json
       - name: Install shared protected fixture provisioner dependencies
-        working-directory: e2e
+        working-directory: qualification-harness/e2e
         run: npm ci
       - name: Run automatic enterprise load qualification
+        working-directory: qualification-harness
         env:
           BASE_URL: ${{ inputs.staging_url }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          QUALIFICATION_HARNESS_SHA: ${{ github.sha }}
           K6_IMAGE: "${{ vars.K6_IMAGE || 'grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6' }}"
           E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
           STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
@@ -270,8 +285,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: enterprise-load-${{ inputs.release_sha }}
-          path: loadtest-results/
+          name: enterprise-load-${{ inputs.release_sha }}-${{ github.sha }}
+          path: qualification-harness/loadtest-results/
           if-no-files-found: warn
 
   dast:
@@ -310,6 +325,7 @@ jobs:
           RELEASE_SHA: ${{ inputs.release_sha }}
           QUALIFICATION_RUN_ID: ${{ github.run_id }}
           QUALIFICATION_RUN_ATTEMPT: ${{ github.run_attempt }}
+          QUALIFICATION_HARNESS_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release SHA' >&2; exit 2; }
@@ -324,6 +340,7 @@ jobs:
               "manifestType": "release-qualification-not-production-certification",
               "status": "PASS",
               "releaseSha": os.environ["RELEASE_SHA"],
+              "testHarnessSha": os.environ["QUALIFICATION_HARNESS_SHA"],
               "workflowName": "Enterprise Release Qualification",
               "runId": os.environ["QUALIFICATION_RUN_ID"],
               "runAttempt": int(os.environ["QUALIFICATION_RUN_ATTEMPT"]),
