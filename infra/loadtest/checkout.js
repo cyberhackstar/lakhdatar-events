@@ -23,6 +23,20 @@ if (IS_PRODUCTION_EVENTS_HOST && __ENV.ALLOW_PRODUCTION_CHECKOUT_LOAD !== 'true'
 const responseContract = new Rate('checkout_contract');
 const success = new Rate('checkout_success');
 const serverErrors = new Rate('checkout_server_errors');
+let diagnosticFailures = 0;
+
+// Print only a strict machine-readable API error code and timing. Never print response bodies,
+// cookies, headers, payment identifiers, or customer fields from staging responses.
+function safeErrorCode(response) {
+  try {
+    const payload = response.json();
+    const candidate = payload && (payload.code || payload.errorCode || payload.error_code);
+    return typeof candidate === 'string' && /^[A-Za-z0-9_.-]{1,80}$/.test(candidate)
+      ? candidate : 'unavailable';
+  } catch (_) {
+    return 'unavailable';
+  }
+}
 
 export const options = {
   scenarios: {
@@ -58,5 +72,9 @@ export default function () {
   responseContract.add(contract);
   success.add(res.status === 200 || res.status === 201);
   serverErrors.add(res.status >= 500);
+  if ((!contract || res.status >= 500) && diagnosticFailures < 3) {
+    diagnosticFailures += 1;
+    console.error(`[checkout-load] unexpected HTTP status=${res.status} apiCode=${safeErrorCode(res)} durationMs=${Math.round(res.timings.duration)}; response body and credentials omitted`);
+  }
   check(res, { 'checkout response contract': r => contract, 'checkout has no server error': r => r.status < 500 });
 }

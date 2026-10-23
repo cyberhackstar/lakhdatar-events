@@ -18,6 +18,13 @@ class StalePaymentLifecycleContractTest {
         assertTrue(service.contains("PaymentStatus.REFUND_PENDING"));
         assertTrue(service.contains("does not alter the payment state"));
         assertTrue(worker.contains("stale.orders.examined"));
+        assertTrue(worker.contains("cleanupStaleOpenOrders"));
+        assertTrue(worker.contains("app.reservation.stale-order-cleanup-sweep"));
+        assertTrue(worker.contains("staleOrderCleanupBatchSize"));
+        assertTrue(worker.contains("job:reservation-expiry"));
+        String config = Files.readString(Path.of("src/main/resources/application.yml"));
+        assertTrue(config.contains("stale-order-cleanup-sweep: 60s"));
+        assertTrue(config.contains("stale-order-cleanup-batch-size: 100"));
     }
 
     @Test void reconciliationRequiresProviderTerminalOrderBeforeClosingNoCapture() throws Exception {
@@ -31,6 +38,8 @@ class StalePaymentLifecycleContractTest {
         assertTrue(orders.contains("PAYMENT_PROVIDER_MISMATCH"));
         assertTrue(repository.contains("reconciliation-batch-size") == false); // tuning lives in application config, not query source
         assertTrue(repository.contains("findHistoricalClosedOrderReconciliationCandidates"));
-        assertTrue(repository.contains("lastReconciledAt desc nulls first"));
+        assertTrue(repository.contains("lastReconciledAt asc nulls first"));
+        assertTrue(worker.contains("app.payment.reconciliation-backlog-sweep-ms"));
+        assertTrue(worker.contains("historical-closed-order"));
     }
 }

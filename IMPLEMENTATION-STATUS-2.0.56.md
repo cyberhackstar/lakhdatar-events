@@ -1,0 +1,10 @@
+# Implementation status — v2.0.56
+
+- Version: `2.0.56` hotfix candidate, based on merged v2.0.55 main commit `fbf4c500139b50b4df8c2e1fa050952ed1895cea`.
+- Evidence reviewed: v2.0.54 load qualification passed (40/40 checkout requests, p95 918 ms); v2.0.55 load qualification failed the checkout scenario (38/40, two 5xx responses, p95 8.33 s, max 8.37 s).
+- Root-cause confidence: likely provider-read timeout / Cashfree sandbox latency because the outlier matches the 8-second HTTP read timeout, but the original load script omitted sanitized error codes, so the provider-specific cause is not proven from the supplied log alone.
+- Changes: oldest-attempt-first query ordering restored; historical closed-order reconciliation rate-limited to a separate 120-second schedule under the shared distributed lock; stale-open-order repair isolated from the 15-second reservation-expiry sweep to a 60-second/100-order lane under the same distributed expiry lock; checkout load failures emit only allowlisted API error code, HTTP status and duration; no thresholds relaxed.
+- Source-level checks passed in the packaging environment: platform baseline, frontend lock verifier, security policy, browser-artifact contract, all certification/load-test/smoke/readiness shell contract tests, shell syntax, and XML/JSON/workflow-YAML parsing.
+- Full Maven/JUnit verification was not run in the packaging environment because Maven is not installed. `npm ci` also could not be run there: its Node.js v22.16.0 is below the project's declared engine range (Node >=22.19.0 <23 or >=24.0.0 <25). The project user's Node v24.21.0 meets the declared range; rerun local tests there.
+- Required next gates: local Maven/JUnit and npm checks on the supported toolchain; PR review; all GitHub CI jobs including Docker; exact-SHA staging deploy; mutation-enabled browser E2E; repeated enterprise qualification with checkout diagnostics; operational evidence review.
+- Production: `HOLD`. This package is not certified and has not been deployed.

@@ -1,18 +1,18 @@
 # Neelastack Events / Lakhdatar Events Platform
 
-Version: `2.0.55` (new candidate; CI, staging qualification and production readiness must pass for its exact SHA)
+Version: `2.0.56` (hotfix candidate; all CI, staging qualification and readiness gates must pass for its exact SHA)
 
 A multi-event ticketing and check-in platform with a Spring Boot backend, Angular SSR frontend, PostgreSQL, Redis, QR ticket credentials, staff mobile scanning, and payment-provider adapters for Razorpay and Cashfree. The repository also contains CI/CD, staging browser E2E, load-test, backup, rollback, and release-qualification workflows.
 
 ## Current release candidate
 
-**v2.0.55 is not yet qualified.** It addresses a staging lifecycle issue where old checkout orders retained `AWAITING_PAYMENT` after their reservations had already been released, and hardens provider reconciliation so local payments are only marked failed/cancelled after independent provider confirmation of a terminal order with no captured/refunded/unknown/in-flight attempt. The previous v2.0.54 Cashfree order-expiry formatting fix is retained.
+**v2.0.56 is not yet qualified.** It retains the v2.0.55 stale-payment lifecycle fixes and addresses a load-qualification regression signal: the historical closed-order reconciliation lane previously ran in every fast sweep, and the candidate also changed payment retry ordering from oldest-attempt-first to newest-attempt-first. The historical reconciliation lane now runs separately at a lower cadence, both payment queries prefer the least-recently-attempted eligible payments, stale-open-order repair is isolated from the 15-second reservation-expiry loop (60-second cadence, 100-order batch), and checkout load failures log only a bounded sanitized API error code plus duration.
 
-The candidate includes a bounded stale-order repair worker, a capped historical reconciliation lane for closed orders, regression tests, the v2.0.57 hardened operational-readiness kit, and a read-only Windows PowerShell evidence inventory helper. Provider timeouts, missing provider resources, active/unknown statuses, and captured/refunded attempts remain unresolved rather than being force-closed.
+The v2.0.55 enterprise qualification failed in the checkout load scenario: 38 of 40 requests met the response contract, 2 returned server errors, and p95 latency was 8.33 seconds. The latency is consistent with the configured 8-second Cashfree HTTP read-timeout window, but the k6 log did not retain a safe API error code for the failing requests. The provider-side cause therefore remains unconfirmed. v2.0.56 adds this sanitized diagnostic without relaxing any thresholds; it must be requalified against Cashfree sandbox before release promotion.
 
-The staging diagnostics that motivated this patch showed zero violations in the ten payment-integrity failure checks, but 2,128 stale-payment warnings. In particular, 788 Cashfree `AWAITING_PAYMENT` orders had reservation rows marked `RELEASED`. Those database facts do not establish whether the provider charged any payment; Cashfree reconciliation and the sandbox qualification remain mandatory.
+This candidate still includes the bounded stale-order repair worker, provider-confirmed terminal/no-capture handling, the v2.0.57 operational-readiness kit, and read-only evidence-inventory helper. Provider timeouts and unknown payment states remain unresolved rather than being treated as failed payments.
 
-**Production decision: HOLD.** The package has not yet passed Maven/JUnit, GitHub CI, staging deployment, mutation-enabled Cashfree sandbox E2E, load qualification, DAST, or the separately protected single-node readiness gate. Use `CHANGES-2.0.55-STALE-PAYMENT-LIFECYCLE.md`, `VALIDATION-2.0.55-RELEASE-QUALIFICATION.md`, and `docs/GITHUB-ENVIRONMENT-VALUES-v2.0.55.md` for review and deploy steps.
+**Production decision: HOLD.** The candidate has not passed Maven/JUnit, GitHub CI, staging deployment, mutation-enabled Cashfree sandbox E2E, load qualification, DAST, or the separately protected single-node readiness gate. Review `CHANGES-2.0.56-CHECKOUT-LOAD-RECONCILIATION.md`, `VALIDATION-2.0.56-RELEASE-QUALIFICATION.md`, and `docs/GITHUB-ENVIRONMENT-VALUES-v2.0.56.md` before qualification.
 
 ## Layout
 

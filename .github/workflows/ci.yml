@@ -30,6 +30,8 @@ jobs:
           fetch-depth: 0
       - name: Verify checkout load-test target guard
         run: bash infra/loadtest/test-checkout-target-guard.sh
+      - name: Verify checkout load failure diagnostics are bounded and sanitized
+        run: bash infra/loadtest/test-checkout-load-diagnostics.sh
       - name: Verify enterprise certification evidence gate
         run: bash infra/certification/test-verify-enterprise-evidence.sh
       - name: Verify release qualification and production certification separation
