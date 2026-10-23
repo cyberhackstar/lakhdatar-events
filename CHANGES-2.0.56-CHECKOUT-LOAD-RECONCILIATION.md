@@ -14,6 +14,9 @@
 - Add bounded checkout-load failure diagnostics: only HTTP status, an allowlisted machine-readable API error code, and duration are logged; response bodies, headers, cookies, tokens, and customer fields are not printed.
 - Add a CI contract test for safe checkout diagnostics. Existing SLO/response thresholds are unchanged.
 
-## Release status
+## Subsequent v2.0.56 qualification evidence and harness correction
 
-This is a candidate fix, not a claim that Cashfree sandbox reliability is repaired. The same-SHA GitHub CI, staging deployment, staging E2E, and enterprise qualification must be rerun. If the next load test fails, use the sanitized API code plus staging application events `payment.provider.http.failed` / `payment.provider.http.succeeded` to distinguish provider timeout, provider error, circuit/bulkhead saturation, and an application-side exception.
+- Latest run `39984461601` for app SHA `44fddc6a02c7219807fa85a1b470bb1f5d90e174` passed backend, frontend, database, exact staging SHA, browser E2E and DAST. The load probe returned 39/40 contract-compliant checkout responses, 0 HTTP 5xx, p95 `522.95 ms`, and p99 `656.39 ms`. The remaining request returned status `0` because the TCP connection to the Cloudflare edge was reset; other public-load scenarios logged occasional edge resets too.
+- This is different from the v2.0.55 symptom (two 5xx at p95 `8.33 s`). The new log contains no checkout 5xx and does not establish a new application-code defect.
+- The follow-up patch changes the qualification harness only: the low-rate checkout probe can replay one status-0 request exactly once using the same idempotency key, never retries a received HTTP 4xx/5xx, adds explicit final-outcome and transport-rate metrics, and preserves strict final-response/latency/5xx gates. The Enterprise Release Qualification workflow runs its test harness at the immutable workflow-dispatch SHA and records `testHarnessSha` separately from the deployed `releaseSha`.
+- This is **not** production certification. Merge after CI/Docker/security checks pass, then rerun Enterprise Release Qualification from `main` against the already deployed v2.0.56 SHA. No staging application redeploy is needed for this harness-only patch. If that run fails, inspect safe diagnostics and provider events; do not lower thresholds.

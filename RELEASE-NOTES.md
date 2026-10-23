@@ -1,5 +1,12 @@
 # v2.0.56 — Checkout load and reconciliation isolation
 
+## Qualification harness-only correction (no application version change)
+
+- The latest v2.0.56 enterprise run passed application, database, browser and DAST gates; its load job failed on one HTTP status-0 connection reset to the Cloudflare edge, not a checkout HTTP 5xx.
+- The checkout probe retries that single no-response case once with the exact same idempotency key; it does not retry received HTTP 4xx/5xx responses. Final logical response, server-error, latency and database-invariant thresholds remain strict.
+- The qualification workflow uses the immutable workflow-dispatch SHA as its test-harness revision and records `testHarnessSha` separately from the deployed application `releaseSha`, allowing the existing staged release to be re-qualified without application redeployment.
+- This does not grant production certification. Rerun same-SHA enterprise qualification and pass the separate single-node readiness gate before any production deployment.
+
 - Restores oldest-attempt-first retry ordering in the normal and historical reconciliation queries.
 - Runs historical closed-order reconciliation in a separately scheduled lower-rate lane under the shared distributed lock, limiting its competition with current checkout/provider requests.
 - Moves legacy stale-open-order repair out of the 15-second reservation-expiry sweep to a 60-second lane capped at 100 orders per pass, sharing the expiry lock to avoid cross-node overlap.

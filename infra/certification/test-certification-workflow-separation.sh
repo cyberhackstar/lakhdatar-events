@@ -21,6 +21,12 @@ assert.match(qualification, /staging-release-identity:[\s\S]*?\.deploy-current/)
 assert.match(qualification, /needs: \[backend, frontend, staging-release-identity\]/);
 assert.match(qualification, /RELEASE_SHA: \$\{\{ inputs\.release_sha \}\}[\s\S]*?test "\$\(git rev-parse HEAD\)" = "\$RELEASE_SHA"/);
 assert.match(qualification, /"manifestType": "release-qualification-not-production-certification"/);
+// Application code remains bound to the requested release SHA, while load-test scripts use the
+// immutable workflow-dispatch SHA so a harness-only fix can re-qualify an already staged release.
+assert.match(qualification, /name: Checkout qualification harness at the workflow commit[\s\S]*?ref: \$\{\{ github\.sha \}\}[\s\S]*?path: qualification-harness/);
+assert.match(qualification, /test "\$actual_harness_sha" = "\$EXPECTED_HARNESS_SHA"/);
+assert.match(qualification, /"releaseSha": os\.environ\["RELEASE_SHA"\]/);
+assert.match(qualification, /"testHarnessSha": os\.environ\["QUALIFICATION_HARNESS_SHA"\]/);
 assert.match(qualification, /"productionCertificationGranted": False/);
 assert.match(qualification, /name: release-qualification-\$\{\{ inputs\.release_sha \}\}/);
 assert.match(qualification, /if-no-files-found: error/);
