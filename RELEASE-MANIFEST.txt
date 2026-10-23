@@ -1,8 +1,9 @@
-NEELASTACK EVENTS v2.0.55 — STALE PAYMENT / RESERVATION LIFECYCLE HARDENING
-Release: 2.0.55
-Base: v2.0.54
-Changes: CHANGES-2.0.55-STALE-PAYMENT-LIFECYCLE.md
-Validation: VALIDATION-2.0.55-RELEASE-QUALIFICATION.md
-Status: Candidate. CI and staging qualification have not yet been run for this exact source tree. Do not deploy to production until the new SHA passes release qualification and all separately protected operational readiness evidence is reviewed.
-Scope: bounded repair of open orders without live reservations; provider-confirmed terminal/no-capture reconciliation; bounded historical payment backlog lane; version-aligned compose/env metadata; readiness kit included.
-Security and release gates: provider timeouts, missing resources, active orders, unknown statuses, and captured/refunded attempts fail closed and do not cause a local payment to be declared unpaid. Release qualification is not production certification. Single-node readiness remains a separately protected gate; enterprise HA certification remains distinct.
+NEELASTACK EVENTS v2.0.56 — CHECKOUT LOAD / RECONCILIATION ISOLATION
+Release: 2.0.56
+Base: v2.0.55 (merged main SHA fbf4c500139b50b4df8c2e1fa050952ed1895cea)
+Changes: CHANGES-2.0.56-CHECKOUT-LOAD-RECONCILIATION.md
+Validation: VALIDATION-2.0.56-RELEASE-QUALIFICATION.md
+Status: Hotfix candidate; required CI and same-SHA staging qualification have not yet run. Do not deploy to production.
+Scope: oldest-attempt-first payment retry ordering, separately scheduled lower-rate historical closed-order reconciliation, isolated bounded stale-open-order repair, sanitized checkout-load diagnostics, and CI contract tests.
+Evidence: v2.0.55 checkout load observed 2 5xx responses in 40 requests and p95 8.33 seconds, close to Cashfree's configured 8-second HTTP read timeout; exact provider cause was not logged and remains unconfirmed.
+Release guards: no threshold weakening; no test skips; no credential/body logging; no payment is declared failed from provider/network errors; release qualification remains separate from single-node production certification.

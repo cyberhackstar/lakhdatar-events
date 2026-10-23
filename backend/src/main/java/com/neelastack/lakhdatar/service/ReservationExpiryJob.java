@@ -31,6 +31,7 @@ public class ReservationExpiryJob {
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
     @Value("${app.reservation.sweep-batch-size:500}") private int batchSize = 500;
     @Value("${app.reservation.sweep-max-batches:8}") private int maxBatches = 8;
+    @Value("${app.reservation.stale-order-cleanup-batch-size:100}") private int staleOrderCleanupBatchSize = 100;
 
     @Scheduled(fixedDelayString = "${app.reservation.sweep}")
     public void sweep() {
@@ -56,15 +57,29 @@ public class ReservationExpiryJob {
                 }
                 if (batch.size() < Math.max(1, batchSize)) break;
             }
+            EnterpriseLog.info(log, "reservation.expiry.sweep.completed", "event.category", "recovery",
+                    "processed", processed, "batches", batches, "failed", failed,
+                    "duration.ms", (System.nanoTime()-started)/1_000_000L);
+        });
+    }
+
+    /**
+     * Repair legacy/event-cancelled checkouts separately from the high-frequency HELD reservation
+     * sweep. The independent cadence and smaller batch prevent a historical order backlog from
+     * causing hundreds of extra database mutations every 15 seconds. Reuse the same distributed
+     * lock so this lane cannot overlap normal expiry work on another application node.
+     */
+    @Scheduled(fixedDelayString = "${app.reservation.stale-order-cleanup-sweep:60s}")
+    public void cleanupStaleOpenOrders() {
+        if (!workerEnabled) return;
+        locks.withLock("job:reservation-expiry", java.time.Duration.ofSeconds(45), () -> {
+            long started = System.nanoTime();
             int closedOrders = 0;
             int orderFailures = 0;
-            // Also repair legacy/event-cancelled checkouts whose reservations have already been
-            // released by cancellation. The query is bounded and only selects open orders with
-            // reservation rows but no still-live hold.
             var staleOrders = orders.findOpenOrdersWithoutLiveReservations(
                     java.util.List.of(Enums.OrderStatus.CREATED, Enums.OrderStatus.AWAITING_PAYMENT),
                     Instant.now().minusSeconds(60), Enums.ReservationStatus.HELD, Instant.now(),
-                    PageRequest.of(0, Math.max(1, batchSize)));
+                    PageRequest.of(0, Math.max(1, staleOrderCleanupBatchSize)));
             for (var order : staleOrders) {
                 try {
                     if (service.closeOpenOrderWithoutLiveReservation(order.getId(), Instant.now())) closedOrders++;
@@ -74,8 +89,7 @@ public class ReservationExpiryJob {
                             "event.category", "recovery", "order.id", order.getId());
                 }
             }
-            EnterpriseLog.info(log, "reservation.expiry.sweep.completed", "event.category", "recovery",
-                    "processed", processed, "batches", batches, "failed", failed,
+            EnterpriseLog.info(log, "reservation.stale_order_cleanup.completed", "event.category", "recovery",
                     "stale.orders.examined", staleOrders.size(), "stale.orders.closed", closedOrders,
                     "stale.orders.failed", orderFailures, "duration.ms", (System.nanoTime()-started)/1_000_000L);
         });

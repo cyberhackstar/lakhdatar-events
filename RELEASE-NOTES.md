@@ -1,3 +1,12 @@
+# v2.0.56 — Checkout load and reconciliation isolation
+
+- Restores oldest-attempt-first retry ordering in the normal and historical reconciliation queries.
+- Runs historical closed-order reconciliation in a separately scheduled lower-rate lane under the shared distributed lock, limiting its competition with current checkout/provider requests.
+- Moves legacy stale-open-order repair out of the 15-second reservation-expiry sweep to a 60-second lane capped at 100 orders per pass, sharing the expiry lock to avoid cross-node overlap.
+- Adds sanitized HTTP status, allowlisted API error code and response duration to a bounded number of checkout load-test failure messages.
+- Leaves enterprise load thresholds unchanged. v2.0.55's p95 8.33-second checkout latency is consistent with the 8-second Cashfree read timeout, but the provider-side cause is not confirmed without the missing sanitized response code.
+- Candidate only: rerun CI, staging deployment, mutation-enabled E2E and enterprise release qualification. Production remains HOLD.
+
 # v2.0.55 — Stale payment and reservation lifecycle hardening
 
 - Closes old open checkout orders when the bounded reservation worker confirms they have no live reservation; checkout-session hashes are cleared. This does not alter the payment state.
