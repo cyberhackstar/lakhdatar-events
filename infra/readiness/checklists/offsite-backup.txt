@@ -1,0 +1,6 @@
+o1|Cloudflare dashboard shows Bucket Lock enabled for production/pitr-stream/ at 35 days and production/readiness-evidence/ at 365 days.
+o2|On the recorded lock-validation object, overwrite and delete attempts were rejected by ObjectLockedByBucketPolicy and the original object remained readable and unchanged.
+o3|The R2 API token used by the backup process is restricted to the intended bucket and object-level permissions; no account-administration permission is granted by that token.
+o4|Cloudflare account members, enforced MFA, token owners/purpose and available last-used metadata were reviewed; only authorized operators retain access.
+o5|An authorized recovery operator has a separately available path/credential to read offsite backups even if the production VM is unavailable.
+o6|Lifecycle rules do not delete protected PITR or readiness-evidence objects before the configured retention period; multipart-abort rules are understood.

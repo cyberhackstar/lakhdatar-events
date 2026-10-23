@@ -457,6 +457,66 @@ requestedTypes.add(new TicketTypeRequest(
         });
     }
 
+    /**
+     * Closes an unpaid local checkout only after the provider confirms a terminal order state
+     * and its payment list contains no captured/refunded/unknown/in-flight attempt. A timeout,
+     * HTTP error, missing provider resource, or unfamiliar status must never be treated as proof
+     * that no charge occurred.
+     */
+    public boolean reconcileTerminalUncapturedPayment(Long paymentId,
+            PaymentGatewayProvider.ProviderOrder providerOrder,
+            List<PaymentGatewayProvider.ProviderPayment> providerAttempts) {
+        var outcome = TerminalPaymentOutcome.classify(providerOrder, providerAttempts);
+        if (outcome.isEmpty()) return false;
+        Boolean closed = tx.execute(status -> {
+            Payment payment = payments.findByIdForUpdate(paymentId).orElseThrow();
+            if (payment.getStatus() == Enums.PaymentStatus.CAPTURED
+                    || payment.getStatus() == Enums.PaymentStatus.COMPLETED
+                    || payment.getStatus() == Enums.PaymentStatus.REFUND_PENDING
+                    || payment.getStatus() == Enums.PaymentStatus.REFUNDED) return false;
+            if (payment.getProviderOrderId() == null
+                    || !Objects.equals(payment.getProviderOrderId(), providerOrder.id())) return false;
+            Order order = orders.findByIdForUpdate(payment.getOrderId()).orElseThrow();
+            if (order.getStatus() == Enums.OrderStatus.CONFIRMED) return false;
+            if (providerOrder.amount() != payment.getAmountMinor()
+                    || !payment.getCurrency().equalsIgnoreCase(providerOrder.currency())
+                    || !order.getOrderNumber().equals(providerOrder.receipt())) {
+                throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_PROVIDER_MISMATCH",
+                        "The terminal provider order does not match the local checkout");
+            }
+            for (PaymentGatewayProvider.ProviderPayment attempt : providerAttempts) {
+                if (attempt.id() != null && !attempt.id().isBlank()) {
+                    if (!Objects.equals(payment.getProviderOrderId(), attempt.orderId())
+                            || attempt.amount() != payment.getAmountMinor()
+                            || !payment.getCurrency().equalsIgnoreCase(attempt.currency())) {
+                        throw new ApiException(HttpStatus.CONFLICT, "PAYMENT_PROVIDER_MISMATCH",
+                                "A provider payment attempt does not match the local checkout");
+                    }
+                    recordProviderAttempt(payment, attempt);
+                }
+            }
+            Enums.PaymentStatus target = outcome.get();
+            if (payment.getStatus() != Enums.PaymentStatus.FAILED
+                    && payment.getStatus() != Enums.PaymentStatus.CANCELLED
+                    && payment.getStatus() != target) paymentStateMachine.transition(payment, target);
+            payment.setProviderLastError(null);
+            payment.setLastReconciledAt(Instant.now());
+            payments.save(payment);
+            reservationService.releaseOrder(order.getId());
+            Event event = events.findById(order.getEventId()).orElse(null);
+            order.setStatus(event != null && event.getStatus() == Enums.EventStatus.CANCELLED
+                    ? Enums.OrderStatus.CANCELLED : Enums.OrderStatus.EXPIRED);
+            order.setCheckoutSessionHash(null);
+            EnterpriseLog.info(log, "payment.reconciliation.provider_terminal_no_capture",
+                    "event.category", "recovery", "payment.id", payment.getId(),
+                    "order.id", order.getId(), "payment.status", payment.getStatus().name(),
+                    "order.status", order.getStatus().name(), "provider.status", providerOrder.status(),
+                    "provider.attempt.count", providerAttempts.size());
+            return true;
+        });
+        return Boolean.TRUE.equals(closed);
+    }
+
     public void completeQueuedRefundIfNeeded(Long paymentId,String reason){ refundService.queueCapturedPaymentRefund(paymentId,reason); }
 
     public boolean reconcileProviderRefundsIfPresent(Long paymentId, PaymentGatewayProvider.ProviderPayment providerPayment){

@@ -14,8 +14,10 @@ public interface PaymentRepository extends JpaRepository<Payment,Long>{
  Optional<Payment> findByProviderPaymentId(String id);
  @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select p from Payment p where p.id=:id") Optional<Payment> findByIdForUpdate(Long id);
  List<Payment> findTop100ByStatusInAndCreatedAtBeforeOrderByCreatedAtAsc(Collection<Enums.PaymentStatus> statuses, Instant cutoff);
- @Query(value="select p from Payment p where p.providerOrderId is not null and p.status in :statuses and p.createdAt < :cutoff and p.createdAt > :windowStart and (p.lastReconciledAt is null or p.lastReconciledAt < :recheckBefore) order by p.lastReconciledAt asc nulls first, p.createdAt asc")
+ @Query(value="select p from Payment p where p.providerOrderId is not null and p.status in :statuses and p.createdAt < :cutoff and p.createdAt > :windowStart and (p.lastReconciledAt is null or p.lastReconciledAt < :recheckBefore) order by p.lastReconciledAt desc nulls first, p.createdAt asc")
  List<Payment> findReconciliationCandidates(@Param("statuses") Collection<Enums.PaymentStatus> statuses, @Param("cutoff") Instant cutoff, @Param("windowStart") Instant windowStart, @Param("recheckBefore") Instant recheckBefore, org.springframework.data.domain.Pageable pageable);
+ @Query("select p from Payment p, Order o where o.id=p.orderId and p.providerOrderId is not null and p.status in :statuses and o.status in :orderStatuses and p.createdAt < :cutoff and p.createdAt <= :recentWindowStart and p.createdAt > :backlogWindowStart and (p.lastReconciledAt is null or p.lastReconciledAt < :recheckBefore) order by p.lastReconciledAt desc nulls first, p.createdAt asc")
+ List<Payment> findHistoricalClosedOrderReconciliationCandidates(@Param("statuses") Collection<Enums.PaymentStatus> statuses, @Param("orderStatuses") Collection<Enums.OrderStatus> orderStatuses, @Param("cutoff") Instant cutoff, @Param("recentWindowStart") Instant recentWindowStart, @Param("backlogWindowStart") Instant backlogWindowStart, @Param("recheckBefore") Instant recheckBefore, org.springframework.data.domain.Pageable pageable);
  @Query("select p from Payment p, Order o " +
         "where o.id = p.orderId " +
         "and p.providerOrderId is null " +

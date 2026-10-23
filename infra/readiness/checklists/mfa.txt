@@ -1,0 +1,6 @@
+m1|On STAGING, a wrong TOTP code was rejected.
+m2|Reusing the exact same valid TOTP challenge/code was rejected as replay (record both attempts and outcomes).
+m3|A second enabled admin with MFA reset a disposable staging user's lost authenticator, and the user re-enrolled successfully.
+m4|The lost-authenticator procedure (who may reset, how identity is verified) is written down and the owner knows where it is.
+m5|Recovery codes / the MFA encryption key are backed up separately from the database backup, and a restore of users keeps MFA working.
+m6|The audit log shows the reset action with the acting admin identity.

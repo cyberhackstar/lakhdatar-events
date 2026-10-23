@@ -1,0 +1,8 @@
+s1|Authentication/session: password reset, refresh-token rotation and reuse detection, and MFA challenge were exercised.
+s2|Authorization/IDOR: one organizer/manager could not read or change another organizer's events, orders, tickets or finance data.
+s3|Business logic: duplicate checkout, duplicate payment webhook, refund race and QR replay were attempted.
+s4|Input/output: XSS, SQL injection, file-upload and host-header abuse were tried on public forms and APIs.
+s5|Availability: rate limits hold under repeated checkout/login/webhook requests; oversized bodies are rejected.
+s6|Secrets: build output, source maps, error responses and logs contain no credentials or tokens.
+s7|Dependencies and images: the CI SAST/SCA/container scan results for this SHA were read and no unaccepted high finding remains.
+s8|Findings were recorded in the findings file with severity, status and remediation; fixes were retested.

@@ -1,8 +1,8 @@
-NEELASTACK EVENTS v2.0.54 — CASHFREE EXPIRY ROOT-CAUSE FIX (production-readiness candidate)
-Release: 2.0.54
-Base: v2.0.53
-Changes: CHANGES-2.0.54-CASHFREE-EXPIRY-ROOT-CAUSE.md
-Validation: VALIDATION-2.0.54-CASHFREE-EXPIRY-ROOT-CAUSE.md
-Status: Candidate. Backend Maven verification, CI, staging deployment and the mutation-enabled staging E2E (Cashfree sandbox checkout, idempotent retry, payment confirmation, QR scan) must still pass for this exact SHA. This manifest does not authorize production deployment.
-Scope: Reservation hold default actually raised to 20m in application.yml, both compose files, HA compose and env templates (v2.0.53 documented this but never changed them); effective hold floored at 16m in code; Cashfree order_expiry_time emitted as ISO-8601 with +05:30 offset and whole seconds and never closer than 16 minutes to now; regression tests added.
-Security and release gates: Qualification is not operational certification. Production promotion still requires protected single-node readiness evidence and exact certified SHA. Enterprise HA certification remains separate and is not granted by this release.
+NEELASTACK EVENTS v2.0.55 — STALE PAYMENT / RESERVATION LIFECYCLE HARDENING
+Release: 2.0.55
+Base: v2.0.54
+Changes: CHANGES-2.0.55-STALE-PAYMENT-LIFECYCLE.md
+Validation: VALIDATION-2.0.55-RELEASE-QUALIFICATION.md
+Status: Candidate. CI and staging qualification have not yet been run for this exact source tree. Do not deploy to production until the new SHA passes release qualification and all separately protected operational readiness evidence is reviewed.
+Scope: bounded repair of open orders without live reservations; provider-confirmed terminal/no-capture reconciliation; bounded historical payment backlog lane; version-aligned compose/env metadata; readiness kit included.
+Security and release gates: provider timeouts, missing resources, active orders, unknown statuses, and captured/refunded attempts fail closed and do not cause a local payment to be declared unpaid. Release qualification is not production certification. Single-node readiness remains a separately protected gate; enterprise HA certification remains distinct.
