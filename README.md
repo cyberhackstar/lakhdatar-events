@@ -1,16 +1,22 @@
 # Neelastack Events / Lakhdatar Events Platform
 
-Version: `2.0.53` (candidate package; staging and production gates still required)
+Version: `2.0.55` (new candidate; CI, staging qualification and production readiness must pass for its exact SHA)
 
 A multi-event ticketing and check-in platform with a Spring Boot backend, Angular SSR frontend, PostgreSQL, Redis, QR ticket credentials, staff mobile scanning, and payment-provider adapters for Razorpay and Cashfree. The repository also contains CI/CD, staging browser E2E, load-test, backup, rollback, and release-qualification workflows.
 
 ## Current release candidate
 
-**Superseded by v2.0.54**, which corrects this: the 20-minute default was documented but never applied to the configuration files, and the effective hold is now floored at 16 minutes in code (see `CHANGES-2.0.54-CASHFREE-EXPIRY-ROOT-CAUSE.md`). The v2.0.53 candidate targeted the staging Cashfree response `order_expiry_time_invalid` observed after v2.0.52. The source had passed the reservation expiry to Cashfree, but the default local reservation hold was 12 minutes; the candidate raises the default hold to 20 minutes and serializes the provider expiry at whole-second UTC precision. A regression test exercises an `Instant` with fractional nanoseconds. This is a targeted compatibility candidate, not proof that Cashfree has accepted a real order. The actual deployed `RESERVATION_HOLD` in the protected `STAGING_ENV_FILE` can override defaults and must be `20m` (or be omitted to inherit the new Compose default) during staging qualification.
+**v2.0.55 is not yet qualified.** It addresses a staging lifecycle issue where old checkout orders retained `AWAITING_PAYMENT` after their reservations had already been released, and hardens provider reconciliation so local payments are only marked failed/cancelled after independent provider confirmation of a terminal order with no captured/refunded/unknown/in-flight attempt. The previous v2.0.54 Cashfree order-expiry formatting fix is retained.
+
+The candidate includes a bounded stale-order repair worker, a capped historical reconciliation lane for closed orders, regression tests, the v2.0.57 hardened operational-readiness kit, and a read-only Windows PowerShell evidence inventory helper. Provider timeouts, missing provider resources, active/unknown statuses, and captured/refunded attempts remain unresolved rather than being force-closed.
+
+The staging diagnostics that motivated this patch showed zero violations in the ten payment-integrity failure checks, but 2,128 stale-payment warnings. In particular, 788 Cashfree `AWAITING_PAYMENT` orders had reservation rows marked `RELEASED`. Those database facts do not establish whether the provider charged any payment; Cashfree reconciliation and the sandbox qualification remain mandatory.
+
+**Production decision: HOLD.** The package has not yet passed Maven/JUnit, GitHub CI, staging deployment, mutation-enabled Cashfree sandbox E2E, load qualification, DAST, or the separately protected single-node readiness gate. Use `CHANGES-2.0.55-STALE-PAYMENT-LIFECYCLE.md`, `VALIDATION-2.0.55-RELEASE-QUALIFICATION.md`, and `docs/GITHUB-ENVIRONMENT-VALUES-v2.0.55.md` for review and deploy steps.
 
 ## Layout
 
-- `backend/` — Spring Boot 3 / Java 21 REST API, payments, reservations, reconciliation, QR/check-in, auth/MFA, Flyway migrations.
+- `backend/` — Spring Boot / Java 21 REST API, payments, reservations, reconciliation, QR/check-in, auth/MFA, Flyway migrations.
 - `frontend/` — Angular SSR web app.
 - `e2e/` — Playwright browser qualification and isolated auto-provision/teardown logic.
 - `infra/docker-compose.staging.yml` — isolated staging stack.

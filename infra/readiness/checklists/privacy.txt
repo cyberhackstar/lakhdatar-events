@@ -1,0 +1,7 @@
+p1|A data inventory exists: what personal data is collected (name, email, phone, orders, staff accounts), why, and where it is stored (database, backups, Cloudinary, mail provider, Cloudflare).
+p2|Retention periods are decided for orders, tickets, audit logs, backups and logs, and the owner knows how they are enforced.
+p3|The Privacy Policy, Terms and refund/cancellation policy were reviewed by the responsible business or legal owner (India DPDP and tax rules considered).
+p4|There is a process for a person's access/correction/deletion request that does not involve editing production rows by hand.
+p5|Processors (payment provider, email, image hosting, Cloudflare, hosting) are known and their terms accepted.
+p6|Production database access is limited to named operators with least privilege; shared accounts are not used.
+p7|A data-breach response step (who decides, who is told, within what time) is written down.

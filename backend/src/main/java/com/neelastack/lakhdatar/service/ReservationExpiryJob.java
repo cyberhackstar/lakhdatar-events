@@ -4,6 +4,7 @@ import com.neelastack.lakhdatar.config.EnterpriseLog;
 
 import com.neelastack.lakhdatar.domain.Enums;
 import com.neelastack.lakhdatar.repository.TicketReservationRepository;
+import com.neelastack.lakhdatar.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +23,7 @@ public class ReservationExpiryJob {
     private static final Logger log = LoggerFactory.getLogger(ReservationExpiryJob.class);
 
     private final TicketReservationRepository reservations;
+    private final OrderRepository orders;
     private final TicketReservationService service;
 
     private final DistributedLockService locks;
@@ -54,7 +56,28 @@ public class ReservationExpiryJob {
                 }
                 if (batch.size() < Math.max(1, batchSize)) break;
             }
-            EnterpriseLog.info(log, "reservation.expiry.sweep.completed", "event.category", "recovery", "processed", processed, "batches", batches, "failed", failed, "duration.ms", (System.nanoTime()-started)/1_000_000L);
+            int closedOrders = 0;
+            int orderFailures = 0;
+            // Also repair legacy/event-cancelled checkouts whose reservations have already been
+            // released by cancellation. The query is bounded and only selects open orders with
+            // reservation rows but no still-live hold.
+            var staleOrders = orders.findOpenOrdersWithoutLiveReservations(
+                    java.util.List.of(Enums.OrderStatus.CREATED, Enums.OrderStatus.AWAITING_PAYMENT),
+                    Instant.now().minusSeconds(60), Enums.ReservationStatus.HELD, Instant.now(),
+                    PageRequest.of(0, Math.max(1, batchSize)));
+            for (var order : staleOrders) {
+                try {
+                    if (service.closeOpenOrderWithoutLiveReservation(order.getId(), Instant.now())) closedOrders++;
+                } catch (Exception ex) {
+                    orderFailures++;
+                    EnterpriseLog.error(log, "order.stale_reservation_cleanup.failed", ex,
+                            "event.category", "recovery", "order.id", order.getId());
+                }
+            }
+            EnterpriseLog.info(log, "reservation.expiry.sweep.completed", "event.category", "recovery",
+                    "processed", processed, "batches", batches, "failed", failed,
+                    "stale.orders.examined", staleOrders.size(), "stale.orders.closed", closedOrders,
+                    "stale.orders.failed", orderFailures, "duration.ms", (System.nanoTime()-started)/1_000_000L);
         });
     }
 }

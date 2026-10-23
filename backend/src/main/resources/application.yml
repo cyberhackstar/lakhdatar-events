@@ -24,7 +24,7 @@ spring:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   application:
     name: lakhdatar-events-backend
-    version: ${APP_VERSION:2.0.54}
+    version: ${APP_VERSION:2.0.55}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/lakhdatar}
     username: ${DB_USERNAME:lakhdatar}
@@ -220,6 +220,14 @@ app:
   payment:
     reconciliation-age-ms: ${PAYMENT_RECONCILIATION_AGE_MS:120000}
     reconciliation-sweep-ms: ${PAYMENT_RECONCILIATION_SWEEP:30000}
+    # Bounded worker defaults; deployers need not add GitHub Environment variables for these knobs.
+    reconciliation-window-hours: 168
+    reconciliation-recheck-ms: 60000
+    reconciliation-batch-size: 40
+    reconciliation-backlog-window-hours: 2160
+    reconciliation-backlog-batch-size: 20
+    reconciliation-backlog-recheck-ms: 900000
+    recovery-recheck-ms: 30000
     max-concurrent: ${PAYMENT_PROVIDER_MAX_CONCURRENT:32}
     failure-threshold: ${PAYMENT_PROVIDER_FAILURE_THRESHOLD:5}
     bulkhead-acquire-timeout-ms: ${PAYMENT_PROVIDER_BULKHEAD_ACQUIRE_TIMEOUT_MS:1000}

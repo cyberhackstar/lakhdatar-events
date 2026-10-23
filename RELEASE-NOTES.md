@@ -1,8 +1,14 @@
+# v2.0.55 — Stale payment and reservation lifecycle hardening
+
+- Closes old open checkout orders when the bounded reservation worker confirms they have no live reservation; checkout-session hashes are cleared. This does not alter the payment state.
+- Adds a bounded 7–90 day backlog lane for old payments attached to already-closed orders; normal and backlog batches are separately capped and fairly rotated.
+- A payment can transition to local FAILED/CANCELLED only when the provider order is independently confirmed terminal, provider payment attempts are all terminal non-captured states (or empty), order identity/amount/currency checks pass, and no captured/refunded/unknown/in-flight evidence exists.
+- Provider/network errors, missing provider resources, active orders, unknown statuses and any captured/refunded attempt remain unresolved and do not clear the warning.
+- Includes the v2.0.57 hardened readiness kit and read-only evidence-inventory PowerShell helper. CI/staging/production gates and secrets are not bypassed.
+- This package has not yet run Maven/JUnit or GitHub Actions for its new SHA. Treat it as a release candidate only.
+
 # v2.0.54 — Cashfree expiry root-cause fix
 
-- The v2.0.53 notes claimed a 20-minute default hold but no config had changed; staging stayed on 12m and Cashfree kept rejecting `order_expiry_time`. The default is now really 20m everywhere and the effective hold is floored at 16m in code.
-- Cashfree `order_expiry_time` is sent as ISO-8601 with `+05:30` offset, whole seconds, and never less than 16 minutes ahead.
-- Operators: remove `RESERVATION_HOLD=12m` from the staging/production env files (or set 20m).
 - Staging candidate; production gates unchanged. See `CHANGES-2.0.54-CASHFREE-EXPIRY-ROOT-CAUSE.md`.
 
 # v2.0.53 — Cashfree order-expiry compatibility (superseded by 2.0.54)

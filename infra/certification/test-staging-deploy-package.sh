@@ -10,6 +10,10 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 [[ -s "$ROOT/VERSION" ]] || fail "repository VERSION file is missing"
 grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' "$ROOT/VERSION" || fail "VERSION must contain a semantic release version"
+STAGING_ENV_EXAMPLE="$ROOT/.env.staging.example"
+grep -Fxq 'DB_URL=jdbc:postgresql://postgres:5432/lakhdatar_staging' "$STAGING_ENV_EXAMPLE" || fail "staging example must use the isolated lakhdatar_staging database required by the deployment workflow"
+grep -Fxq 'CASHFREE_BASE_URL=https://sandbox.cashfree.com/pg' "$STAGING_ENV_EXAMPLE" || fail "staging Cashfree endpoint must remain sandbox-only"
+! grep -Fq 'RAZORPAY_KEY_ID=<REPLACE_WITH_SECRET>' "$STAGING_ENV_EXAMPLE" || fail "inactive Razorpay credentials must be blank in a Cashfree-only staging template"
 grep -Fq 'APP_VERSION="$(tr -d' "$DEPLOY" && grep -Fq '< "$ROOT/VERSION")"' "$DEPLOY" || fail "staging deployment must derive APP_VERSION from VERSION"
 grep -Fq "VERSION \"\$STAGING_SSH_TARGET:\$remote/VERSION\"" "$WORKFLOW" || fail "staging workflow does not copy VERSION to remote repository root"
 grep -Fq "test -s '\$remote/VERSION'" "$WORKFLOW" && grep -Fq "tr -d" "$WORKFLOW" || fail "staging workflow does not normalize and validate VERSION before writing .env"

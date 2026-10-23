@@ -1,0 +1,10 @@
+c1|Browser closed after checkout creation; recovery found the same provider order and the customer got exactly one order.
+c2|Payment verify request was sent twice; only one confirmation and one set of tickets resulted.
+c3|Webhook arrived before the browser verification; the order was confirmed once.
+c4|The same webhook was delivered multiple times and out of order; no duplicate tickets, ledger entries or emails.
+c5|Provider was unavailable during a refund; the refund stayed pending and recovered on a later pass without a double refund.
+c6|A refund failed, then succeeded on a later recovery pass; the ledger shows exactly one REFUND entry.
+c7|Event cancellation happened while refund recovery was running; all affected paid orders ended refunded or in manual review with a record.
+c8|The database was restarted between payment persistence and webhook processing; the order still reached a consistent final state.
+c9|Redis was restarted while rate limiting and scheduled jobs were active; checkout and recovery continued afterwards.
+c10|Everything above was done against staging with provider sandbox credentials, not live customer money.

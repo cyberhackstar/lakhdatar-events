@@ -7,6 +7,8 @@ import com.neelastack.lakhdatar.domain.TicketReservation;
 import com.neelastack.lakhdatar.domain.TicketType;
 import com.neelastack.lakhdatar.exception.ApiException;
 import com.neelastack.lakhdatar.repository.OrderRepository;
+import com.neelastack.lakhdatar.repository.PaymentRepository;
+import com.neelastack.lakhdatar.repository.EventRepository;
 import com.neelastack.lakhdatar.repository.TicketReservationRepository;
 import com.neelastack.lakhdatar.repository.TicketTypeRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,8 @@ public class TicketReservationService {
     private final TicketTypeRepository ticketTypeRepository;
     private final TicketReservationRepository reservationRepository;
     private final OrderRepository orderRepository;
+    private final EventRepository eventRepository;
+    private final PaymentRepository paymentRepository;
 
     @Transactional
     public TicketType reserve(Long id, int qty) {
@@ -83,6 +87,40 @@ public class TicketReservationService {
                 });
             }
         });
+    }
+
+    /**
+     * Repairs stale open checkouts whose ticket holds have already expired or been released.
+     * This intentionally does not alter the payment state: provider-side truth is reconciled
+     * separately, and any late capture must enter the existing refund-compensation path.
+     */
+    @Transactional
+    public boolean closeOpenOrderWithoutLiveReservation(Long orderId, Instant now) {
+        var order = orderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || (order.getStatus() != Enums.OrderStatus.CREATED
+                && order.getStatus() != Enums.OrderStatus.AWAITING_PAYMENT)) return false;
+        var payment = paymentRepository.findByOrderId(orderId).orElse(null);
+        if (payment != null && (payment.getStatus() == Enums.PaymentStatus.CAPTURED
+                || payment.getStatus() == Enums.PaymentStatus.COMPLETED
+                || payment.getStatus() == Enums.PaymentStatus.REFUND_PENDING)) {
+            // Captured or refund-in-flight payments must be resolved by provider reconciliation,
+            // never closed as an abandoned checkout by reservation cleanup.
+            return false;
+        }
+        List<TicketReservation> orderReservations = reservationRepository.findByOrderIdOrderByIdAsc(orderId);
+        if (orderReservations.isEmpty()) return false;
+        boolean live = orderReservations.stream().anyMatch(r ->
+                r.getStatus() == Enums.ReservationStatus.HELD && r.getExpiresAt().isAfter(now));
+        if (live) return false;
+
+        boolean eventCancelled = eventRepository.findById(order.getEventId())
+                .map(e -> e.getStatus() == Enums.EventStatus.CANCELLED).orElse(false);
+        order.setStatus(eventCancelled ? Enums.OrderStatus.CANCELLED : Enums.OrderStatus.EXPIRED);
+        order.setCheckoutSessionHash(null);
+        EnterpriseLog.info(log, "order.closed_without_live_reservation", "event.category", "recovery",
+                "order.id", orderId, "order.status", order.getStatus().name(),
+                "reservation.count", orderReservations.size());
+        return true;
     }
 
     @Transactional

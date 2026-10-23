@@ -1,0 +1,6 @@
+# id|question
+f1|Provider figures were taken from the provider's own dashboard/settlement report for exactly this period (not from this database).
+f2|Every discrepancy or WARN above was investigated; none was "fixed" by editing payment/ticket rows directly.
+f3|Refund manual-review queue is empty or each item has a recorded decision.
+f4|The database role used for this report was read-only.
+f5|A named person other than the script has reviewed this report and accepts the totals.

@@ -1,4 +1,4 @@
-# Staging Browser E2E Qualification — v2.0.38
+# Staging Browser E2E Qualification — v2.0.55 (current candidate)
 
 The stateful browser E2E suite is restricted to `https://staging-events.neelastack.com`. The Playwright configuration and provisioning helper reject production origins; the provisioning helper also requires the declared environment to be `staging` or `local` and refuses an environment config marked as production.
 
@@ -36,7 +36,7 @@ Staging explicitly rejects any supplied legacy fixture IDs, bearer tokens, ticke
 - Manual dispatch of `e2e-staging.yml` defaults `run_mutations` to `true`, so it runs the complete browser suite.
 - Weekday scheduled runs intentionally execute only the read-only public-security suite.
 - The enterprise release qualification browser job runs the self-test and complete stateful browser suite.
-- The enterprise **load-test** job is separate and continues to require its own `LOADTEST_*` data/credential values; this change removes manual fixture maintenance for browser E2E, not the load-test contract.
+- The enterprise **load-test** job is separate. The included workflow already supplies default values for load profiles; only set optional `LOADTEST_*` GitHub variables when deliberately overriding the tested profile. The deployment SSH secrets are reused by the automated load runner to fetch and verify the staging target; these are not test-data credentials.
 
 ## Local, offline provisioning self-test
 
