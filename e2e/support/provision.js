@@ -29,6 +29,7 @@ function parseEnvFile(text) {
     if (Object.prototype.hasOwnProperty.call(out, key)) throw new ProvisionError(`E2E_STAGING_PROVISIONING_CONFIG contains duplicate key ${key}`);
     let v = m[2].trim();
     if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+    // dotenv-style inline comments are stripped only from unquoted values.
     else v = v.replace(/\s+#.*$/, '').trim();
     out[key] = v;
   }
@@ -82,8 +83,10 @@ function paymentProvider(file, env) {
     throw new ProvisionError('E2E_STAGING_PROVISIONING_CONFIG contains APP_ENV=production; refusing automatic E2E provisioning');
   }
   if (!['RAZORPAY', 'CASHFREE'].includes(explicit)) {
-    throw new ProvisionError('Set DEFAULT_PAYMENT_PROVIDER to RAZORPAY or CASHFREE in E2E_STAGING_PROVISIONING_CONFIG. Gateway credentials belong only in the protected staging deployment environment.');
+    throw new ProvisionError('Set DEFAULT_PAYMENT_PROVIDER to RAZORPAY or CASHFREE in E2E_STAGING_PROVISIONING_CONFIG. Gateway credentials belong only in the protected staging deployment environment; the backend must independently confirm test/sandbox mode before fixture creation.');
   }
+  // The browser-test secret chooses a provider only. It cannot carry gateway keys, so the
+  // authenticated backend preflight remains the authoritative check of actual sandbox mode.
   return explicit;
 }
 
@@ -101,13 +104,13 @@ function validateServerPaymentSafety(report, provider, environment = 'staging') 
 
 function makeClient(baseUrl, log) {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  async function api(method, path, { token, body, headers = {}, ok = [200, 201, 204], retrySafe = false, retryOnTransient = false } = {}) {
+  async function api(method, path, { token, body, headers = {}, ok = [200, 201, 204], retrySafe = false } = {}) {
     const h = { Accept: 'application/json', ...headers };
     if (body !== undefined) h['Content-Type'] = 'application/json';
     if (token) h.Authorization = `Bearer ${token}`;
-    const safeToRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method)
-      || (retrySafe && ['DELETE', 'PUT', 'PATCH'].includes(method))
-      || retryOnTransient;
+    // Callers cannot make POST replayable by setting retrySafe. Only inherently safe reads
+    // and explicitly idempotent DELETE/PUT/PATCH calls can be retried.
+    const safeToRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method) || (retrySafe && ['DELETE', 'PUT', 'PATCH'].includes(method));
     let res;
     let responseTimeout;
     for (let attempt = 1; attempt <= (safeToRetry ? 3 : 1); attempt++) {
@@ -123,16 +126,16 @@ function makeClient(baseUrl, log) {
         if (!safeToRetry || attempt === (safeToRetry ? 3 : 1)) {
           throw new ProvisionError(`${method} ${path} network failure${error && error.name === 'AbortError' ? ' (20s timeout)' : ''}; request was not replayed unless safe: ${error.message}`);
         }
-        log(`${method} ${path} network error; retrying transient request (${attempt}/2)`);
+        log(`${method} ${path} network error; retrying safe request (${attempt}/2)`);
         await sleep(500 * attempt);
         continue;
       }
       if (![429, 502, 503, 504].includes(res.status) || !safeToRetry || attempt === 3) {
-        responseTimeout = timeout;
+        responseTimeout = timeout; // includes response-body read in the request timeout
         break;
       }
       clearTimeout(timeout);
-      log(`${method} ${path} -> ${res.status}, retrying transient request (${attempt}/2)`);
+      log(`${method} ${path} -> ${res.status}, retrying safe request (${attempt}/2)`);
       await sleep(750 * attempt);
     }
     let responseText;
@@ -140,8 +143,9 @@ function makeClient(baseUrl, log) {
     catch (error) { throw new ProvisionError(`${method} ${path} response body read failed: ${error.message}`); }
     finally { clearTimeout(responseTimeout); }
     let json = null;
-    try { json = responseText ? JSON.parse(responseText) : null; } catch { }
+    try { json = responseText ? JSON.parse(responseText) : null; } catch { /* error below includes a short body */ }
     if (!ok.includes(res.status)) {
+      // Never include response bodies/messages in CI errors: services occasionally echo user input.
       const code = json && typeof json.code === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(json.code) ? json.code : '';
       const detail = code ? ` (${code})` : '';
       const err = new ProvisionError(`${method} ${path} failed: HTTP ${res.status}${detail}`);
@@ -156,22 +160,7 @@ function makeClient(baseUrl, log) {
 
 async function login(client, email, password, { totpSecret = '', allowEnroll = false, label = 'User' } = {}) {
   const { api, sleep } = client;
-  const retryTransient = async (operation, run) => {
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        return await run(attempt);
-      } catch (error) {
-        if (attempt === 3 || ![429, 502, 503, 504].includes(error && error.status)) throw error;
-        console.log(`${label} ${operation} hit transient HTTP ${error.status}; retrying (${attempt}/2)`);
-        await sleep(750 * attempt);
-      }
-    }
-    throw new ProvisionError(`${label} ${operation} failed after transient retries`);
-  };
-
-  let first = (await retryTransient('login', async () => (await api('POST', '/api/v1/auth/login', {
-    body: { email, password }, retryOnTransient: true,
-  })).json || {}));
+  let first = (await api('POST', '/api/v1/auth/login', { body: { email, password } })).json || {};
   if (first.accessToken && !first.mfaRequired) return { token: first.accessToken };
   if (!first.mfaRequired) throw new ProvisionError(`${label} login returned no access token`);
 
@@ -180,33 +169,27 @@ async function login(client, email, password, { totpSecret = '', allowEnroll = f
     if (!allowEnroll) {
       throw new ProvisionError(`${label} account requires MFA enrollment. Enroll this existing account interactively; automated E2E will not change an existing admin's MFA settings.`);
     }
-    const enroll = (await retryTransient('MFA-enroll', async () => (await api('POST', '/api/v1/auth/mfa/enroll', {
-      body: { challengeToken }, retryOnTransient: true,
-    })).json || {}));
+    const enroll = (await api('POST', '/api/v1/auth/mfa/enroll', { body: { challengeToken } })).json || {};
     if (!enroll.secret) throw new ProvisionError(`${label} MFA enrollment returned no TOTP secret`);
-    const done = (await retryTransient('MFA-confirm', async () => (await api('POST', '/api/v1/auth/mfa/confirm', {
-      body: { challengeToken, code: totp(enroll.secret) }, retryOnTransient: true,
-    })).json || {}));
+    const done = (await api('POST', '/api/v1/auth/mfa/confirm', { body: { challengeToken, code: totp(enroll.secret) } })).json || {};
     if (!done.accessToken) throw new ProvisionError(`${label} MFA enrollment was not confirmed`);
     return { token: done.accessToken, totpSecret: enroll.secret };
   }
   if (!totpSecret) {
-    throw new ProvisionError(`${label} account has MFA enabled but the TOTP key is not available to CI. Supply E2E_ADMIN_TOTP_SECRET in E2E_STAGING_PROVISIONING_CONFIG. Do not disable privileged MFA.`);
+    throw new ProvisionError(`${label} account has MFA enabled but the TOTP key is not available to CI. Supply E2E_ADMIN_TOTP_SECRET in E2E_STAGING_PROVISIONING_CONFIG. Do not disable privileged MFA to make tests pass.`);
   }
 
+  // TOTP codes are single-use in a time window. If a request is rejected, wait for the next window
+  // and obtain a fresh challenge instead of resubmitting a stale challenge token.
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const verified = (await retryTransient('MFA-verify', async () => (await api('POST', '/api/v1/auth/mfa/verify', {
-        body: { challengeToken, code: totp(totpSecret) }, retryOnTransient: true,
-      })).json || {}));
+      const verified = (await api('POST', '/api/v1/auth/mfa/verify', { body: { challengeToken, code: totp(totpSecret) } })).json || {};
       if (!verified.accessToken) throw new ProvisionError(`${label} MFA verification returned no access token`);
       return { token: verified.accessToken };
     } catch (error) {
       if (attempt === 2 || ![400, 401, 429].includes(error.status)) throw error;
       await sleep(30_500 - (Date.now() % 30_000) + 500);
-      first = (await retryTransient('refresh-login', async () => (await api('POST', '/api/v1/auth/login', {
-        body: { email, password }, retryOnTransient: true,
-      })).json || {}));
+      first = (await api('POST', '/api/v1/auth/login', { body: { email, password } })).json || {};
       if (!first.mfaRequired || first.mfaSetupRequired || !first.mfaChallengeToken) {
         throw new ProvisionError(`${label} MFA challenge could not be refreshed; check account MFA state`);
       }
@@ -216,12 +199,28 @@ async function login(client, email, password, { totpSecret = '', allowEnroll = f
   throw new ProvisionError(`${label} MFA verification failed`);
 }
 
+function decodeQrDataUri(dataUri) {
+  // Load QR-image dependencies only when decoding is requested. Auth/session refresh helpers can
+  // reuse this module without loading image-processing dependencies on the CI runner.
+  const { PNG } = require('pngjs');
+  const jsQR = require('jsqr');
+  const m= /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUri || '');
+  if (!m) throw new ProvisionError('Ticket view did not include a base64 PNG QR code');
+  let png;
+  try { png = PNG.sync.read(Buffer.from(m[1], 'base64')); } catch (e) { throw new ProvisionError(`Ticket QR PNG could not be parsed: ${e.message}`); }
+  const result = jsQR(new Uint8ClampedArray(png.data), png.width, png.height);
+  if (!result || !result.data) throw new ProvisionError('Could not decode the QR code returned for the issued ticket');
+  return result.data;
+}
+
 const rnd = (n) => crypto.randomBytes(n).toString('base64url');
 const strongPassword = () => `E2e-${rnd(18)}-9a!`;
 const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
 async function provision({ baseUrl, env = process.env, log = console.log, mask = () => {} }) {
   const creds = adminCredentials(env);
+  // Mask every individual credential because masking only the combined multiline GitHub secret
+  // does not guarantee each parsed line will be redacted independently.
   for (const value of [creds.email, creds.password, creds.totpSecret]) {
     if (value) mask(value);
   }
@@ -265,6 +264,8 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
     const token = await currentAdminToken();
     try { return await api(method, path, { ...options, token }); }
     catch (error) {
+      // Refresh a session after 401, but automatically replay only read-only or explicitly
+      // idempotent operations. Never repeat an event/team/ticket-creation POST after ambiguity.
       if (error.status !== 401 || !relogin) throw error;
       adminToken = await relogin();
       const replaySafe = ['GET', 'HEAD', 'OPTIONS'].includes(method)
@@ -278,7 +279,115 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
     }
   }
 
+  async function discoverPartialResources() {
+    if (!adminToken && !relogin) return;
+    try {
+      if (!organizer) {
+        const list = (await adminCall('GET', '/api/v1/admin/organizers')).json || {};
+        const organizers = Array.isArray(list) ? list : list.organizers || [];
+        organizer = creds.organizerSlug
+          ? organizers.find((item) => item.slug === creds.organizerSlug)
+          : organizers[0];
+      }
+      if (!eventId) {
+        const list = (await adminCall('GET', '/api/v1/admin/events')).json || [];
+        const events = Array.isArray(list) ? list : list.events || [];
+        const found = events.find((item) => item.slug === tag || item.publicSlug === tag);
+        if (found && found.id) eventId = found.id;
+      }
+      if (organizer && (!staffUserId || !managerUserId)) {
+        const team = (await adminCall('GET', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team`)).json || {};
+        const findMember = (list, email) => (Array.isArray(list) ? list : []).find((item) => String(item.email || '').toLowerCase() === email.toLowerCase());
+        const staffMember = findMember(team.staff, staffEmail);
+        const managerMember = findMember(team.managers, managerEmail);
+        if (!staffUserId && staffMember) staffUserId = staffMember.id;
+        if (!managerUserId && managerMember) managerUserId = managerMember.id;
+      }
+    } catch (error) {
+      throw new ProvisionError(`resource discovery failed: ${error.message}`);
+    }
+  }
+
+  async function cleanup({ failOnError = true } = {}) {
+    if (cleanupComplete) return;
+    if (cleanupPromise) return cleanupPromise;
+    cleanupPromise = (async () => {
+      const failures = [];
+      try { await discoverPartialResources(); } catch (e) { failures.push(`resource discovery: ${e.message}`); }
+
+      // Remove event assignments before cancellation, then revoke disposable team accounts.
+    if (eventId && staffEmail && staffUserId) {
+      try { await adminCall('DELETE', `/api/v1/admin/events/${eventId}/staff?email=${encodeURIComponent(staffEmail)}`, { retrySafe: true }); }
+      catch (e) { if (e.status !== 404) failures.push(`staff unassignment: ${e.message}`); }
+    }
+    if (eventId && managerEmail && managerUserId) {
+      try { await adminCall('DELETE', `/api/v1/admin/events/${eventId}/managers?email=${encodeURIComponent(managerEmail)}`, { retrySafe: true }); }
+      catch (e) { if (e.status !== 404) failures.push(`manager unassignment: ${e.message}`); }
+    }
+    if (organizer && staffUserId) {
+      try { await adminCall('PATCH', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team/${staffUserId}`, { body: { active: false }, retrySafe: true }); }
+      catch (e) { if (e.status !== 404) failures.push(`staff deactivation: ${e.message}`); }
+    }
+    if (organizer && managerUserId) {
+      try { await adminCall('PATCH', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team/${managerUserId}`, { body: { active: false }, retrySafe: true }); }
+      catch (e) { if (e.status !== 404) failures.push(`manager deactivation: ${e.message}`); }
+    }
+    if (eventId) {
+      try { await adminCall('POST', `/api/v1/admin/events/${eventId}/cancel`, { ok: [200, 204] }); }
+      catch (e) { if (e.status !== 404 && e.status !== 409) failures.push(`event cancellation: ${e.message}`); }
+    }
+
+      // Verify postconditions against the API, not merely successful HTTP responses. A 404/409
+      // during cleanup is tolerated only if final state proves the resource is already cleaned up.
+      if (organizer && (staffUserId || managerUserId)) {
+        try {
+          const team = (await adminCall('GET', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team`)).json || {};
+          const verifyMember = (list, email, userId, roleLabel) => {
+            if (!userId) return;
+            const member = (Array.isArray(list) ? list : []).find((item) => item.id === userId || String(item.email || '').toLowerCase() === email.toLowerCase());
+            if (!member) {
+              failures.push(`${roleLabel} cleanup verification: member not found in organizer team listing`);
+              return;
+            }
+            if (member.active !== false) failures.push(`${roleLabel} cleanup verification: account remains active`);
+            if (!Array.isArray(member.assignments)) {
+              failures.push(`${roleLabel} cleanup verification: API did not return assignment state`);
+            } else if (eventId && member.assignments.some((assignment) => String(assignment.eventId || assignment.id || '') === eventId)) {
+              failures.push(`${roleLabel} cleanup verification: event assignment remains`);
+            }
+          };
+          verifyMember(team.staff, staffEmail, staffUserId, 'staff');
+          verifyMember(team.managers, managerEmail, managerUserId, 'manager');
+        } catch (e) {
+          failures.push(`team cleanup verification: ${e.message}`);
+        }
+      }
+      if (eventId) {
+        try {
+          const finalEvent = (await adminCall('GET', `/api/v1/admin/events/${eventId}`)).json || {};
+          if (String(finalEvent.status || '').toUpperCase() !== 'CANCELLED') {
+            failures.push('event cleanup verification: event is not confirmed CANCELLED');
+          }
+        } catch (e) {
+          failures.push(`event cleanup verification: ${e.message}`);
+        }
+      }
+
+      if (failures.length) {
+        const msg = `E2E fixture cleanup did not fully succeed for ${tag}: ${failures.join(' | ')}`;
+        log(msg);
+        if (failOnError) throw new ProvisionError(msg);
+      } else {
+        cleanupComplete = true;
+        log(`Teardown complete: event ${tag} cancelled and disposable team identities deactivated`);
+      }
+    })();
+    try { await cleanupPromise; }
+    finally { cleanupPromise = null; }
+  }
+
   try {
+    // 1. Admin identity. A pre-existing admin is never automatically enrolled in MFA.
     adminToken = env.E2E_ADMIN_BEARER ? String(env.E2E_ADMIN_BEARER).replace(/^Bearer\s+/i, '').trim() : '';
     if (!adminToken) {
       if (!creds.email || !creds.password) {
@@ -288,23 +397,27 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
       log('Provisioning: signing in with the staging admin identity');
       adminToken = await relogin();
     } else {
+      // A bearer-only identity can provision, but cannot be renewed if it expires during teardown.
       relogin = creds.email && creds.password
         ? async () => (await login(client, creds.email, creds.password, { totpSecret: creds.totpSecret, label: 'Admin' })).token
         : null;
     }
     secret('E2E_ADMIN_BEARER', adminToken);
 
+    // Verify the real server's active provider mode before making any fixture mutations. The
+    // provisioning secret alone cannot prove which credentials the deployed backend actually uses.
     let paymentSafety;
     try {
       paymentSafety = (await adminCall('GET', '/api/v1/admin/qualification/payment-safety')).json || {};
     } catch (error) {
       if (env.E2E_ENV === 'staging') {
-        throw new ProvisionError(`Staging payment-safety preflight is missing or failed (${error.status || 'network/error'}). Deploy the backend with the staging payment-safety endpoint and sandbox-safe payment settings before running E2E.`);
+        throw new ProvisionError(`Staging payment-safety preflight is missing or failed (${error.status || 'network/error'}). Deploy the backend with the staging payment-safety endpoint and sandbox-only payment configuration before full E2E. No fixtures have been created.`);
       }
       throw error;
     }
     validateServerPaymentSafety(paymentSafety, provider, env.E2E_ENV === 'staging' ? 'staging' : 'local');
 
+    // 2. Find the correct organizer; an explicit slug must exist rather than silently selecting another.
     const orgList = (await adminCall('GET', '/api/v1/admin/organizers')).json || {};
     const organizers = Array.isArray(orgList) ? orgList : orgList.organizers || [];
     organizer = creds.organizerSlug
@@ -316,40 +429,22 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
       throw new ProvisionError('Staging has multiple organizers; set E2E_ORGANIZER_SLUG in E2E_STAGING_PROVISIONING_CONFIG so fixtures are created under the intended organizer');
     }
 
+    // 3. Create one future-dated sandbox event with one ticket type. Enterprise load runs
+    // use isolated high-capacity inventory so the workload tests concurrency, not a 200-seat cap.
     const loadTestProfile = String(env.E2E_FIXTURE_PROFILE || '').toLowerCase() === 'loadtest';
     const fixtureCapacity = loadTestProfile ? 50000 : 500;
     const fixtureTicketQuantity = loadTestProfile ? 50000 : 200;
     const startsAt = new Date(Date.now() + 10 * 60_000);
     const endsAt = new Date(startsAt.getTime() + 4 * 3_600_000);
-
     const created = (await adminCall('POST', '/api/v1/admin/events', {
       body: {
-        organizerSlug: organizer.slug,
-        slug: tag,
-        name: `Enterprise E2E ${runId}`,
-        shortDescription: 'Disposable enterprise E2E event',
-        description: 'Created through the normal staging API for automated qualification.',
-        category: 'Test',
-        timezone: 'Asia/Kolkata',
-        startsAt: startsAt.toISOString(),
-        endsAt: endsAt.toISOString(),
-        capacity: fixtureCapacity,
-        venueName: 'Automated Qualification Venue',
-        venueAddress: 'Staging only',
-        city: 'Jaipur',
-        state: 'Rajasthan',
-        paymentProvider: provider,
-        ticketTypes: [{
-          name: loadTestProfile ? 'Load Test General' : 'E2E General',
-          description: 'Disposable sandbox qualification ticket',
-          priceMinorUnits: 10_000,
-          totalQuantity: fixtureTicketQuantity,
-          minPerOrder: 1,
-          maxPerOrder: 10,
-        }],
+        organizerSlug: organizer.slug, slug: tag, name: `Enterprise E2E ${runId}`,
+        shortDescription: 'Disposable enterprise E2E event', description: 'Created through the normal staging API for automated qualification.',
+        category: 'Test', timezone: 'Asia/Kolkata', startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(),
+        capacity: fixtureCapacity, venueName: 'Automated Qualification Venue', venueAddress: 'Staging only', city: 'Jaipur', state: 'Rajasthan', paymentProvider: provider,
+        ticketTypes: [{ name: loadTestProfile ? 'Load Test General' : 'E2E General', description: 'Disposable sandbox qualification ticket', priceMinorUnits: 10_000, totalQuantity: fixtureTicketQuantity, minPerOrder: 1, maxPerOrder: 5, saleStartsAt: null, saleEndsAt: null }],
       },
     })).json || {};
-
     eventId = created.id || created.eventId || '';
     if (!isUuid(eventId)) throw new ProvisionError('Event creation response did not contain a valid event ID');
     out.E2E_EVENT_ID = eventId;
@@ -365,11 +460,67 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
     if (readiness.ready === false) throw new ProvisionError(`E2E event cannot be published: ${(readiness.blockers || []).join('; ')}`);
     await adminCall('POST', `/api/v1/admin/events/${eventId}/publish`, { ok: [200, 204] });
 
+    // 4. Create accounts using current organizer-team routes, then clear mustChangePassword via auth API.
+    const staffCreated = (await adminCall('POST', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team/staff`, {
+      body: { email: staffEmail, name: 'E2E Scanner Staff', password: staffInitialPassword },
+    })).json || {};
+    staffUserId = staffCreated.member && staffCreated.member.id;
+    if (!isUuid(staffUserId)) throw new ProvisionError('Staff creation did not return member.id');
+    await adminCall('POST', `/api/v1/admin/events/${eventId}/staff`, { body: { email: staffEmail, gate: GATE }, ok: [200, 201, 204] });
+    const staffFirstLogin = await login(client, staffEmail, staffInitialPassword, { label: 'Staff' });
+    const staffPasswordChange = await apiForUser(client, staffFirstLogin.token, staffInitialPassword, staffFinalPassword);
+    staff = { token: staffPasswordChange.accessToken || staffFirstLogin.token };
+    if (!staff.token) throw new ProvisionError('Staff password rotation returned no access token');
+    out.E2E_STAFF_EMAIL = staffEmail;
+    secret('E2E_STAFF_PASSWORD', staffFinalPassword);
+    secret('E2E_STAFF_BEARER', staff.token);
+    out.E2E_GATE = GATE;
+
+    const managerCreated = (await adminCall('POST', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team/managers`, {
+      body: { email: managerEmail, name: 'E2E Event Manager', password: managerInitialPassword },
+    })).json || {};
+    managerUserId = managerCreated.member && managerCreated.member.id;
+    if (!isUuid(managerUserId)) throw new ProvisionError('Manager creation did not return member.id');
+    await adminCall('POST', `/api/v1/admin/events/${eventId}/managers`, { body: { email: managerEmail }, ok: [200, 201, 204] });
+    const managerFirstLogin = await login(client, managerEmail, managerInitialPassword, { label: 'Disposable manager', allowEnroll: true });
+    const managerPasswordChange = await apiForUser(client, managerFirstLogin.token, managerInitialPassword, managerFinalPassword);
+    manager = { token: managerPasswordChange.accessToken || managerFirstLogin.token };
+    if (!manager.token) throw new ProvisionError('Manager password rotation returned no access token');
+    mask(managerInitialPassword); mask(managerFinalPassword); mask(manager.token);
+
+    const issued = (await api('POST', '/api/v1/admin/manager-tickets/complimentary', {
+      token: manager.token,
+      body: { eventId, ticketTypeId, quantity: 2, attendeeName: 'Enterprise E2E', attendeeEmail: checkoutEmail,
+        attendeePhone: '+919999999999', idempotencyKey: crypto.randomUUID() },
+    })).json || {};
+    const tickets = issued.tickets || [];
+    if (tickets.length < 2 || !isUuid(tickets[0].ticketId) || !tickets[0].accessToken || !tickets[1].ticketId || !tickets[1].accessToken) {
+      throw new ProvisionError('Complimentary ticket issuance did not return two complete ticket credentials');
+    }
+    out.E2E_CHECKOUT_EMAIL = env.E2E_CHECKOUT_EMAIL || checkoutEmail;
+    out.E2E_TICKET_ID = tickets[0].ticketId;
+    secret('E2E_TICKET_TOKEN', tickets[0].accessToken);
+    const scanView = (await api('GET', `/api/v1/public/tickets/${tickets[1].ticketId}`, {
+      headers: { 'X-Ticket-Token': tickets[1].accessToken },
+    })).json || {};
+    secret('E2E_QR_TOKEN', decodeQrDataUri(scanView.qrDataUri));
+    out.E2E_IDEMPOTENCY_KEY = crypto.randomUUID();
     log(`Provisioning complete: ${tag} (${provider} sandbox); disposable fixture values are ready`);
-    return { env: out, teardown: async () => undefined, tag };
+    return { env: out, teardown: () => cleanup({ failOnError: true }), tag };
   } catch (error) {
+    try { await cleanup({ failOnError: false }); }
+    catch (cleanupError) { log(`Best-effort cleanup encountered an error: ${cleanupError.message}`); }
     throw error;
   }
 }
 
-module.exports = { provision, ProvisionError, parseEnvFile, adminCredentials, paymentProvider, assertSafeTarget, validateServerPaymentSafety, makeClient, login };
+async function apiForUser(client, token, currentPassword, newPassword) {
+  const { api } = client;
+  const result = (await api('POST', '/api/v1/auth/change-password', {
+    token,
+    body: { currentPassword, newPassword },
+  })).json || {};
+  return result;
+}
+
+module.exports = { provision, ProvisionError, parseEnvFile, adminCredentials, decodeQrDataUri, paymentProvider, assertSafeTarget, validateServerPaymentSafety, makeClient, login };
