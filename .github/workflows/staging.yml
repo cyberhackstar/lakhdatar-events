@@ -19,7 +19,7 @@ permissions:
   attestations: read
 
 concurrency:
-  group: lakhdatar-events-staging
+  group: neelastack-staging-qualification
   cancel-in-progress: false
 
 jobs:
