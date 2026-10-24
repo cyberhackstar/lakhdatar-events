@@ -96,15 +96,14 @@ assert.doesNotMatch(qualificationWorkflow + loadWorkflow, /secrets\.STAGING_ENV_
 assert.match(zap, /^10055\s+WARN/m, 'CSP wildcard warnings must stay blocking until actually fixed');
 assert.match(zap, /^10035\s+WARN/m, 'HSTS warnings must stay blocking on application-controlled routes');
 for (const ruleId of ['10021', '10035', '10038']) {
-  const scoped = zap.split(/\r?\n/).some(line => {
+  const scoped = zap.split(/\r?\n/).some((line) => {
     const [id, action, pattern] = line.split('\t');
-    return id === ruleId && action === 'OUTOFSCOPE' && pattern === '^https://staging-events\\.neelastack\\.com/cdn-cgi/.*
-assert.match(dast, /-c zap-baseline\.conf/, 'ZAP must use the mounted config path');
-console.log('Security and automatic-fixture source contracts passed.');
-;
+    return id === ruleId
+      && action === 'OUTOFSCOPE'
+      && pattern === '^https://staging-events\\.neelastack\\.com/cdn-cgi/.*$';
   });
-  assert.ok(scoped, `ZAP rule ${ruleId} may be out of scope only for Cloudflare-managed /cdn-cgi/ paths`);
-  assert.doesNotMatch(zap, new RegExp('^' + ruleId + '\\s+IGNORE', 'm'), `ZAP rule ${ruleId} must not be globally ignored`);
+  assert.ok(scoped, 'ZAP rule ' + ruleId + ' may be out of scope only for Cloudflare-managed /cdn-cgi/ paths');
+  assert.doesNotMatch(zap, new RegExp('^' + ruleId + '\\s+IGNORE', 'm'), 'ZAP rule ' + ruleId + ' must not be globally ignored');
 }
 assert.match(dast, /zap-baseline\.conf:\/zap\/wrk\/zap-baseline\.conf:ro/, 'ZAP config must be mounted into the container');
 assert.match(dast, /-c zap-baseline\.conf/, 'ZAP must use the mounted config path');
