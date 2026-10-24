@@ -83,7 +83,7 @@ function paymentProvider(file, env) {
     throw new ProvisionError('E2E_STAGING_PROVISIONING_CONFIG contains APP_ENV=production; refusing automatic E2E provisioning');
   }
   if (!['RAZORPAY', 'CASHFREE'].includes(explicit)) {
-    throw new ProvisionError('Set DEFAULT_PAYMENT_PROVIDER to RAZORPAY or CASHFREE in E2E_STAGING_PROVISIONING_CONFIG. Gateway credentials belong only in the protected staging deployment environment; the backend must independently confirm test/sandbox mode before fixture creation.');
+    throw new ProvisionError('Set DEFAULT_PAYMENT_PROVIDER to RAZORPAY or CASHFREE in E2E_STAGING_PROVISIONING_CONFIG. Gateway credentials belong only in the protected staging deployment environment; this secret must not include them.');
   }
   // The browser-test secret chooses a provider only. It cannot carry gateway keys, so the
   // authenticated backend preflight remains the authoritative check of actual sandbox mode.
@@ -104,13 +104,15 @@ function validateServerPaymentSafety(report, provider, environment = 'staging') 
 
 function makeClient(baseUrl, log) {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  async function api(method, path, { token, body, headers = {}, ok = [200, 201, 204], retrySafe = false } = {}) {
+  async function api(method, path, { token, body, headers = {}, ok = [200, 201, 204], retrySafe = false, retryOnTransient = false } = {}) {
     const h = { Accept: 'application/json', ...headers };
     if (body !== undefined) h['Content-Type'] = 'application/json';
     if (token) h.Authorization = `Bearer ${token}`;
     // Callers cannot make POST replayable by setting retrySafe. Only inherently safe reads
     // and explicitly idempotent DELETE/PUT/PATCH calls can be retried.
-    const safeToRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method) || (retrySafe && ['DELETE', 'PUT', 'PATCH'].includes(method));
+    const safeToRetry = ['GET', 'HEAD', 'OPTIONS'].includes(method)
+      || (retrySafe && ['DELETE', 'PUT', 'PATCH'].includes(method))
+      || retryOnTransient;
     let res;
     let responseTimeout;
     for (let attempt = 1; attempt <= (safeToRetry ? 3 : 1); attempt++) {
@@ -126,7 +128,7 @@ function makeClient(baseUrl, log) {
         if (!safeToRetry || attempt === (safeToRetry ? 3 : 1)) {
           throw new ProvisionError(`${method} ${path} network failure${error && error.name === 'AbortError' ? ' (20s timeout)' : ''}; request was not replayed unless safe: ${error.message}`);
         }
-        log(`${method} ${path} network error; retrying safe request (${attempt}/2)`);
+        log(`${method} ${path} network error; retrying transient request (${attempt}/2)`);
         await sleep(500 * attempt);
         continue;
       }
@@ -135,7 +137,7 @@ function makeClient(baseUrl, log) {
         break;
       }
       clearTimeout(timeout);
-      log(`${method} ${path} -> ${res.status}, retrying safe request (${attempt}/2)`);
+      log(`${method} ${path} -> ${res.status}, retrying transient request (${attempt}/2)`);
       await sleep(750 * attempt);
     }
     let responseText;
@@ -160,7 +162,22 @@ function makeClient(baseUrl, log) {
 
 async function login(client, email, password, { totpSecret = '', allowEnroll = false, label = 'User' } = {}) {
   const { api, sleep } = client;
-  let first = (await api('POST', '/api/v1/auth/login', { body: { email, password } })).json || {};
+  const retryTransient = async (operation, run) => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await run(attempt);
+      } catch (error) {
+        if (attempt === 3 || ![429, 502, 503, 504].includes(error && error.status)) throw error;
+        console.log(`${label} ${operation} hit transient HTTP ${error.status}; retrying (${attempt}/2)`);
+        await sleep(750 * attempt);
+      }
+    }
+    throw new ProvisionError(`${label} ${operation} failed after transient retries`);
+  };
+
+  let first = (await retryTransient('login', async () => (await api('POST', '/api/v1/auth/login', {
+    body: { email, password }, retryOnTransient: true,
+  })).json || {}));
   if (first.accessToken && !first.mfaRequired) return { token: first.accessToken };
   if (!first.mfaRequired) throw new ProvisionError(`${label} login returned no access token`);
 
@@ -169,27 +186,35 @@ async function login(client, email, password, { totpSecret = '', allowEnroll = f
     if (!allowEnroll) {
       throw new ProvisionError(`${label} account requires MFA enrollment. Enroll this existing account interactively; automated E2E will not change an existing admin's MFA settings.`);
     }
-    const enroll = (await api('POST', '/api/v1/auth/mfa/enroll', { body: { challengeToken } })).json || {};
+    const enroll = (await retryTransient('MFA-enroll', async () => (await api('POST', '/api/v1/auth/mfa/enroll', {
+      body: { challengeToken }, retryOnTransient: true,
+    })).json || {}));
     if (!enroll.secret) throw new ProvisionError(`${label} MFA enrollment returned no TOTP secret`);
-    const done = (await api('POST', '/api/v1/auth/mfa/confirm', { body: { challengeToken, code: totp(enroll.secret) } })).json || {};
+    const done = (await retryTransient('MFA-confirm', async () => (await api('POST', '/api/v1/auth/mfa/confirm', {
+      body: { challengeToken, code: totp(enroll.secret) }, retryOnTransient: true,
+    })).json || {}));
     if (!done.accessToken) throw new ProvisionError(`${label} MFA enrollment was not confirmed`);
     return { token: done.accessToken, totpSecret: enroll.secret };
   }
   if (!totpSecret) {
-    throw new ProvisionError(`${label} account has MFA enabled but the TOTP key is not available to CI. Supply E2E_ADMIN_TOTP_SECRET in E2E_STAGING_PROVISIONING_CONFIG. Do not disable privileged MFA to make tests pass.`);
+    throw new ProvisionError(`${label} account has MFA enabled but the TOTP key is not available to CI. Supply E2E_ADMIN_TOTP_SECRET in E2E_STAGING_PROVISIONING_CONFIG. Do not disable privileged MFA for automation.`);
   }
 
   // TOTP codes are single-use in a time window. If a request is rejected, wait for the next window
   // and obtain a fresh challenge instead of resubmitting a stale challenge token.
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const verified = (await api('POST', '/api/v1/auth/mfa/verify', { body: { challengeToken, code: totp(totpSecret) } })).json || {};
+      const verified = (await retryTransient('MFA-verify', async () => (await api('POST', '/api/v1/auth/mfa/verify', {
+        body: { challengeToken, code: totp(totpSecret) }, retryOnTransient: true,
+      })).json || {}));
       if (!verified.accessToken) throw new ProvisionError(`${label} MFA verification returned no access token`);
       return { token: verified.accessToken };
     } catch (error) {
       if (attempt === 2 || ![400, 401, 429].includes(error.status)) throw error;
       await sleep(30_500 - (Date.now() % 30_000) + 500);
-      first = (await api('POST', '/api/v1/auth/login', { body: { email, password } })).json || {};
+      first = (await retryTransient('refresh-login', async () => (await api('POST', '/api/v1/auth/login', {
+        body: { email, password }, retryOnTransient: true,
+      })).json || {}));
       if (!first.mfaRequired || first.mfaSetupRequired || !first.mfaChallengeToken) {
         throw new ProvisionError(`${label} MFA challenge could not be refreshed; check account MFA state`);
       }
@@ -316,26 +341,26 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
       try { await discoverPartialResources(); } catch (e) { failures.push(`resource discovery: ${e.message}`); }
 
       // Remove event assignments before cancellation, then revoke disposable team accounts.
-    if (eventId && staffEmail && staffUserId) {
-      try { await adminCall('DELETE', `/api/v1/admin/events/${eventId}/staff?email=${encodeURIComponent(staffEmail)}`, { retrySafe: true }); }
-      catch (e) { if (e.status !== 404) failures.push(`staff unassignment: ${e.message}`); }
-    }
-    if (eventId && managerEmail && managerUserId) {
-      try { await adminCall('DELETE', `/api/v1/admin/events/${eventId}/managers?email=${encodeURIComponent(managerEmail)}`, { retrySafe: true }); }
-      catch (e) { if (e.status !== 404) failures.push(`manager unassignment: ${e.message}`); }
-    }
-    if (organizer && staffUserId) {
-      try { await adminCall('PATCH', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team/${staffUserId}`, { body: { active: false }, retrySafe: true }); }
-      catch (e) { if (e.status !== 404) failures.push(`staff deactivation: ${e.message}`); }
-    }
-    if (organizer && managerUserId) {
-      try { await adminCall('PATCH', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team/${managerUserId}`, { body: { active: false }, retrySafe: true }); }
-      catch (e) { if (e.status !== 404) failures.push(`manager deactivation: ${e.message}`); }
-    }
-    if (eventId) {
-      try { await adminCall('POST', `/api/v1/admin/events/${eventId}/cancel`, { ok: [200, 204] }); }
-      catch (e) { if (e.status !== 404 && e.status !== 409) failures.push(`event cancellation: ${e.message}`); }
-    }
+      if (eventId && staffEmail && staffUserId) {
+        try { await adminCall('DELETE', `/api/v1/admin/events/${eventId}/staff?email=${encodeURIComponent(staffEmail)}`, { retrySafe: true }); }
+        catch (e) { if (e.status !== 404) failures.push(`staff unassignment: ${e.message}`); }
+      }
+      if (eventId && managerEmail && managerUserId) {
+        try { await adminCall('DELETE', `/api/v1/admin/events/${eventId}/managers?email=${encodeURIComponent(managerEmail)}`, { retrySafe: true }); }
+        catch (e) { if (e.status !== 404) failures.push(`manager unassignment: ${e.message}`); }
+      }
+      if (organizer && staffUserId) {
+        try { await adminCall('PATCH', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team/${staffUserId}`, { body: { active: false }, retrySafe: true }); }
+        catch (e) { if (e.status !== 404) failures.push(`staff deactivation: ${e.message}`); }
+      }
+      if (organizer && managerUserId) {
+        try { await adminCall('PATCH', `/api/v1/admin/organizers/${encodeURIComponent(organizer.slug)}/team/${managerUserId}`, { body: { active: false }, retrySafe: true }); }
+        catch (e) { if (e.status !== 404) failures.push(`manager deactivation: ${e.message}`); }
+      }
+      if (eventId) {
+        try { await adminCall('POST', `/api/v1/admin/events/${eventId}/cancel`, { ok: [200, 204] }); }
+        catch (e) { if (e.status !== 404 && e.status !== 409) failures.push(`event cancellation: ${e.message}`); }
+      }
 
       // Verify postconditions against the API, not merely successful HTTP responses. A 404/409
       // during cleanup is tolerated only if final state proves the resource is already cleaned up.
@@ -411,7 +436,7 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
       paymentSafety = (await adminCall('GET', '/api/v1/admin/qualification/payment-safety')).json || {};
     } catch (error) {
       if (env.E2E_ENV === 'staging') {
-        throw new ProvisionError(`Staging payment-safety preflight is missing or failed (${error.status || 'network/error'}). Deploy the backend with the staging payment-safety endpoint and sandbox-only payment configuration before full E2E. No fixtures have been created.`);
+        throw new ProvisionError(`Staging payment-safety preflight is missing or failed (${error.status || 'network/error'}). Deploy the backend with the staging payment-safety endpoint and sandbox-safe payment settings before running E2E.`);
       }
       throw error;
     }
@@ -442,7 +467,7 @@ async function provision({ baseUrl, env = process.env, log = console.log, mask =
         shortDescription: 'Disposable enterprise E2E event', description: 'Created through the normal staging API for automated qualification.',
         category: 'Test', timezone: 'Asia/Kolkata', startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(),
         capacity: fixtureCapacity, venueName: 'Automated Qualification Venue', venueAddress: 'Staging only', city: 'Jaipur', state: 'Rajasthan', paymentProvider: provider,
-        ticketTypes: [{ name: loadTestProfile ? 'Load Test General' : 'E2E General', description: 'Disposable sandbox qualification ticket', priceMinorUnits: 10_000, totalQuantity: fixtureTicketQuantity, minPerOrder: 1, maxPerOrder: 5, saleStartsAt: null, saleEndsAt: null }],
+        ticketTypes: [{ name: loadTestProfile ? 'Load Test General' : 'E2E General', description: 'Disposable sandbox qualification ticket', priceMinorUnits: 10_000, totalQuantity: fixtureTicketQuantity }],
       },
     })).json || {};
     eventId = created.id || created.eventId || '';
