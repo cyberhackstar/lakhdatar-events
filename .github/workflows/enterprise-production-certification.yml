@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   certify:
+    if: github.ref == 'refs/heads/main'
     name: Verify protected operational evidence
     runs-on: ubuntu-latest
     environment: enterprise-certification
@@ -36,6 +37,20 @@ jobs:
           [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::release_sha must be the exact 40-character lowercase Git SHA' >&2; exit 2; }
           [[ "$QUALIFICATION_RUN_ID" =~ ^[0-9]+$ ]] || { echo '::error::qualification_run_id must be a numeric GitHub Actions run ID' >&2; exit 2; }
 
+      # Resolve provenance using the reviewed main-branch verifier before checking out candidate code.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Verify release qualification run provenance
+        id: verify_qualification_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          QUALIFICATION_RUN_ID: ${{ inputs.qualification_run_id }}
+        run: python3 infra/certification/verify_release_qualification_run.py
+
       - name: Download release qualification manifest
         uses: actions/download-artifact@v7
         with:
@@ -48,6 +63,7 @@ jobs:
         env:
           RELEASE_SHA: ${{ inputs.release_sha }}
           QUALIFICATION_RUN_ID: ${{ inputs.qualification_run_id }}
+          QUALIFICATION_HARNESS_SHA: ${{ steps.verify_qualification_run.outputs.harness_sha }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -62,6 +78,7 @@ jobs:
               'manifestType': 'release-qualification-not-production-certification',
               'workflowName': 'Enterprise Release Qualification',
               'releaseSha': os.environ['RELEASE_SHA'],
+              'testHarnessSha': os.environ['QUALIFICATION_HARNESS_SHA'],
               'runId': os.environ['QUALIFICATION_RUN_ID'],
               'productionCertificationGranted': False,
           }

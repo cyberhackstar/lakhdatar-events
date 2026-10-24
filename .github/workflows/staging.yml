@@ -7,11 +7,11 @@ on:
         description: 40-character Git SHA to deploy to isolated staging
         required: true
         type: string
-      staging_host:
-        description: Public staging hostname
+      configure_runtime:
+        description: Update the protected staging .env from STAGING_ENV_FILE (normally leave false)
         required: true
-        default: staging-events.neelastack.com
-        type: string
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -24,6 +24,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 20
@@ -31,25 +32,29 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_sha }}
-          fetch-depth: 1
+          fetch-depth: 0
 
-      - name: Validate release and staging target
+      - name: Validate trusted workflow ref, release and staging target
         env:
           RELEASE_SHA: ${{ inputs.release_sha }}
-          STAGING_HOST: ${{ inputs.staging_host }}
+          WORKFLOW_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
+          [[ "$WORKFLOW_REF" == 'refs/heads/main' ]] || { echo '::error::Dispatch staging deployment from main.'; exit 2; }
           [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a 40-character lowercase Git SHA'; exit 2; }
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-          test "$STAGING_HOST" = "staging-events.neelastack.com"
+          git show-ref --verify --quiet refs/remotes/origin/main || { echo '::error::origin/main is missing from checkout history.'; exit 2; }
+          git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main || { echo '::error::Staging release SHA is not reachable from main.'; exit 2; }
           echo "Staging release: $RELEASE_SHA"
 
       - name: Authenticate GitHub Actions runner to GHCR
         env:
           GHCR_TOKEN: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
         run: |
           set -euo pipefail
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          [[ "$GHCR_USER" =~ ^[A-Za-z0-9-]+$ ]] || { echo 'Invalid GHCR user name'; exit 2; }
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v4.1.2
@@ -61,10 +66,10 @@ jobs:
           RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
           set -euo pipefail
-          identity="^https://github.com/${REPOSITORY}/\.github/workflows/ci\.yml@refs/heads/main$"
+          identity="https://github.com/${REPOSITORY}/.github/workflows/ci.yml@refs/heads/main"
           for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
             ref="ghcr.io/${OWNER}/${image}:${RELEASE_SHA}"
-            cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
+            cosign verify --certificate-identity "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
           done
 
       - name: Verify GitHub artifact attestations (public repositories only)
@@ -86,15 +91,22 @@ jobs:
           STAGING_DEPLOY_HOST: ${{ secrets.STAGING_DEPLOY_HOST }}
           STAGING_DEPLOY_SSH_KEY: ${{ secrets.STAGING_DEPLOY_SSH_KEY }}
           STAGING_DEPLOY_KNOWN_HOSTS: ${{ secrets.STAGING_DEPLOY_KNOWN_HOSTS }}
-          STAGING_ENV_FILE: ${{ secrets.STAGING_ENV_FILE }}
         run: |
           set -euo pipefail
           missing=()
           [[ -n "$STAGING_DEPLOY_HOST" ]] || missing+=(STAGING_DEPLOY_HOST)
           [[ -n "$STAGING_DEPLOY_SSH_KEY" ]] || missing+=(STAGING_DEPLOY_SSH_KEY)
           [[ -n "$STAGING_DEPLOY_KNOWN_HOSTS" ]] || missing+=(STAGING_DEPLOY_KNOWN_HOSTS)
-          [[ -n "$STAGING_ENV_FILE" ]] || missing+=(STAGING_ENV_FILE)
           if (( ${#missing[@]} )); then echo "::error::Missing staging secrets: ${missing[*]}"; exit 1; fi
+
+      - name: Validate runtime environment update (opt-in)
+        if: inputs.configure_runtime == true
+        env:
+          STAGING_ENV_FILE: ${{ secrets.STAGING_ENV_FILE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$STAGING_ENV_FILE" ]] || { echo 'configure_runtime=true requires the STAGING_ENV_FILE secret'; exit 1; }
           STAGING_ENV_NORMALIZED="$(printf '%s\n' "$STAGING_ENV_FILE" | tr -d '\r')"
           grep -q '^APP_ENV=staging$' <<<"$STAGING_ENV_NORMALIZED" || { echo 'STAGING_ENV_FILE must contain APP_ENV=staging'; exit 1; }
           grep -q '^PUBLIC_BASE_URL=https://staging-events.neelastack.com$' <<<"$STAGING_ENV_NORMALIZED" || { echo 'STAGING_ENV_FILE must set the staging public base URL'; exit 1; }
@@ -161,13 +173,16 @@ jobs:
       - name: Authenticate staging VM to GHCR
         env:
           GITHUB_TOKEN_VALUE: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
         run: |
           set -euo pipefail
-          printf '%s' "$GITHUB_TOKEN_VALUE" | ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$STAGING_SSH_TARGET" "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+          [[ "$GHCR_USER" =~ ^[A-Za-z0-9-]+$ ]] || { echo 'Invalid GHCR user name'; exit 2; }
+          printf '%s' "$GITHUB_TOKEN_VALUE" | ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$STAGING_SSH_TARGET" "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
 
       - name: Install staging deployment files
         env:
-          STAGING_ENV_FILE: ${{ secrets.STAGING_ENV_FILE }}
+          CONFIGURE_RUNTIME: ${{ inputs.configure_runtime }}
+          STAGING_ENV_FILE: ${{ inputs.configure_runtime && secrets.STAGING_ENV_FILE || '' }}
           OWNER: ${{ github.repository_owner }}
           RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
@@ -181,11 +196,16 @@ jobs:
           scp -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts infra/deploy/deploy-staging.sh "$STAGING_SSH_TARGET:$remote/infra/deploy/deploy-staging.sh"
           scp -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts infra/smoke/staging-smoke.sh "$STAGING_SSH_TARGET:$remote/infra/smoke/staging-smoke.sh"
           ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$STAGING_SSH_TARGET" "test -s '$remote/VERSION' && tr -d '\\r\\n' < '$remote/VERSION' | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' && test -s '$remote/infra/docker-compose.staging.yml' && test -s '$remote/infra/deploy/deploy-staging.sh' && test -s '$remote/infra/smoke/staging-smoke.sh'"
-          {
-            printf '%s\n' "$STAGING_ENV_FILE" | tr -d '\r' | sed '/^IMAGE_NAMESPACE=/d;/^IMAGE_TAG=/d'
-            printf 'IMAGE_NAMESPACE=ghcr.io/%s\n' "$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
-            printf 'IMAGE_TAG=%s\n' "$RELEASE_SHA"
-          } | ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$STAGING_SSH_TARGET" "umask 077; tmp='$remote/.env.next'; cat > \"\$tmp\" && chmod 600 \"\$tmp\" && mv -f \"\$tmp\" '$remote/.env'"
+          if [[ "$CONFIGURE_RUNTIME" == "true" ]]; then
+            {
+              printf '%s\n' "$STAGING_ENV_FILE" | tr -d '\r' | sed '/^IMAGE_NAMESPACE=/d;/^IMAGE_TAG=/d'
+              printf 'IMAGE_NAMESPACE=ghcr.io/%s\n' "$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+              printf 'IMAGE_TAG=%s\n' "$RELEASE_SHA"
+            } | ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$STAGING_SSH_TARGET" "umask 077; tmp='$remote/.env.next'; cat > \"\$tmp\" && chmod 600 \"\$tmp\" && mv -f \"\$tmp\" '$remote/.env'"
+          else
+            # Normal releases reuse the protected runtime .env and don't require the large environment secret.
+            ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$STAGING_SSH_TARGET" "test -s '$remote/.env' && test \"\$(stat -c %a '$remote/.env')\" = 600 || { echo 'Staging .env missing or permissions are not 0600; rerun with configure_runtime=true after configuring STAGING_ENV_FILE.' >&2; exit 2; }"
+          fi
           ssh -i deploy_key -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$STAGING_SSH_TARGET" "chmod +x '$remote/infra/deploy/deploy-staging.sh' '$remote/infra/smoke/staging-smoke.sh' && '$remote/infra/deploy/deploy-staging.sh' '$RELEASE_SHA'"
 
       - name: External HTTPS staging smoke

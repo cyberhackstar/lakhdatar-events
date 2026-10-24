@@ -1,3 +1,15 @@
+# v2.0.57 — Production deployment hardening (candidate; not certified)
+
+- Harden the single-node migration failure marker/rollback selection and transfer only the tracked exact-SHA Git archive to the VM; runner SSH files and temporary policy checkout are excluded.
+- Require release promotion workflows to dispatch from trusted `main`, verify Cosign signatures using the exact CI identity, and use qualification/readiness provenance bound to the exact candidate SHA.
+- Automatically validate the matching successful single-node readiness artifact, including evidence IDs and freshness, instead of requiring manual certified-SHA variables.
+- Reduce routine GitHub Environment configuration to three deployment SSH secrets per environment; staging runtime `.env` upload is opt-in. Operational readiness evidence remains deliberately explicit and cannot be fabricated.
+- Align SMTP/monitoring defaults, validate the selected payment provider and required support contacts, pass runtime placeholders through Compose, and align the HA example with the production configuration guard.
+- Add regression tests for workflow provenance, deploy archive/rollback safety, legal-content placeholders, readiness artifacts, qualification-run provenance, and platform contracts.
+- **Not production-certified:** the recorded prior load qualification failed; this ZIP has not passed fresh full CI/live staging qualification, the owner-confirmed legal/contact/refund fields remain TODOs, and production operational evidence requires real drills and reviews.
+
+---
+
 # v2.0.56 — Checkout load and reconciliation isolation
 
 ## Qualification harness-only correction (no application version change)

@@ -1,10 +1,12 @@
-# IMPLEMENTATION STATUS 2.0.56
+# IMPLEMENTATION STATUS 2.0.57
 
 ## Current release / qualification status
-- Current application version: `2.0.56`; deployed staging SHA: `44fddc6a02c7219807fa85a1b470bb1f5d90e174`.
-- Enterprise qualification run `39984461601` passed backend, frontend, database, exact staging SHA, browser E2E and DAST. The load job failed on one `status=0` checkout request with a TCP reset by the Cloudflare edge; final checkout metrics were 39/40 contract-compliant responses, 0 server errors, p95 522.95 ms and p99 656.39 ms.
-- This patch changes only the qualification harness/workflow: one same-idempotency-key retry for a no-response transport failure and separate immutable `testHarnessSha` metadata. It does not change app runtime code and does not require a staging app redeploy.
-- Production is **HOLD** until a new exact-SHA enterprise qualification and the protected single-node readiness workflow both pass.
+- Current package version: `2.0.57`, based on the supplied v2.0.56 ZIP. The source ZIP was not a Git checkout; no exact commit SHA is asserted by this archive.
+- Patch status: **NOT certified for production**. Static contracts pass as documented in `VALIDATION-2.0.57-PRODUCTION-HARDENING.md`; full Maven/frontend builds, signed image creation, live staging tests, and remote deployment have not been run in this environment.
+- Historical Enterprise Release Qualification run `39984461601` failed its load gate on one checkout request with a TCP connection reset/status 0. Do not treat that run as a PASS.
+- Production deployment hardening includes exact-SHA image verification, main-branch/provenance checks, Git-archive-only deploy payloads, migration-aware rollback markers, exact-SHA readiness-artifact verification, environment-minimized deployment credentials, optional SMTP/observability defaults, selected payment-provider validation, and Compose/runtime parity checks.
+- Production qualification is intentionally blocked while `frontend/src/app/features/legal/legal.config.ts` still contains `TODO(owner)` entries. The owner must provide true legal entity/address/contact/grievance/refund facts; these cannot be safely invented by the patch.
+- Production is **HOLD** until the candidate is committed, full CI passes, exact-SHA staging qualification passes, the protected single-node readiness evidence is real and complete, and the production reviewer/break-glass gates pass.
 
 ## Historical implementation details for v2.0.54
 - Root cause of the staging E2E failure (Cashfree `order_expiry_time_invalid` -> 502) identified: the 2.0.53 hold increase was documented but never applied to any config file.

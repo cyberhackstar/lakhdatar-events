@@ -1,4 +1,4 @@
-# Staging Browser E2E Qualification — v2.0.56 (current candidate)
+# Staging Browser E2E Qualification — v2.0.57 patch candidate (not yet qualified)
 
 The stateful browser E2E suite is restricted to `https://staging-events.neelastack.com`. The Playwright configuration and provisioning helper reject production origins; the provisioning helper also requires the declared environment to be `staging` or `local` and refuses an environment config marked as production.
 

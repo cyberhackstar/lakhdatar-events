@@ -23,29 +23,43 @@ concurrency:
 
 jobs:
   source-validation:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_sha }}
-          fetch-depth: 1
-      - name: Validate exact release SHA
+          # The qualification job verifies ancestry against the complete main history.
+          fetch-depth: 0
+      - name: Validate exact release SHA and main ancestry
         env:
           RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
           set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/main' || { echo '::error::Enterprise Release Qualification must be dispatched from main.'; exit 2; }
           [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a 40-character lowercase Git SHA'; exit 2; }
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git show-ref --verify --quiet refs/remotes/origin/main || { echo '::error::origin/main is missing from the full-history checkout.'; exit 2; }
+          git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main || { echo '::error::The candidate release SHA is not reachable from main; refusing to run secret-bearing staging qualification.'; exit 2; }
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-      - name: Verify repository baselines
+      - name: Checkout trusted release-policy checks at workflow commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: .qualification-control
+          fetch-depth: 1
+      - name: Verify repository baselines and launch-critical legal content
         run: |
           set -euo pipefail
           node tools/verify-platform-baseline.mjs
           node tools/verify-frontend-lock.mjs
+          python3 .qualification-control/infra/certification/test_check_production_content_readiness.py
+          python3 .qualification-control/infra/certification/check_production_content_readiness.py --source frontend/src/app/features/legal/legal.config.ts
 
   staging-release-identity:
+    if: github.ref == 'refs/heads/main'
     name: Verify requested SHA is deployed to staging
     needs: [source-validation]
     runs-on: ubuntu-latest
@@ -107,6 +121,7 @@ jobs:
         run: rm -f deploy_key known_hosts
 
   database:
+    if: github.ref == 'refs/heads/main'
     needs: source-validation
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -131,6 +146,7 @@ jobs:
           if-no-files-found: error
 
   backend:
+    if: github.ref == 'refs/heads/main'
     needs: source-validation
     runs-on: ubuntu-latest
     steps:
@@ -148,6 +164,7 @@ jobs:
         run: mvn -B -ntp clean verify
 
   frontend:
+    if: github.ref == 'refs/heads/main'
     needs: source-validation
     runs-on: ubuntu-latest
     steps:
@@ -171,6 +188,7 @@ jobs:
         run: npm run test:unit
 
   browser-e2e:
+    if: github.ref == 'refs/heads/main'
     needs: [backend, frontend, staging-release-identity]
     runs-on: ubuntu-latest
     environment: staging
@@ -227,6 +245,7 @@ jobs:
           if-no-files-found: warn
 
   load:
+    if: github.ref == 'refs/heads/main'
     # Keep synthetic user-facing/browser actions and load traffic from contending on staging.
     needs: [backend, frontend, browser-e2e, staging-release-identity]
     runs-on: ubuntu-latest
@@ -290,6 +309,7 @@ jobs:
           if-no-files-found: warn
 
   dast:
+    if: github.ref == 'refs/heads/main'
     needs: [backend, frontend, staging-release-identity]
     runs-on: ubuntu-latest
     environment: staging
@@ -312,6 +332,7 @@ jobs:
           if-no-files-found: warn
 
   certification:
+    if: github.ref == 'refs/heads/main'
     name: Release qualification result (not production certification)
     needs: [backend, frontend, database, staging-release-identity, browser-e2e, load, dast]
     runs-on: ubuntu-latest

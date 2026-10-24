@@ -17,9 +17,16 @@ env:
 
 jobs:
   rollback:
+    if: github.ref == 'refs/heads/main'
     environment: production
     runs-on: ubuntu-latest
     steps:
+      - name: Require trusted workflow ref
+        env:
+          WORKFLOW_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          [[ "$WORKFLOW_REF" == 'refs/heads/main' ]] || { echo '::error::Dispatch Enterprise HA rollback from main.'; exit 2; }
       - uses: actions/checkout@v7
         with:
           ref: main

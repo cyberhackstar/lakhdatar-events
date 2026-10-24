@@ -24,6 +24,7 @@ permissions:
   contents: read
   packages: read
   attestations: read
+  actions: read
 
 concurrency:
   group: lakhdatar-events-production
@@ -35,7 +36,7 @@ env:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy'
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy' && github.ref == 'refs/heads/main'
     environment: production
     runs-on: ubuntu-latest
     steps:
@@ -44,9 +45,12 @@ jobs:
         shell: bash
         env:
           MANUAL_SHA: ${{ inputs.release_sha }}
+          WORKFLOW_REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$MANUAL_SHA" ]; then
+          [[ "$WORKFLOW_REF" == 'refs/heads/main' ]] || { echo '::error::Dispatch Production from main so the reviewed deployment workflow is used.'; exit 2; }
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$MANUAL_SHA" ]; then
             sha="$MANUAL_SHA"
           else
             sha="$GITHUB_SHA"
@@ -59,32 +63,38 @@ jobs:
           ref: ${{ steps.release.outputs.sha }}
           fetch-depth: 1
 
+      - name: Checkout trusted deployment controls at the workflow commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: .deployment-control
+          fetch-depth: 1
+
       - name: Require explicit single-node break-glass acknowledgement
         env:
           CONFIRM: ${{ inputs.confirm_single_node }}
-          TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
-          NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
         run: |
           set -euo pipefail
-          [[ "$TOPOLOGY" == "single-node" ]] || { echo 'This production workflow is only for PRODUCTION_TOPOLOGY=single-node; enterprise HA releases must use production-ha.yml'; exit 1; }
-          [[ "$NODE_COUNT" == "1" ]] || { echo 'Single-node production requires HA_NODE_COUNT=1'; exit 1; }
+          # This workflow and its Compose deployment script are intentionally single-node only.
+          # Enterprise HA uses production-ha.yml and its independent certification path.
           [[ "$CONFIRM" == "SINGLE-NODE-BREAK-GLASS" ]] || { echo 'Explicit SINGLE-NODE-BREAK-GLASS confirmation is required'; exit 1; }
 
-      - name: Require reviewed single-node readiness for this exact release SHA
+      - name: Verify successful single-node readiness artifact for this exact release SHA
         env:
-          CERTIFIED_RELEASE_SHA: ${{ vars.SINGLE_NODE_CERTIFIED_SHA }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
-        run: |
-          set -euo pipefail
-          [[ "$CERTIFIED_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Production deployment requires SINGLE_NODE_CERTIFIED_SHA to be the exact 40-character SHA reviewed after the Single-Node Production Readiness workflow passed."; exit 1; }
-          [[ "$CERTIFIED_RELEASE_SHA" == "$RELEASE_SHA" ]] || { echo "::error::Release SHA $RELEASE_SHA is not the reviewed single-node-ready SHA $CERTIFIED_RELEASE_SHA. Run release qualification and Single-Node Production Readiness for this exact SHA first."; exit 1; }
+        shell: bash
+        run: python3 .deployment-control/infra/certification/verify_production_readiness_artifact.py
 
       - name: Authenticate GitHub Actions runner to GHCR
         env:
           GHCR_TOKEN: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
         run: |
           set -euo pipefail
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          [[ "$GHCR_USER" =~ ^[A-Za-z0-9-]+$ ]] || { echo 'Invalid GHCR user name'; exit 2; }
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
       - name: Install Cosign for immutable image verification
         uses: sigstore/cosign-installer@v4.1.2
@@ -96,10 +106,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          identity="^https://github.com/${REPOSITORY}/\.github/workflows/ci\.yml@refs/heads/main$"
+          identity="https://github.com/${REPOSITORY}/.github/workflows/ci.yml@refs/heads/main"
           for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
             ref="ghcr.io/${OWNER}/${image}:${RELEASE_SHA}"
-            cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
+            cosign verify --certificate-identity "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
           done
 
       - name: Verify GitHub artifact attestations (public repositories only)
@@ -150,17 +160,19 @@ jobs:
       - name: Authenticate Oracle VM to GHCR
         env:
           GITHUB_TOKEN_VALUE: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         shell: bash
         run: |
           set -euo pipefail
+          [[ "$GHCR_USER" =~ ^[A-Za-z0-9-]+$ ]] || { echo 'Invalid GHCR user name'; exit 2; }
           printf '%s' "$GITHUB_TOKEN_VALUE" | ssh \
             -i deploy_key \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=known_hosts \
             "$DEPLOY_HOST" \
-            "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
 
       - name: Deploy exact immutable release
         id: deploy
@@ -171,7 +183,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude='.git' --exclude='.env' --exclude='.deploy-current' --exclude='.deploy-previous' -czf - . | \
+          # Never archive runtime environment files even if a future change accidentally tracks one.
+          tracked_runtime_envs="$(git ls-tree -r --name-only "$RELEASE_SHA" | grep -E '(^|/)\.env($|\.(production|staging|local|ha|prod|runtime)(\.|$))' | grep -Ev '\.example$|\.template$' || true)"
+          if [ -n "$tracked_runtime_envs" ]; then
+            echo '::error::Release commit tracks a runtime .env file; refusing to transfer it to production.' >&2
+            exit 2
+          fi
+          # Export only the reviewed release commit. Never tar the Actions workspace: it contains
+          # deploy_key/known_hosts and a separate trusted-control checkout.
+          git archive --format=tar "$RELEASE_SHA" | gzip -1 | \
             ssh \
               -i deploy_key \
               -o BatchMode=yes \
@@ -181,16 +201,18 @@ jobs:
               "mkdir -p '$APP_DIR' && tar -xzf - -C '$APP_DIR' && chmod +x '$APP_DIR'/infra/deploy/*.sh '$APP_DIR'/infra/backup/*.sh && IMAGE_NAMESPACE=$(printf '%s' '$IMAGE_NAMESPACE' | tr '[:upper:]' '[:lower:]') '$APP_DIR'/infra/deploy/deploy.sh '$RELEASE_SHA'"
 
       - name: Production safe smoke test through Cloudflare
+        env:
+          BASE_URL: https://events.neelastack.com
+          PUBLIC_HOST: events.neelastack.com
+          # Public smoke coverage needs no privileged or ticket bearer credentials. The remote
+          # deploy script can run optional authenticated/read-only checks from the VM's protected .env.
+          SMOKE_ENTERPRISE: 'false'
+          SMOKE_TICKET_PDF: 'false'
         shell: bash
         run: |
           set -euo pipefail
           for i in $(seq 1 20); do
-            if BASE_URL="$PUBLIC_URL" PUBLIC_HOST="events.neelastack.com" \
-             SMOKE_TICKET_ID="${{ secrets.SMOKE_TICKET_ID }}" \
-             SMOKE_TICKET_TOKEN="${{ secrets.SMOKE_TICKET_TOKEN }}" \
-             SMOKE_TICKET_PDF="${{ vars.SMOKE_TICKET_PDF || 'false' }}" \
-             SMOKE_ENTERPRISE="${{ vars.SMOKE_ENTERPRISE || 'false' }}" \
-             infra/smoke/production-smoke.sh; then
+            if .deployment-control/infra/smoke/production-smoke.sh; then
               echo "Production safe smoke tests passed."
               exit 0
             fi
@@ -200,29 +222,30 @@ jobs:
           exit 1
 
       - name: Log out of GHCR and clean SSH material
-        if: always() && steps.ssh_setup.outcome == 'success'
+        if: always()
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         shell: bash
         run: |
           set +e
-          ssh -i deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$DEPLOY_HOST" \
-            "docker logout ghcr.io >/dev/null 2>&1 || true"
+          if [ -n "$DEPLOY_HOST" ] && [ -f deploy_key ] && [ -f known_hosts ]; then
+            ssh -i deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$DEPLOY_HOST" \
+              "docker logout ghcr.io >/dev/null 2>&1 || true"
+          fi
           rm -f deploy_key known_hosts
 
   rollback:
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback'
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'rollback' && github.ref == 'refs/heads/main'
     environment: production
     runs-on: ubuntu-latest
     steps:
-      - name: Require single-node topology for rollback
+      - name: Confirm trusted workflow ref and single-node rollback path
         env:
-          TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
-          NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
+          WORKFLOW_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          [[ "$TOPOLOGY" == "single-node" ]] || { echo 'This rollback workflow is only for PRODUCTION_TOPOLOGY=single-node; use the HA rollback workflow for enterprise HA.'; exit 1; }
-          [[ "$NODE_COUNT" == "1" ]] || { echo 'Single-node rollback requires HA_NODE_COUNT=1'; exit 1; }
+          [[ "$WORKFLOW_REF" == 'refs/heads/main' ]] || { echo '::error::Dispatch Production rollback from main.'; exit 2; }
+          echo 'The production.yml rollback path invokes the single-node deploy script, which rejects enterprise-ha .env configuration.'
 
       - name: Verify deployment secrets
         shell: bash
@@ -253,12 +276,14 @@ jobs:
       - name: Authenticate Oracle VM to GHCR
         env:
           GITHUB_TOKEN_VALUE: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         shell: bash
         run: |
           set -euo pipefail
+          [[ "$GHCR_USER" =~ ^[A-Za-z0-9-]+$ ]] || { echo 'Invalid GHCR user name'; exit 2; }
           printf '%s' "$GITHUB_TOKEN_VALUE" | ssh -i deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$DEPLOY_HOST" \
-            "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
 
       - name: Roll back to previous immutable release
         env:
@@ -271,12 +296,14 @@ jobs:
             "cd '$APP_DIR' && chmod +x ./infra/deploy/*.sh ./infra/backup/*.sh && IMAGE_NAMESPACE=$(printf '%s' '$IMAGE_NAMESPACE' | tr '[:upper:]' '[:lower:]') ./infra/deploy/rollback.sh"
 
       - name: Log out of GHCR and clean SSH material
-        if: always() && steps.ssh_setup.outcome == 'success'
+        if: always()
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         shell: bash
         run: |
           set +e
-          ssh -i deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$DEPLOY_HOST" \
-            "docker logout ghcr.io >/dev/null 2>&1 || true"
+          if [ -n "$DEPLOY_HOST" ] && [ -f deploy_key ] && [ -f known_hosts ]; then
+            ssh -i deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=known_hosts "$DEPLOY_HOST" \
+              "docker logout ghcr.io >/dev/null 2>&1 || true"
+          fi
           rm -f deploy_key known_hosts

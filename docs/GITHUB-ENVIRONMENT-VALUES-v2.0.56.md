@@ -1,3 +1,5 @@
+> **Historical guide — superseded.** For the active v2.0.57 deployment contract and the minimized GitHub Environment inputs, follow [`GITHUB-ENVIRONMENT-VALUES-v2.0.57.md`](GITHUB-ENVIRONMENT-VALUES-v2.0.57.md). Do not copy legacy variables from this document into current environments without checking the active guide.
+
 # GitHub environment values — v2.0.56 candidate
 
 This guide records safe defaults and required names for the current workflow chain. It does not contain runtime credentials. GitHub Actions secrets cannot be read back into a report from the connected tools; put actual private values directly into the protected GitHub Environment UI, never into a commit, issue, log, or evidence report.

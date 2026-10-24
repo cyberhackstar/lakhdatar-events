@@ -27,6 +27,9 @@ dotenv_get() {
 COMPOSE=(docker compose --env-file "$ROOT/.env" -f "$ROOT/infra/docker-compose.prod.yml")
 CURRENT="$ROOT/.deploy-current"
 PREVIOUS="$ROOT/.deploy-previous"
+ATTEMPTED="$ROOT/.deploy-attempted"
+ATTEMPTED_AT_START="$(cat "$ATTEMPTED" 2>/dev/null || true)"
+RECOVERY_MODE="${DEPLOY_RECOVERY_MODE:-false}"
 TAG="${1:-}"
 LOCAL_URL="http://127.0.0.1:4002"
 PUBLIC_HOST="${PUBLIC_HOST:-$(dotenv_get PUBLIC_HOST)}"
@@ -71,6 +74,14 @@ PREVIOUS_TAG="$(cat "$CURRENT" 2>/dev/null || true)"
 IMAGE_NAMESPACE="${IMAGE_NAMESPACE:-$(dotenv_get IMAGE_NAMESPACE)}"
 [[ -n "${IMAGE_NAMESPACE:-}" ]] || { echo "IMAGE_NAMESPACE is required (e.g. ghcr.io/owner)" >&2; exit 2; }
 [[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "Release image tag must be a 40-character Git SHA" >&2; exit 2; }
+if [[ -n "$ATTEMPTED_AT_START" ]]; then
+  [[ "$ATTEMPTED_AT_START" =~ ^[0-9a-f]{40}$ ]] || { echo "Existing deployment-attempt marker is invalid; refusing deployment." >&2; exit 2; }
+  [[ "$RECOVERY_MODE" == "true" ]] || { echo "An unaccepted deployment attempt is recorded. Run the protected rollback workflow before another deploy." >&2; exit 2; }
+  [[ "$PREVIOUS_TAG" =~ ^[0-9a-f]{40}$ && "$TAG" == "$PREVIOUS_TAG" ]] || { echo "Recovery mode may deploy only the last accepted .deploy-current SHA." >&2; exit 2; }
+elif [[ "$RECOVERY_MODE" == "true" ]]; then
+  echo "Recovery mode requires an existing .deploy-attempted marker." >&2
+  exit 2
+fi
 
 for setting in BACKEND_READINESS_TIMEOUT_SECONDS BACKEND_READINESS_INTERVAL_SECONDS WEB_READINESS_TIMEOUT_SECONDS WEB_READINESS_INTERVAL_SECONDS; do
   value="${!setting}"
@@ -83,12 +94,29 @@ IMAGE_TAG="$TAG" docker compose --env-file "$ROOT/.env" -f "$ROOT/infra/docker-c
 DEPLOY_STAGE=0
 
 rollback_previous() {
-  if [[ -n "$PREVIOUS_TAG" && "$PREVIOUS_TAG" != "$TAG" && "$DEPLOY_STAGE" -lt 4 ]]; then
-    echo "Deployment failed before Flyway-backed application startup. Rolling back to $PREVIOUS_TAG" >&2
-    IMAGE_TAG="$PREVIOUS_TAG" "${COMPOSE[@]}" up -d backend web edge || true
-    echo "$PREVIOUS_TAG" > "$CURRENT"
-  elif [[ "$DEPLOY_STAGE" -ge 4 ]]; then
-    echo "Deployment failed after backend startup; automatic image rollback is intentionally disabled because Flyway may have changed the schema. Use an expand/contract-compatible release rollback." >&2
+  # Prevent an error while handling ERR from recursively invoking this handler.
+  trap - ERR
+  if [[ "$DEPLOY_STAGE" -ge 4 ]]; then
+    # Keep .deploy-attempted as durable evidence that a candidate may be serving even
+    # though it was not accepted. rollback.sh targets the last accepted .deploy-current.
+    echo "Deployment failed after backend startup; automatic image rollback is intentionally disabled because Flyway may have changed the schema. .deploy-attempted is retained; run the protected rollback workflow." >&2
+  elif [[ -n "$PREVIOUS_TAG" && "$PREVIOUS_TAG" =~ ^[0-9a-f]{40}$ && "$PREVIOUS_TAG" != "$TAG" ]]; then
+    echo "Deployment failed before Flyway-backed application startup. Attempting safe image rollback to $PREVIOUS_TAG" >&2
+    if IMAGE_TAG="$PREVIOUS_TAG" "${COMPOSE[@]}" up -d backend web edge; then
+      echo "$PREVIOUS_TAG" > "$CURRENT"
+      # A marker inherited from an earlier failed candidate must survive a failed recovery.
+      [[ -n "$ATTEMPTED_AT_START" ]] || rm -f "$ATTEMPTED"
+    else
+      echo "Pre-migration automatic rollback failed. Deployment markers are retained; use the protected rollback workflow and inspect runtime state." >&2
+    fi
+  elif [[ -z "$ATTEMPTED_AT_START" ]]; then
+    # No migration-sensitive startup was attempted in this invocation and no earlier
+    # failed candidate was being recovered; there is no stale attempt marker to retain.
+    rm -f "$ATTEMPTED" "$ROOT/.deploy-attempted.next"
+  else
+    # Most importantly, a recovery deployment that fails before its own backend start
+    # must not erase the marker for the candidate that originally failed after migration.
+    echo "Recovery attempt failed before backend startup. Preserving the original .deploy-attempted marker." >&2
   fi
 }
 trap rollback_previous ERR
@@ -254,10 +282,17 @@ IMAGE_TAG="$TAG" "${COMPOSE[@]}" pull postgres redis backend web edge
 echo "[3/7] Starting data services"
 IMAGE_TAG="$TAG" "${COMPOSE[@]}" up -d postgres redis
 
-DEPLOY_STAGE=3
 echo "[4/7] Starting backend (Flyway migrations run on boot)"
-IMAGE_TAG="$TAG" "${COMPOSE[@]}" up -d backend
+# From the instant backend startup is attempted, Flyway may change the schema—even if
+# Compose fails after partially creating/starting the container. Record the candidate before
+# the call so a later manual rollback chooses the last accepted release, not an older one.
+if [[ "$RECOVERY_MODE" != "true" ]]; then
+  printf '%s\n' "$TAG" > "$ROOT/.deploy-attempted.next"
+  chmod 600 "$ROOT/.deploy-attempted.next"
+  mv -f "$ROOT/.deploy-attempted.next" "$ROOT/.deploy-attempted"
+fi
 DEPLOY_STAGE=4
+IMAGE_TAG="$TAG" "${COMPOSE[@]}" up -d backend
 wait_for_backend_readiness
 
 DEPLOY_STAGE=5
@@ -278,6 +313,7 @@ BASE_URL="$LOCAL_URL" PUBLIC_HOST="$PUBLIC_HOST" \
 
 if [[ -n "$PREVIOUS_TAG" && "$PREVIOUS_TAG" != "$TAG" ]]; then echo "$PREVIOUS_TAG" > "$PREVIOUS"; fi
 echo "$TAG" > "$CURRENT"
+rm -f "$ROOT/.deploy-attempted" "$ROOT/.deploy-attempted.next"
 trap - ERR
 
 echo "[7/7] Release accepted"

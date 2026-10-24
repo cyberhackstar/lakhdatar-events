@@ -36,6 +36,10 @@ jobs:
         run: bash infra/certification/test-verify-enterprise-evidence.sh
       - name: Verify release qualification and production certification separation
         run: bash infra/certification/test-certification-workflow-separation.sh
+      - name: Verify exact-SHA production readiness artifact validator
+        run: python3 infra/certification/test_verify_production_readiness_artifact.py
+      - name: Verify release qualification run provenance validator
+        run: python3 infra/certification/test_verify_release_qualification_run.py
       - name: Verify load-test rates respect edge limits
         run: bash infra/loadtest/test-scenario-rate-limits.sh
       - name: Verify scanner check-in latency SLO contract
@@ -56,6 +60,10 @@ jobs:
         run: node infra/certification/test-browser-artifact-contract.mjs
       - name: Verify staging deployment package contract
         run: bash infra/certification/test-staging-deploy-package.sh
+      - name: Verify production deploy archive, provenance and rollback safety
+        run: bash infra/certification/test-production-deploy-safety.sh
+      - name: Verify production legal-content blocker contract
+        run: python3 infra/certification/test_check_production_content_readiness.py
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v3.0.0
         env:
@@ -438,8 +446,8 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          identity="^https://github.com/${REPOSITORY}/\.github/workflows/ci\.yml@refs/heads/main$"
+          identity="https://github.com/${REPOSITORY}/.github/workflows/ci.yml@refs/heads/main"
           for image in lakhdatar-backend lakhdatar-web lakhdatar-edge; do
             ref="ghcr.io/${OWNER}/${image}:${SHA}"
-            cosign verify --certificate-identity-regexp "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
+            cosign verify --certificate-identity "$identity" --certificate-oidc-issuer "https://token.actions.githubusercontent.com" "$ref"
           done
