@@ -52,7 +52,7 @@ jobs:
         run: python3 infra/certification/verify_release_qualification_run.py
 
       - name: Download release qualification manifest
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-qualification-${{ inputs.release_sha }}
           path: qualification-artifact
