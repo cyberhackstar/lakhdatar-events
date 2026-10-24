@@ -25,36 +25,38 @@ function locationBlock(source, declaration, label) {
 const edgeServerStart = nginx.indexOf('server {');
 const edgeHealth = nginx.indexOf('location = /edge-health', edgeServerStart);
 assert.ok(edgeServerStart >= 0 && edgeHealth > edgeServerStart, 'edge server block must be present');
+const securityHeaders = fs.readFileSync(new URL('../edge/security-headers.conf', import.meta.url), 'utf8');
 const edgeServerHeaders = nginx.slice(edgeServerStart, edgeHealth);
 const edgeExactCatalog = locationBlock(nginx, 'location = /api/v1/public/events {', 'exact catalogue');
 const edgeCatalogTree = locationBlock(nginx, 'location ^~ /api/v1/public/events/ {', 'catalogue subtree');
-assert.match(edgeServerHeaders, /add_header\s+Strict-Transport-Security\s+"max-age=31536000; includeSubDomains" always;/i, 'edge server must emit HSTS');
-assert.match(edgeExactCatalog, /add_header\s+Strict-Transport-Security/i, 'exact catalogue cache location must set HSTS because child add_header replaces server inheritance');
-assert.match(edgeCatalogTree, /add_header\s+Strict-Transport-Security/i, 'catalogue subtree cache location must set HSTS because child add_header replaces server inheritance');
-assert.equal((nginx.match(/add_header\s+Strict-Transport-Security/ig) || []).length, 3, 'edge must set HSTS exactly at server level and in both cache locations');
-assert.match(nginx, /proxy_hide_header\s+Strict-Transport-Security/i, 'upstream HSTS must be hidden to avoid duplicates');
-
 const haServerStart = haNginx.indexOf('server {');
 const haEdgeHealth = haNginx.indexOf('location = /edge-health', haServerStart);
 assert.ok(haServerStart >= 0 && haEdgeHealth > haServerStart, 'HA edge server block must be present');
 const haServerHeaders = haNginx.slice(haServerStart, haEdgeHealth);
 const haExactCatalog = locationBlock(haNginx, 'location = /api/v1/public/events {', 'HA exact catalogue');
 const haCatalogTree = locationBlock(haNginx, 'location ^~ /api/v1/public/events/ {', 'HA catalogue subtree');
-assert.match(haServerHeaders, /add_header\s+Strict-Transport-Security\s+"max-age=31536000; includeSubDomains" always;/i, 'HA edge must emit HSTS');
-assert.match(haExactCatalog, /add_header\s+Strict-Transport-Security/i, 'HA exact catalogue cache location must set HSTS');
-assert.match(haCatalogTree, /add_header\s+Strict-Transport-Security/i, 'HA catalogue subtree cache location must set HSTS');
-assert.equal((haNginx.match(/add_header\s+Strict-Transport-Security/ig) || []).length, 3, 'HA edge must set HSTS exactly at server level and in both cache locations');
+const securitySnippetInclude = /include\s+\/etc\/nginx\/snippets\/security-headers\.conf;/i;
+assert.match(edgeServerHeaders, securitySnippetInclude, 'edge server must use the shared security-header snippet');
+assert.match(edgeExactCatalog, securitySnippetInclude, 'exact catalogue cache location must explicitly include security headers because add_header replaces parent inheritance');
+assert.match(edgeCatalogTree, securitySnippetInclude, 'catalogue subtree cache location must explicitly include security headers');
+assert.match(haServerHeaders, securitySnippetInclude, 'HA edge server must use the shared security-header snippet');
+assert.match(haExactCatalog, securitySnippetInclude, 'HA exact catalogue cache location must explicitly include security headers');
+assert.match(haCatalogTree, securitySnippetInclude, 'HA catalogue subtree must explicitly include security headers');
+assert.equal((securityHeaders.match(/add_header\s+Strict-Transport-Security/ig) || []).length, 1, 'shared snippet must define HSTS only once');
+assert.doesNotMatch(nginx + haNginx, /add_header\s+Strict-Transport-Security/i, 'NGINX files must not duplicate inline HSTS directives outside the shared snippet');
+assert.match(nginx, /proxy_hide_header\s+Strict-Transport-Security/i, 'upstream HSTS must be hidden to avoid duplicates');
 assert.match(haNginx, /proxy_hide_header\s+Strict-Transport-Security/i, 'HA edge must hide upstream HSTS too');
 for (const [label, source] of [['edge', nginx], ['HA edge', haNginx]]) {
-  assert.match(source, /style-src 'self' 'nonce-\$request_id'; style-src-attr 'unsafe-inline';/, `${label} CSP must nonce inline style elements and isolate the narrow style-attribute allowance`);
-  assert.doesNotMatch(source, /style-src 'self' 'unsafe-inline'/, `${label} CSP must not broadly allow inline style elements`);
+  assert.match(source, securitySnippetInclude, `${label} must include shared response security headers`);
   assert.match(source, /proxy_set_header X-CSP-Nonce \$request_id;/, `${label} must override the inbound CSP nonce with its per-request request id`);
   assert.match(source, /sub_filter '<style' '<style nonce=\"\$request_id\"';/, `${label} must nonce SSR style elements`);
   assert.match(source, /sub_filter '<app-root' '<app-root ngCspNonce=\"\$request_id\"';/, `${label} must provide the nonce to Angular client-side rendering`);
   assert.match(source, /proxy_set_header Accept-Encoding \"\";/, `${label} must request uncompressed upstream HTML for nonce rewriting`);
 }
-assert.doesNotMatch(nginx, /img-src[^;]*\shttps:\s/i, 'CSP img-src must not permit every HTTPS origin');
-assert.match(nginx, /connect-src[^;]*https:\/\/sandbox\.cashfree\.com/i, 'Cashfree sandbox must be explicit in connect-src');
+assert.match(securityHeaders, /style-src 'self' 'nonce-\$request_id'; style-src-attr 'unsafe-inline';/, 'shared CSP must nonce inline style elements and isolate narrow style-attribute allowance');
+assert.doesNotMatch(securityHeaders, /style-src 'self' 'unsafe-inline'/, 'shared CSP must not broadly allow inline style elements');
+assert.doesNotMatch(securityHeaders, /img-src[^;]*\shttps:\s/i, 'CSP img-src must not permit every HTTPS origin');
+assert.match(securityHeaders, /connect-src[^;]*https:\/\/sandbox\.cashfree\.com/i, 'Cashfree sandbox must be explicit in connect-src');
 assert.match(ssr, /no-store, no-cache, must-revalidate, private/);
 assert.match(ssr, /Pragma', 'no-cache/);
 assert.match(provision, /E2E_FIXTURE_PROFILE/);
@@ -92,7 +94,18 @@ assert.match(loadWorkflow, /E2E_STAGING_PROVISIONING_CONFIG/);
 assert.doesNotMatch(qualificationWorkflow + loadWorkflow, /secrets\.LOADTEST_(?:EVENT_ID|TICKET_ID|TICKET_TOKEN|ADMIN_BEARER|STAFF_BEARER|CHECKIN_QR_TOKENS|DATABASE_URL)/, 'manual per-fixture credentials must not be required');
 assert.doesNotMatch(qualificationWorkflow + loadWorkflow, /secrets\.STAGING_ENV_FILE/, 'deployment env file must not enter qualification jobs');
 assert.match(zap, /^10055\s+WARN/m, 'CSP wildcard warnings must stay blocking until actually fixed');
-assert.match(zap, /^10035\s+WARN/m, 'duplicate HSTS warnings must stay blocking until actually fixed');
+assert.match(zap, /^10035\s+WARN/m, 'HSTS warnings must stay blocking on application-controlled routes');
+for (const ruleId of ['10021', '10035', '10038']) {
+  const scoped = zap.split(/\r?\n/).some(line => {
+    const [id, action, pattern] = line.split('\t');
+    return id === ruleId && action === 'OUTOFSCOPE' && pattern === '^https://staging-events\\.neelastack\\.com/cdn-cgi/.*
+assert.match(dast, /-c zap-baseline\.conf/, 'ZAP must use the mounted config path');
+console.log('Security and automatic-fixture source contracts passed.');
+;
+  });
+  assert.ok(scoped, `ZAP rule ${ruleId} may be out of scope only for Cloudflare-managed /cdn-cgi/ paths`);
+  assert.doesNotMatch(zap, new RegExp('^' + ruleId + '\\s+IGNORE', 'm'), `ZAP rule ${ruleId} must not be globally ignored`);
+}
 assert.match(dast, /zap-baseline\.conf:\/zap\/wrk\/zap-baseline\.conf:ro/, 'ZAP config must be mounted into the container');
 assert.match(dast, /-c zap-baseline\.conf/, 'ZAP must use the mounted config path');
 console.log('Security and automatic-fixture source contracts passed.');

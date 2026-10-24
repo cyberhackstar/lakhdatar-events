@@ -8,7 +8,7 @@ RUN apk upgrade --no-cache \
        -e 's|^[[:space:]]*pid[[:space:]]+[^;]+;|pid /tmp/nginx.pid;|' \
        -e 's|worker_connections[[:space:]]+[0-9]+;|worker_connections 4096;|' \
        /etc/nginx/nginx.conf \
-    && mkdir -p /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp \
+    && mkdir -p /etc/nginx/snippets /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp \
         /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp \
         /var/cache/nginx/scgi_temp \
     && chown -R nginx:nginx /var/cache/nginx \
@@ -17,6 +17,7 @@ RUN apk upgrade --no-cache \
     && ! grep -Eq '^[[:space:]]*user[[:space:]]+nginx;' /etc/nginx/nginx.conf
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY edge-entrypoint.sh /usr/local/bin/edge-entrypoint.sh
 RUN chmod 0555 /usr/local/bin/edge-entrypoint.sh \
     && chown nginx:nginx /usr/local/bin/edge-entrypoint.sh
