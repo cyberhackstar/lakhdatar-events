@@ -70,13 +70,16 @@ jobs:
           path: .deployment-control
           fetch-depth: 1
 
-      - name: Require explicit single-node break-glass acknowledgement
+      - name: Require single-node topology and explicit break-glass acknowledgement
         env:
           CONFIRM: ${{ inputs.confirm_single_node }}
+          TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+          NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
+        shell: bash
         run: |
           set -euo pipefail
-          # This workflow and its Compose deployment script are intentionally single-node only.
-          # Enterprise HA uses production-ha.yml and its independent certification path.
+          [[ "$TOPOLOGY" == "single-node" ]] || { echo 'This production workflow requires PRODUCTION_TOPOLOGY=single-node; use production-ha.yml for enterprise HA.'; exit 1; }
+          [[ "$NODE_COUNT" == "1" ]] || { echo 'Single-node production requires HA_NODE_COUNT=1'; exit 1; }
           [[ "$CONFIRM" == "SINGLE-NODE-BREAK-GLASS" ]] || { echo 'Explicit SINGLE-NODE-BREAK-GLASS confirmation is required'; exit 1; }
 
       - name: Verify successful single-node readiness artifact for this exact release SHA
@@ -239,13 +242,17 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm trusted workflow ref and single-node rollback path
+      - name: Confirm trusted workflow ref and single-node rollback topology
         env:
           WORKFLOW_REF: ${{ github.ref }}
+          TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
+          NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
+        shell: bash
         run: |
           set -euo pipefail
           [[ "$WORKFLOW_REF" == 'refs/heads/main' ]] || { echo '::error::Dispatch Production rollback from main.'; exit 2; }
-          echo 'The production.yml rollback path invokes the single-node deploy script, which rejects enterprise-ha .env configuration.'
+          [[ "$TOPOLOGY" == "single-node" ]] || { echo 'This rollback workflow requires PRODUCTION_TOPOLOGY=single-node; use the HA rollback workflow for enterprise HA.'; exit 1; }
+          [[ "$NODE_COUNT" == "1" ]] || { echo 'Single-node rollback requires HA_NODE_COUNT=1'; exit 1; }
 
       - name: Verify deployment secrets
         shell: bash
