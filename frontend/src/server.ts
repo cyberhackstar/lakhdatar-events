@@ -6,34 +6,8 @@ const browserDistFolder = join(import.meta.dirname, '../browser');
 const app = express();
 const angularApp = new AngularNodeAppEngine();
 
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "script-src 'self' https://checkout.razorpay.com https://sdk.cashfree.com https://static.cloudflareinsights.com",
-  "style-src 'self' 'unsafe-inline'",
-  "style-src-attr 'unsafe-inline'",
-  "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://images.pexels.com https://cdn.pixabay.com",
-  "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://lumberjack.razorpay.com https://api.cashfree.com https://sandbox.cashfree.com https://sdk.cashfree.com",
-  "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://sdk.cashfree.com https://payments.cashfree.com https://api.cashfree.com",
-  "font-src 'self' data:",
-  "media-src 'self' https://res.cloudinary.com",
-  "manifest-src 'self'",
-  "worker-src 'self' blob:",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "frame-ancestors 'none'",
-  "form-action 'self' https://api.cashfree.com https://payments.cashfree.com"
-].join('; ');
-
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
-app.use((_req, res, next) => {
-  res.setHeader('Content-Security-Policy', contentSecurityPolicy);
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(self "https://api.cashfree.com" "https://payments.cashfree.com" "https://checkout.razorpay.com")');
-  next();
-});
 
 const allowedHosts = new Set((process.env['NG_ALLOWED_HOSTS'] || '')
   .split(',').map(v => v.trim().toLowerCase()).filter(Boolean));
