@@ -9,5 +9,8 @@ export const serverRoutes: ServerRoute[] = [
   { path: '', renderMode: RenderMode.Server },
   { path: 'events', renderMode: RenderMode.Server },
   { path: 'events/:slug', renderMode: RenderMode.Server },
+  { path: 'privacy', renderMode: RenderMode.Server },
+  { path: 'terms', renderMode: RenderMode.Server },
+  { path: 'refund-policy', renderMode: RenderMode.Server },
   { path: '**', renderMode: RenderMode.Client }
 ];

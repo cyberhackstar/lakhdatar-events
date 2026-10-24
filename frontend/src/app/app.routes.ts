@@ -19,6 +19,9 @@ export const routes: Routes = [
   { path: 'change-password', title: 'Change password · Neelastack Events', canActivate: [authGuard], loadComponent: () => import('./features/auth/change-password.component').then(m => m.ChangePasswordComponent) },
   { path: 'setup/initial-admin', loadComponent: () => import('./features/setup/initial-admin.component').then(m => m.InitialAdminComponent) },
   { path: 'monitor', title: 'Production Monitor · Neelastack', canActivate: [platformAdminGuard], loadComponent: () => import('./features/monitor-console.component').then(m => m.MonitorConsoleComponent) },
+  { path: 'privacy', data: { legal: 'privacy' }, loadComponent: () => import('./features/legal/legal-page.component').then(m => m.LegalPageComponent) },
+  { path: 'terms', data: { legal: 'terms' }, loadComponent: () => import('./features/legal/legal-page.component').then(m => m.LegalPageComponent) },
+  { path: 'refund-policy', data: { legal: 'refund' }, loadComponent: () => import('./features/legal/legal-page.component').then(m => m.LegalPageComponent) },
   { path: 'not-found', loadComponent: () => import('./shared/not-found.component').then(m => m.NotFoundComponent) },
   {
     path: 'admin',
