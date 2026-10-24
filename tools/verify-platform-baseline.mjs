@@ -266,7 +266,7 @@ for (const id of ["push-backend", "push-web", "push-edge"])
 if ((ci.match(/provenance: true/g) ?? []).length !== 3 ||
     (ci.match(/sbom: true/g) ?? []).length !== 3)
   problems.push("All three release images must retain BuildKit provenance and SBOM attestations");
-if (!ci.includes("cosign sign --yes") || !ci.includes("cosign verify --certificate-identity-regexp"))
+if (!ci.includes("cosign sign --yes") || !ci.includes("cosign verify --certificate-identity "))
   problems.push("CI must sign and verify all immutable release images with Cosign");
 if (!ci.includes("needs: [backend, frontend, security, codeql]"))
   problems.push("Release image publication must wait for backend, frontend, security, and CodeQL jobs");
@@ -279,7 +279,7 @@ for (const [label, workflow] of [
   ["production", productionWorkflow],
   ["production HA", productionHaWorkflow],
 ]) {
-  if (!workflow.includes("cosign verify --certificate-identity-regexp"))
+  if (!workflow.includes("cosign verify --certificate-identity "))
     problems.push(`${label} promotion must verify the CI Cosign identity`);
   if (!workflow.includes("Authenticate GitHub Actions runner to GHCR") &&
       !workflow.includes("Authenticate release runner to GHCR"))

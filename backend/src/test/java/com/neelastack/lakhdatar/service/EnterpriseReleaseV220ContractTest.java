@@ -91,7 +91,7 @@ class EnterpriseReleaseV220ContractTest {
         assertTrue(locks.contains("heartbeat.cancel(false)"));
     }
 
-    @Test void productionRequiresTransactionalMailAndActuatorIsEdgeBlocked() throws Exception {
+    @Test void productionValidatesConfiguredMailAndActuatorIsEdgeBlocked() throws Exception {
         String guard = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/config/ProductionConfigurationGuard.java"));
         String edge = Files.readString(Path.of("../edge/nginx.conf"));
         assertTrue(guard.contains("MAIL_HOST"));

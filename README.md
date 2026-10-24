@@ -1,18 +1,16 @@
 # Neelastack Events / Lakhdatar Events Platform
 
-Version: `2.0.56` (hotfix candidate; all CI, staging qualification and readiness gates must pass for its exact SHA)
+Version: `2.0.57` (**production-hardening patch candidate; not certified**)
 
 A multi-event ticketing and check-in platform with a Spring Boot backend, Angular SSR frontend, PostgreSQL, Redis, QR ticket credentials, staff mobile scanning, and payment-provider adapters for Razorpay and Cashfree. The repository also contains CI/CD, staging browser E2E, load-test, backup, rollback, and release-qualification workflows.
 
-## Current release candidate
+## Current release candidate — v2.0.57
 
-**v2.0.56 application release; qualification harness correction in progress.** The v2.0.56 application includes the v2.0.55 stale-payment lifecycle hardening, oldest-attempt-first reconciliation, lower-rate historical reconciliation, and bounded stale-open-order repair. The latest exact-SHA enterprise run passed backend, frontend, database, browser E2E, staging identity and DAST. Its load job failed after one checkout request returned status `0` because the TCP connection to the Cloudflare edge was reset; the final checkout response had no HTTP 5xx, and the measured p95/p99 were 522.95/656.39 ms. The failure indicates a small-sample transport-flake issue in the qualification probe, not evidence of a new application 5xx regression.
+This package builds on the supplied v2.0.56 ZIP and hardens deployment and release controls. It updates production migration-failure handling, ensures only tracked files from the exact candidate commit are transferred to the VM, tightens trusted-main workflow/provenance checks, automatically validates the successful exact-SHA single-node readiness artifact, makes staging runtime configuration updates opt-in, makes SMTP and observability contracts consistent, validates the selected payment provider's credentials, passes application config through Compose, and adds regression tests for these contracts.
 
-The qualification-harness patch retries only one no-response (`status === 0`) request with the exact same idempotency key, never retries a received HTTP 4xx/5xx response, and keeps the final logical checkout thresholds strict. It also records the app release SHA separately from the immutable test-harness SHA so the already deployed app can be requalified without staging redeployment. This does not grant qualification automatically; the exact SHA must still pass every gate.
+**Production decision: HOLD.** The previous recorded Enterprise Release Qualification (`39984461601`) failed its load gate after one checkout request returned no HTTP response during a TCP reset at the Cloudflare edge. This ZIP has not run a fresh full GitHub Actions cycle or real staging qualification. The launch legal/contact/refund config also still contains owner-confirmation TODOs, and the live provider, VM, backup restore, DNS/routing, and alerting settings are not accessible to this offline review. The new qualification gate blocks until the owner confirms the actual legal entity, complete address, monitored support/grievance contacts, grievance officer, and refund processing policy.
 
-The v2.0.56 application retains the bounded stale-order repair worker, provider-confirmed terminal/no-capture handling, the v2.0.57 operational-readiness kit, and read-only evidence-inventory helper. Provider timeouts and unknown payment states remain unresolved rather than being treated as failed payments.
-
-**Production decision: HOLD until requalification and single-node readiness pass.** No production deployment is authorized by a local ZIP or a partially successful workflow. See `docs/QUALIFICATION-HARNESS-TRANSPORT-RESET-FIX.md` and the v2.0.56 release-validation docs.
+Do not infer production readiness from static checks or a local ZIP. Run full CI for the merged SHA, deploy the exact SHA to staging, pass sandbox checkout/payment/ticket/scanning E2E and release qualification, complete real single-node operational evidence, then use the protected production deployment approval.
 
 ## Layout
 
@@ -37,7 +35,7 @@ The v2.0.56 application retains the bounded stale-order repair worker, provider-
 6. Run `Enterprise Release Qualification` and the protected single-node production-readiness workflow with all required operational evidence bound to the same SHA.
 7. Promote only the exact certified SHA through the production workflow, with environment approval. Backups, readiness, smoke checks, immutable images, signing/provenance verification and rollback constraints still apply.
 
-See `docs/STAGING-RELEASE-FLOW.md`, `docs/PRODUCTION-RELEASE-CHECKLIST.md`, `docs/deployment.md`, `STAGING-QUALIFICATION-SETUP.md`, and `VALIDATION-2.0.53-CASHFREE-ORDER-EXPIRY-COMPATIBILITY.md`.
+See `docs/STAGING-RELEASE-FLOW.md`, `docs/PRODUCTION-RELEASE-CHECKLIST.md`, `docs/deployment.md`, `STAGING-QUALIFICATION-SETUP.md`, `docs/GITHUB-ENVIRONMENT-VALUES-v2.0.57.md`, and `VALIDATION-2.0.57-PRODUCTION-HARDENING.md`.
 
 ## Important environment separation
 

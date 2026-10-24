@@ -43,18 +43,55 @@ public class ProductionConfigurationGuard {
         boolean razorpayConfigured = present(props.razorpay().keyId()) || present(props.razorpay().keySecret()) || present(props.razorpay().webhookSecret());
         boolean cashfreeConfigured = present(props.cashfree().appId()) || present(props.cashfree().secretKey());
         if (!razorpayConfigured && !cashfreeConfigured) throw new IllegalStateException("At least one payment provider must be configured in production");
-        if (razorpayConfigured) { requireProviderCredential("RAZORPAY_KEY_SECRET", props.razorpay().keySecret()); requireSecret("RAZORPAY_WEBHOOK_SECRET", props.razorpay().webhookSecret()); requireNonBlank("RAZORPAY_KEY_ID", props.razorpay().keyId()); requireHttps("RAZORPAY_BASE_URL", props.razorpay().baseUrl()); }
-        if (cashfreeConfigured) { requireProviderCredential("CASHFREE_SECRET_KEY", props.cashfree().secretKey()); requireNonBlank("CASHFREE_APP_ID", props.cashfree().appId()); requireHttps("CASHFREE_BASE_URL", props.cashfree().baseUrl()); }
-        requireHttps("NEELASTACK_PUBLIC_URL", props.branding().neelastackPublicUrl());
-        requireNonBlank("MAIL_HOST", environment.getProperty("spring.mail.host"));
-        requireNonBlank("MAIL_FROM", environment.getProperty("app.mail.from"));
-        boolean smtpAuth = environment.getProperty("spring.mail.properties.mail.smtp.auth", Boolean.class, true);
-        if (smtpAuth) {
-            requireNonBlank("MAIL_USERNAME", environment.getProperty("spring.mail.username"));
-            requireProviderCredential("MAIL_PASSWORD", environment.getProperty("spring.mail.password"));
+        String defaultProvider = environment.getProperty("DEFAULT_PAYMENT_PROVIDER", "CASHFREE").trim().toUpperCase(Locale.ROOT);
+        if (!defaultProvider.equals("CASHFREE") && !defaultProvider.equals("RAZORPAY")) {
+            throw new IllegalStateException("DEFAULT_PAYMENT_PROVIDER must be CASHFREE or RAZORPAY in production");
         }
-        boolean startTls = environment.getProperty("spring.mail.properties.mail.smtp.starttls.enable", Boolean.class, true);
-        if (!startTls) throw new IllegalStateException("MAIL SMTP STARTTLS must be enabled in production");
+        if (defaultProvider.equals("CASHFREE") && !cashfreeConfigured) {
+            throw new IllegalStateException("DEFAULT_PAYMENT_PROVIDER=CASHFREE but Cashfree live credentials are not configured in production");
+        }
+        if (defaultProvider.equals("RAZORPAY") && !razorpayConfigured) {
+            throw new IllegalStateException("DEFAULT_PAYMENT_PROVIDER=RAZORPAY but Razorpay live credentials are not configured in production");
+        }
+        if (razorpayConfigured) { requireProviderCredential("RAZORPAY_KEY_SECRET", props.razorpay().keySecret()); requireSecret("RAZORPAY_WEBHOOK_SECRET", props.razorpay().webhookSecret()); requireNonBlank("RAZORPAY_KEY_ID", props.razorpay().keyId()); requireHttps("RAZORPAY_BASE_URL", props.razorpay().baseUrl()); }
+        if (cashfreeConfigured) { requireProviderCredential("CASHFREE_SECRET_KEY", props.cashfree().secretKey()); requireNonBlank("CASHFREE_APP_ID", props.cashfree().appId()); requireCashfreeProductionBaseUrl(props.cashfree().baseUrl()); }
+        requireHttps("NEELASTACK_PUBLIC_URL", props.branding().neelastackPublicUrl());
+        String supportEmail = environment.getProperty("app.support.email", "");
+        requireNonBlank("SUPPORT_EMAIL", supportEmail);
+        String normalizedSupportEmail = supportEmail.toLowerCase(Locale.ROOT);
+        if (normalizedSupportEmail.contains("example.com")
+                || normalizedSupportEmail.endsWith("@yourdomain.com")
+                || normalizedSupportEmail.endsWith("@your-domain.com")
+                || !supportEmail.matches("(?i)^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            throw new IllegalStateException("SUPPORT_EMAIL must be a real, verified support address in production");
+        }
+        String supportPhone = environment.getProperty("app.support.phone", "");
+        requireNonBlank("SUPPORT_PHONE", supportPhone);
+        String supportPhoneDigits = supportPhone.replaceAll("\\D", "");
+        if (!supportPhone.matches("[+0-9() .-]+") || supportPhoneDigits.length() < 8
+                || supportPhoneDigits.length() > 15 || supportPhoneDigits.contains("00000")
+                || supportPhoneDigits.matches("(.)\\1{7,}")) {
+            throw new IllegalStateException("SUPPORT_PHONE must be a real phone number with 8-15 digits, not a placeholder, in production");
+        }
+        // SMTP is intentionally optional: the ticket page and account recovery remain available
+        // when outbound mail is not configured. Once any mail setting is supplied, however, reject
+        // partial/misleading configurations rather than silently reporting invitations as enabled.
+        String mailHost = environment.getProperty("spring.mail.host");
+        String mailFrom = environment.getProperty("app.mail.from");
+        String mailUsername = environment.getProperty("spring.mail.username");
+        String mailPassword = environment.getProperty("spring.mail.password");
+        boolean mailConfigured = present(mailHost) || present(mailFrom) || present(mailUsername) || present(mailPassword);
+        if (mailConfigured) {
+            requireNonBlank("MAIL_HOST", mailHost);
+            requireNonBlank("MAIL_FROM", mailFrom);
+            boolean smtpAuth = environment.getProperty("spring.mail.properties.mail.smtp.auth", Boolean.class, true);
+            if (smtpAuth) {
+                requireNonBlank("MAIL_USERNAME", mailUsername);
+                requireProviderCredential("MAIL_PASSWORD", mailPassword);
+            }
+            boolean startTls = environment.getProperty("spring.mail.properties.mail.smtp.starttls.enable", Boolean.class, true);
+            if (!startTls) throw new IllegalStateException("MAIL SMTP STARTTLS must be enabled in production");
+        }
         requireHttpsOrigins("CORS_ALLOWED_ORIGINS", props.cors().allowedOrigins());
         if (!props.security().refreshCookieSecure()) throw new IllegalStateException("AUTH_COOKIE_SECURE must be true in production");
         if (props.checkout().sessionTtl().isNegative() || props.checkout().sessionTtl().isZero() || props.checkout().sessionTtl().compareTo(java.time.Duration.ofHours(2)) > 0) throw new IllegalStateException("CHECKOUT_SESSION_TTL must be between >0 and 2 hours in production");
@@ -172,6 +209,27 @@ public class ProductionConfigurationGuard {
     private void requireNonBlank(String name, String value) {
         if (value == null || value.isBlank()) throw new IllegalStateException(name + " is required in production");
     }
+    /**
+     * Reject sandbox and non-approved hosts for production Cashfree payments.
+     */
+    static void requireCashfreeProductionBaseUrl(String value) {
+        String message = "CASHFREE_BASE_URL must use the approved production endpoint https://api.cashfree.com/pg";
+        try {
+            if (value == null || value.isBlank()) throw new IllegalArgumentException();
+            URI uri = URI.create(value.trim());
+            boolean valid = "https".equalsIgnoreCase(uri.getScheme())
+                    && "api.cashfree.com".equalsIgnoreCase(uri.getHost())
+                    && ("/pg".equals(uri.getPath()) || "/pg/".equals(uri.getPath()))
+                    && (uri.getPort() == -1 || uri.getPort() == 443)
+                    && uri.getUserInfo() == null
+                    && uri.getQuery() == null
+                    && uri.getFragment() == null;
+            if (!valid) throw new IllegalArgumentException();
+        } catch (RuntimeException ex) {
+            throw new IllegalStateException(message, ex);
+        }
+    }
+
     private void requireHttps(String name, String value) {
         requireNonBlank(name, value);
         try { if (!"https".equalsIgnoreCase(URI.create(value).getScheme())) throw new IllegalArgumentException(); }

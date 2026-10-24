@@ -16,7 +16,7 @@ for f in "$STAGING" "$PRODUCTION" "$PRODUCTION_HA"; do
   grep -qF "$PUBLIC_GUARD" "$f"
   grep -q 'Verify GitHub artifact attestations (public repositories only)' "$f"
   grep -q 'gh attestation verify' "$f"
-  grep -q 'cosign verify --certificate-identity-regexp' "$f"
+  grep -q 'cosign verify --certificate-identity ' "$f"
   # Cosign must be able to read private GHCR packages before signature verification.
   grep -q 'Authenticate GitHub Actions runner to GHCR' "$f" || grep -q 'Authenticate release runner to GHCR' "$f"
 done
@@ -28,7 +28,7 @@ grep -q 'needs: \[backend, frontend, security, codeql\]' "$CI"
 [[ "$(grep -c 'provenance: true' "$CI")" -eq 3 ]]
 [[ "$(grep -c 'sbom: true' "$CI")" -eq 3 ]]
 grep -q 'cosign sign --yes' "$CI"
-grep -q 'cosign verify --certificate-identity-regexp' "$CI"
+grep -q 'cosign verify --certificate-identity ' "$CI"
 
 # CodeQL still analyzes code but doesn't call the unsupported code-scanning upload API.
 grep -q 'upload: never' "$CI"
@@ -40,7 +40,7 @@ done
 # Baseline and Java tests must describe the new supported workflow, not require attestations on private repos.
 grep -q 'publicAttestationGuard' "$BASELINE"
 grep -q 'public repositories only' "$ROOT/backend/src/test/java/com/neelastack/lakhdatar/service/EnterpriseReleaseV212ContractTest.java"
-[[ "$(tr -d '\r\n' < "$ROOT/VERSION")" == "2.0.56" ]]
+[[ "$(tr -d '\r\n' < "$ROOT/VERSION")" == "2.0.57" ]]
 ! grep -Rqs '2.0.44' \
   "$ROOT/.env.example" "$ROOT/.env.staging.example" "$ROOT/infra/ha/.env.ha.example" \
   "$ROOT/backend/src/main/resources/application.yml" "$ROOT/infra/docker-compose.prod.yml" \

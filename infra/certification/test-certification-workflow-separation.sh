@@ -19,6 +19,8 @@ assert.doesNotMatch(qualification, /^  enterprise-evidence:/m, 'operational evid
 assert.match(qualification, /needs: \[backend, frontend, database, staging-release-identity, browser-e2e, load, dast\]/);
 assert.match(qualification, /staging-release-identity:[\s\S]*?\.deploy-current/);
 assert.match(qualification, /needs: \[backend, frontend, staging-release-identity\]/);
+assert.match(qualification, /if: github\.ref == 'refs\/heads\/main'/);
+assert.match(qualification, /git merge-base --is-ancestor \"\$RELEASE_SHA\" refs\/remotes\/origin\/main/);
 assert.match(qualification, /RELEASE_SHA: \$\{\{ inputs\.release_sha \}\}[\s\S]*?test "\$\(git rev-parse HEAD\)" = "\$RELEASE_SHA"/);
 assert.match(qualification, /"manifestType": "release-qualification-not-production-certification"/);
 // Application code remains bound to the requested release SHA, while load-test scripts use the
@@ -32,6 +34,9 @@ assert.match(qualification, /name: release-qualification-\$\{\{ inputs\.release_
 assert.match(qualification, /if-no-files-found: error/);
 
 // Certification is impossible without the matching qualification artifact and protected evidence environment.
+assert.match(certification, /if: github\.ref == 'refs\/heads\/main'/);
+assert.match(certification, /infra\/certification\/verify_release_qualification_run\.py/);
+assert.match(certification, /testHarnessSha': os\.environ\['QUALIFICATION_HARNESS_SHA'\]/);
 assert.match(certification, /environment: enterprise-certification/);
 assert.match(certification, /actions\/download-artifact@v7/);
 assert.match(certification, /run-id: \$\{\{ inputs\.qualification_run_id \}\}/);
@@ -40,20 +45,26 @@ assert.match(certification, /runId': os\.environ\['QUALIFICATION_RUN_ID'\]/);
 assert.match(certification, /infra\/certification\/verify-enterprise-evidence\.sh/);
 assert.match(certification, /name: enterprise-certification-\$\{\{ inputs\.release_sha \}\}/);
 
-// The production deployment gate must continue to require the separately protected certified SHA.
+// The production deployment gate must verify a fresh successful readiness artifact for the exact SHA.
+assert.match(singleNode, /if: github\.ref == 'refs\/heads\/main'/);
+assert.match(singleNode, /verify_release_qualification_run\.py/);
 assert.match(singleNode, /environment: single-node-production-readiness/);
 assert.match(singleNode, /infra\/certification\/verify-single-node-readiness\.sh/);
 assert.match(singleNode, /single-node-production-readiness-\$\{\{ inputs\.release_sha \}\}/);
 assert.match(singleNodeValidator, /enterpriseHACertificationGranted': False/);
 assert.match(singleNodeValidator, /PRODUCTION_TOPOLOGY must be single-node/);
 assert.match(singleNodeValidator, /OFFSITE_BACKUP_EVIDENCE_ID/);
-assert.match(production, /CERTIFIED_RELEASE_SHA: \$\{\{ vars\.SINGLE_NODE_CERTIFIED_SHA \}\}/);
-assert.match(production, /SINGLE_NODE_CERTIFIED_SHA/);
-assert.match(production, /NODE_COUNT.*vars\.HA_NODE_COUNT/);
-assert.match(production, /TOPOLOGY.*single-node/);
+assert.match(production, /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy' && github\.ref == 'refs\/heads\/main'/);
+assert.match(production, /git archive --format=tar \"\$RELEASE_SHA\"/);
+assert.doesNotMatch(production, /tar --exclude=.*-czf - \./);
+assert.match(production, /infra\/certification\/verify_production_readiness_artifact\.py/);
+assert.match(production, /actions: read/);
+assert.doesNotMatch(production, /vars\.SINGLE_NODE_CERTIFIED_SHA/);
+assert.doesNotMatch(production, /vars\.HA_NODE_COUNT/);
+assert.doesNotMatch(production, /vars\.PRODUCTION_TOPOLOGY/);
 assert.match(haProduction, /CERTIFIED_RELEASE_SHA: \$\{\{ vars\.ENTERPRISE_CERTIFIED_SHA \}\}/);
 assert.match(validator, /attestedByProtectedEnvironment': True/);
 assert.match(validator, /Measured RPO/);
 assert.match(validator, /Measured RTO/);
-console.log('PASS: release qualification remains separate; enterprise HA certification remains fail-closed; single-node readiness is a separate attestation and single-node promotion requires its exact reviewed SHA.');
+console.log('PASS: release qualification remains separate; enterprise HA certification remains fail-closed; production verifies a successful exact-SHA single-node readiness artifact and keeps reviewer/break-glass gates.');
 NODE

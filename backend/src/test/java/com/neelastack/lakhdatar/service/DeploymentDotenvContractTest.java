@@ -12,6 +12,7 @@ class DeploymentDotenvContractTest {
         String env = Files.readString(Path.of("../.env.example"));
         assertFalse(deploy.contains(". \"$ROOT/.env\""));
         assertTrue(deploy.contains("dotenv_get()"));
-        assertTrue(env.contains("MAIL_FROM=\"Neelastack Events <tickets@yourdomain.com>\""));
+        assertTrue(env.contains("MAIL_FROM="));
+        assertTrue(env.contains("SMTP is optional. Leave all mail fields empty"));
     }
 }

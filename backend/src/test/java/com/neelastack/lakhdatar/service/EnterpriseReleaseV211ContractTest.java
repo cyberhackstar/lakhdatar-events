@@ -36,7 +36,7 @@ class EnterpriseReleaseV211ContractTest {
         assertTrue(alerts.contains("LakhdatarRefundManualReview"));
         assertTrue(smoke.contains("Content-Security-Policy"));
         assertTrue(smoke.contains("Invalid ticket token was not rejected"));
-        assertTrue(production.contains("SINGLE_NODE_CERTIFIED_SHA"));
+        assertTrue(production.contains("verify_production_readiness_artifact.py"));
         assertTrue(haProduction.contains("ENTERPRISE_CERTIFIED_SHA"));
     }
 

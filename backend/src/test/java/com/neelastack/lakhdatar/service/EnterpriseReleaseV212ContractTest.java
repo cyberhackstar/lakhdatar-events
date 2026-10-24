@@ -63,7 +63,7 @@ class EnterpriseReleaseV212ContractTest {
         assertTrue(validator.contains("PRODUCTION_TOPOLOGY must be single-node"));
         assertTrue(validator.contains("enterpriseHACertificationGranted': False"));
         assertTrue(validator.contains("OFFSITE_BACKUP_EVIDENCE_ID"));
-        assertTrue(production.contains("SINGLE_NODE_CERTIFIED_SHA"));
+        assertTrue(production.contains("verify_production_readiness_artifact.py"));
         assertTrue(production.contains("SINGLE-NODE-BREAK-GLASS"));
         assertTrue(haProduction.contains("ENTERPRISE_CERTIFIED_SHA"));
     }
@@ -80,9 +80,9 @@ class EnterpriseReleaseV212ContractTest {
         String workflow = Files.readString(Path.of("../.github/workflows/production.yml"));
         String haWorkflow = Files.readString(Path.of("../.github/workflows/production-ha.yml"));
         String stagingWorkflow = Files.readString(Path.of("../.github/workflows/staging.yml"));
-        assertTrue(workflow.contains("cosign verify --certificate-identity-regexp"));
-        assertTrue(haWorkflow.contains("cosign verify --certificate-identity-regexp"));
-        assertTrue(stagingWorkflow.contains("cosign verify --certificate-identity-regexp"));
+        assertTrue(workflow.contains("cosign verify --certificate-identity "));
+        assertTrue(haWorkflow.contains("cosign verify --certificate-identity "));
+        assertTrue(stagingWorkflow.contains("cosign verify --certificate-identity "));
         assertTrue(stagingWorkflow.contains("Authenticate GitHub Actions runner to GHCR"));
         assertTrue(workflow.contains("Authenticate GitHub Actions runner to GHCR"));
         assertTrue(haWorkflow.contains("Authenticate release runner to GHCR"));

@@ -51,7 +51,10 @@ class TicketQrAndMailContractTest {
     @Test void smtpIsOptionalAndCannotBreakReadiness() throws Exception {
         String yml = read("src/main/resources/application.yml");
         assertTrue(yml.contains("host: ${MAIL_HOST:}"));
-        assertTrue(yml.contains("mail:\n      # An unreachable SMTP server must never take the API out of the load balancer.\n      enabled: false"));
+        assertTrue(yml.contains("from: ${MAIL_FROM:}"));
+        String guard = read("src/main/java/com/neelastack/lakhdatar/config/ProductionConfigurationGuard.java");
+        assertTrue(guard.contains("boolean mailConfigured = present(mailHost) || present(mailFrom) || present(mailUsername) || present(mailPassword)"));
+        assertTrue(guard.contains("if (mailConfigured)"), "mail remains optional but a partial SMTP configuration is rejected");
         assertTrue(read("../.env.example").contains("MAIL_PASSWORD="));
         assertTrue(read("../docker-compose.yml").contains("MAIL_HOST:"));
         assertTrue(read("../infra/docker-compose.prod.yml").contains("MAIL_HOST:"));

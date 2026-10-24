@@ -82,7 +82,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -q PONG'
+          'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -q PONG',
         ]
       interval: 10s
       timeout: 3s
@@ -112,20 +112,31 @@ services:
       - /tmp:rw,noexec,nosuid,size=128m
     environment:
       APP_ENV: production
-      APP_VERSION: ${APP_VERSION:-2.0.56}
+      APP_VERSION: ${APP_VERSION:-2.0.57}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-lakhdatar-events-backend}
       DEFAULT_PAYMENT_PROVIDER: ${DEFAULT_PAYMENT_PROVIDER:-CASHFREE}
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.56,deployment.environment=production}
+      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-service.version=2.0.57,deployment.environment=production}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://tempo:4318/v1/traces}
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0.10}
+      TRACING_EXPORT_ENABLED: ${TRACING_EXPORT_ENABLED:-true}
+      TRACING_OTLP_ENABLED: ${TRACING_OTLP_ENABLED:-true}
       OTEL_SDK_ENABLED: ${OTEL_SDK_ENABLED:-true}
       OTEL_METRICS_EXPORT_ENABLED: ${OTEL_METRICS_EXPORT_ENABLED:-false}
+      OTEL_METRICS_EXPORT_STEP: ${OTEL_METRICS_EXPORT_STEP:-60s}
       OPS_LOGS_ENABLED: ${OPS_LOGS_ENABLED:-true}
       LOKI_URL: ${LOKI_URL:-http://loki:3100}
+      LOKI_QUERY_TIMEOUT_MS: ${LOKI_QUERY_TIMEOUT_MS:-4000}
       LOG_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-INFO}
       LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
       LOG_LEVEL_SERVICE: ${LOG_LEVEL_SERVICE:-INFO}
+      LOG_STRUCTURED_FORMAT: ${LOG_STRUCTURED_FORMAT:-ecs}
+      BUSINESS_METRICS_REFRESH_MS: ${BUSINESS_METRICS_REFRESH_MS:-30000}
+      WORKER_ENABLED: ${WORKER_ENABLED:-true}
+      EVENT_NOTIFICATION_SWEEP: ${EVENT_NOTIFICATION_SWEEP:-15000}
+      EVENT_NOTIFICATION_CLEANUP_SWEEP: ${EVENT_NOTIFICATION_CLEANUP_SWEEP:-21600000}
+      SCHEDULER_POOL_SIZE: ${SCHEDULER_POOL_SIZE:-8}
       SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: "8080"
       DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/lakhdatar}
       DB_USERNAME: ${DB_USERNAME:-lakhdatar}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -161,7 +172,9 @@ services:
       REFUND_CANCELLATION_SWEEP: ${REFUND_CANCELLATION_SWEEP:-30000}
       REFUND_MAX_ATTEMPTS: ${REFUND_MAX_ATTEMPTS:-8}
       REFUND_CANCELLATION_BATCH_SIZE: ${REFUND_CANCELLATION_BATCH_SIZE:-500}
+      REFUND_CANCELLATION_MAX_BATCHES: ${REFUND_CANCELLATION_MAX_BATCHES:-4}
       REFUND_RECOVERY_BATCH_SIZE: ${REFUND_RECOVERY_BATCH_SIZE:-500}
+      REFUND_RECOVERY_MAX_BATCHES: ${REFUND_RECOVERY_MAX_BATCHES:-4}
       REFUND_RETRY_BASE_DELAY: ${REFUND_RETRY_BASE_DELAY:-30s}
       REFUND_RETRY_MAX_DELAY: ${REFUND_RETRY_MAX_DELAY:-6h}
       REFUND_PROCESSING_TIMEOUT: ${REFUND_PROCESSING_TIMEOUT:-24h}
@@ -195,6 +208,8 @@ services:
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
       RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
       RAZORPAY_BASE_URL: ${RAZORPAY_BASE_URL:-https://api.razorpay.com/v1}
+      RAZORPAY_CONNECT_TIMEOUT_MS: ${RAZORPAY_CONNECT_TIMEOUT_MS:-3000}
+      RAZORPAY_READ_TIMEOUT_MS: ${RAZORPAY_READ_TIMEOUT_MS:-8000}
       PAYMENT_RECONCILIATION_AGE_MS: ${PAYMENT_RECONCILIATION_AGE_MS:-120000}
       PAYMENT_RECONCILIATION_SWEEP: ${PAYMENT_RECONCILIATION_SWEEP:-30000}
       CASHFREE_APP_ID: ${CASHFREE_APP_ID:-}
@@ -205,6 +220,10 @@ services:
       CASHFREE_RECONCILIATION_SWEEP: ${CASHFREE_RECONCILIATION_SWEEP:-30000}
       CASHFREE_CONNECT_TIMEOUT_MS: ${CASHFREE_CONNECT_TIMEOUT_MS:-3000}
       CASHFREE_READ_TIMEOUT_MS: ${CASHFREE_READ_TIMEOUT_MS:-8000}
+      PAYMENT_PROVIDER_MAX_CONCURRENT: ${PAYMENT_PROVIDER_MAX_CONCURRENT:-32}
+      PAYMENT_PROVIDER_FAILURE_THRESHOLD: ${PAYMENT_PROVIDER_FAILURE_THRESHOLD:-5}
+      PAYMENT_PROVIDER_BULKHEAD_ACQUIRE_TIMEOUT_MS: ${PAYMENT_PROVIDER_BULKHEAD_ACQUIRE_TIMEOUT_MS:-1000}
+      PAYMENT_PROVIDER_CIRCUIT_OPEN_SECONDS: ${PAYMENT_PROVIDER_CIRCUIT_OPEN_SECONDS:-15}
       CASHFREE_WEBHOOK_TOLERANCE_MS: ${CASHFREE_WEBHOOK_TOLERANCE_MS:-300000}
       INITIAL_ADMIN_SETUP_ENABLED: ${INITIAL_ADMIN_SETUP_ENABLED:-false}
       INITIAL_ADMIN_SETUP_TOKEN: ${INITIAL_ADMIN_SETUP_TOKEN:-}
@@ -213,7 +232,13 @@ services:
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
       CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER:-neelastack-events}
       CLOUDINARY_MAX_BYTES: ${CLOUDINARY_MAX_BYTES:-5242880}
+      CLOUDINARY_MAX_REQUEST_BYTES: ${CLOUDINARY_MAX_REQUEST_BYTES:-7340032}
+      NEELASTACK_NAME: ${NEELASTACK_NAME:-Neelastack}
       NEELASTACK_PUBLIC_URL: ${NEELASTACK_PUBLIC_URL:-https://neelastack.com}
+      NEELASTACK_PROMO_ENABLED: ${NEELASTACK_PROMO_ENABLED:-true}
+      NEELASTACK_PROMO_TITLE: ${NEELASTACK_PROMO_TITLE:-Powered by Neelastack}
+      NEELASTACK_PROMO_DESCRIPTION: ${NEELASTACK_PROMO_DESCRIPTION:-Build modern digital experiences for your business.}
+      NEELASTACK_PROMO_CTA: ${NEELASTACK_PROMO_CTA:-Explore Neelastack}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://events.neelastack.com}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://events.neelastack.com}
       MAIL_HOST: ${MAIL_HOST:-}
@@ -222,6 +247,7 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
       MAIL_STARTTLS: ${MAIL_STARTTLS:-true}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
       MFA_REQUIRED_FOR_PRIVILEGED: ${MFA_REQUIRED_FOR_PRIVILEGED:-true}
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-}
       MFA_ISSUER: ${MFA_ISSUER:-Neelastack Events}
@@ -230,12 +256,22 @@ services:
       BOOTSTRAP_ENABLED: ${BOOTSTRAP_ENABLED:-false}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Platform Administrator}
+      BOOTSTRAP_ORGANIZER_NAME: ${BOOTSTRAP_ORGANIZER_NAME:-Lakhdatar Events}
+      BOOTSTRAP_ORGANIZER_SLUG: ${BOOTSTRAP_ORGANIZER_SLUG:-lakhdatar-events}
+      BOOTSTRAP_EVENT_SLUG: ${BOOTSTRAP_EVENT_SLUG:-dandiya-night-2026}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+      SUPPORT_PHONE: ${SUPPORT_PHONE:-}
     networks: [lakhdatar_net]
     depends_on:
-      postgres: {condition: service_healthy}
-      redis: {condition: service_healthy}
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- --timeout=5 http://127.0.0.1:8081/actuator/health/readiness >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- --timeout=5 http://127.0.0.1:8081/actuator/health/readiness >/dev/null",
+        ]
       interval: 10s
       timeout: 5s
       retries: 24
@@ -271,7 +307,7 @@ services:
       KEEP_ALIVE_TIMEOUT_MS: ${KEEP_ALIVE_TIMEOUT_MS:-60000}
       HEADERS_TIMEOUT_MS: ${HEADERS_TIMEOUT_MS:-65000}
       REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-30000}
-    depends_on: {backend: {condition: service_healthy}}
+    depends_on: { backend: { condition: service_healthy } }
     networks: [lakhdatar_net]
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/healthz >/dev/null"]
@@ -304,13 +340,14 @@ services:
       - /var/cache/nginx:rw,noexec,nosuid,size=32m,uid=101,gid=101,mode=0755
       - /tmp:rw,noexec,nosuid,size=8m
     depends_on:
-      web: {condition: service_healthy}
-      backend: {condition: service_healthy}
+      web: { condition: service_healthy }
+      backend: { condition: service_healthy }
     networks: [lakhdatar_net]
     # Cloudflare Tunnel target: http://localhost:4002 (loopback only). Other apps on this VM keep their own ports and are never touched.
     ports: ["127.0.0.1:4002:8080"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/edge-health >/dev/null"]
+      test:
+        ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/edge-health >/dev/null"]
       interval: 15s
       timeout: 5s
       start_period: 10s

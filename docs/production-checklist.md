@@ -15,7 +15,7 @@
 - [ ] `PRODUCTION_TOPOLOGY=single-node` and `HA_NODE_COUNT=1`
 - [ ] Single-node restart/recovery drill completed (does not count as HA failover)
 - [ ] `Single-Node Production Readiness` workflow passes for the exact qualified SHA
-- [ ] After reviewer approval, `SINGLE_NODE_CERTIFIED_SHA` in the protected `production` environment equals that exact SHA
+- [ ] The protected production workflow finds a successful, recent single-node readiness artifact matching the exact SHA
 - [ ] `SINGLE-NODE-BREAK-GLASS` is entered when dispatching single-node production; accept that a VM failure causes downtime until recovery
 
 ### Enterprise HA path only
