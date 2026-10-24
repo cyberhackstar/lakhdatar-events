@@ -14,6 +14,9 @@ import { environment } from '../../environments/environment';
         <nav class="ftr-links" aria-label="Footer">
           <a routerLink="/events">All events</a>
           <a routerLink="/recover">Find my ticket</a>
+          <a routerLink="/privacy">Privacy</a>
+          <a routerLink="/terms">Terms</a>
+          <a routerLink="/refund-policy">Refunds</a>
           <a [href]="neelastackUrl" target="_blank" rel="noopener noreferrer">Neelastack ↗</a>
         </nav>
       </div>
