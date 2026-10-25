@@ -14,6 +14,11 @@ test.describe('public surface and security headers', () => {
     // deliberately catches an NGINX auto-redirect instead of masking it.
     const catalogApi = await request.get('/api/v1/public/events?page=0&size=12', { maxRedirects: 0 });
     expect(catalogApi.status()).toBe(200);
+    const catalogHeaders = catalogApi.headers();
+    expect(catalogHeaders['content-security-policy']).toBeTruthy();
+    expect(catalogHeaders['x-content-type-options']).toBe('nosniff');
+    expect(catalogHeaders['x-frame-options']).toBe('DENY');
+    expect(catalogHeaders['strict-transport-security']).toBe('max-age=31536000; includeSubDomains');
     const catalogBody = await catalogApi.json();
     expect(catalogBody.page).toBe(0);
     expect(catalogBody.size).toBe(12);

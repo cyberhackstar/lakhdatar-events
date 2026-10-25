@@ -20,6 +20,9 @@ chmod 0777 "$REPORT_ABS"
 
 # zap-baseline.py resolves report paths relative to /zap/wrk. Supplying an absolute path
 # caused it to look for /zap/wrk/zap/wrk/zap-baseline.html and exit before report upload.
+# The pinned ZAP image's Automation Framework reported HSTS as WARN
+# with zero instances. Use legacy baseline mode to avoid that
+# zero-instance warning; keep the HSTS rule blocking qualification.
 docker run --rm --network host \
   -v "$REPORT_ABS:/zap/wrk:rw" \
   -v "$SCRIPT_DIR/zap-baseline.conf:/zap/wrk/zap-baseline.conf:ro" \
@@ -28,4 +31,5 @@ docker run --rm --network host \
   -c zap-baseline.conf \
   -r zap-baseline.html \
   -J zap-baseline.json \
-  -T 15
+  -T 15 \
+  --autooff

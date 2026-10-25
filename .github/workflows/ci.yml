@@ -3,7 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+    # Free-tier minutes: documentation-only changes do not need a full build, scan and image publish.
+    paths-ignore: ['**/*.md', 'docs/**', '**/*.txt']
   pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', '**/*.txt']
   schedule:
     - cron: "23 2 * * 1"
 
@@ -95,7 +98,8 @@ jobs:
           format: table
 
   codeql:
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    # CodeQL (Java + JS) is two extra jobs. On the free tier run it on pushes to main only, not on every PR.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
