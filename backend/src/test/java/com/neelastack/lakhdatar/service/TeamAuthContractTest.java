@@ -161,7 +161,7 @@ class TeamAuthContractTest {
         String svc = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/service/AdminService.java"));
         assertTrue(svc.contains("Only an administrator can provision staff users"));
         assertTrue(svc.contains("Only an administrator can provision event managers"));
-        String ctl = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/controller/AdminController.java"));
+        String ctl = Files.readString(Path.of("src/main/java/com/neelastack/lakhdatar/controller/AdminController.java")).replace("\r\n", "\n");
         assertTrue(ctl.contains("@Deprecated\n    @PostMapping(\"/staff\")"));
         assertTrue(ctl.contains("@Deprecated\n    @PostMapping(\"/managers\")"));
     }
