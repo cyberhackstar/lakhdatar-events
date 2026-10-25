@@ -17,7 +17,7 @@ GOOD_RUN = {
     "status": "completed",
     "conclusion": "success",
     "head_branch": "main",
-    "path": ".github/workflows/enterprise-release-qualification.yml@refs/heads/main",
+    "path": ".github/workflows/enterprise-release-qualification.yml",
     "head_sha": "a" * 40,
     "created_at": (NOW - timedelta(hours=2)).isoformat(),
 }
@@ -29,7 +29,7 @@ class VerifyReleaseQualificationRunTests(unittest.TestCase):
             self.assertEqual(module.verify_run("owner/repo", "test-token", "123456", now=NOW), "a" * 40)
 
     def test_rejects_non_main_or_untrusted_workflow_path(self):
-        for field, value in [("head_branch", "feature"), ("path", ".github/workflows/evil.yml@refs/heads/main")]:
+        for field, value in [("head_branch", "feature"), ("path", ".github/workflows/evil.yml")]:
             with self.subTest(field=field):
                 candidate = {**GOOD_RUN, field: value}
                 with patch.object(module, "_api_json", return_value=candidate):

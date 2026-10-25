@@ -13,7 +13,7 @@ from typing import Any
 
 API = "https://api.github.com"
 EXPECTED_NAME = "Enterprise Release Qualification"
-EXPECTED_PATH = ".github/workflows/enterprise-release-qualification.yml@refs/heads/main"
+EXPECTED_PATH = ".github/workflows/enterprise-release-qualification.yml"
 MAX_QUALIFICATION_AGE_DAYS = 30
 
 
