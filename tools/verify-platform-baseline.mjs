@@ -393,6 +393,7 @@ if (
 )
   problems.push("CI SSR test host allowlist baseline missing");
 const edgeNginx = read("edge/nginx.conf");
+const edgeSecurityHeaders = read("edge/security-headers.conf");
 if (!edgeNginx.includes("absolute_redirect off;"))
   problems.push(
     "edge NGINX must keep canonical redirects relative so the internal :8080 port is never exposed",
@@ -827,11 +828,11 @@ if (
   lockText.includes("http-errors-2.0.2.tgz")
 )
   problems.push("stale invalid frontend lockfile tarball versions remain");
-if (!edgeNginx.includes("https://static.cloudflareinsights.com"))
+if (!edgeSecurityHeaders.includes("https://static.cloudflareinsights.com"))
   problems.push("Cloudflare Web Analytics CSP script source missing");
 if (
-  !edgeNginx.includes("https://api.cashfree.com;") &&
-  !edgeNginx.includes("https://api.cashfree.com https://sdk.cashfree.com")
+  !edgeSecurityHeaders.includes("https://api.cashfree.com;") &&
+  !edgeSecurityHeaders.includes("https://api.cashfree.com https://sdk.cashfree.com")
 )
   problems.push("Cashfree API frame/form action host missing from edge CSP");
 const cashfreeFormActionMap =
@@ -840,7 +841,7 @@ const cashfreeFormActionMap =
   )?.[1] ?? "";
 
 if (
-  !edgeNginx.includes("form-action 'self' $cashfree_form_action_sources;") ||
+  !edgeSecurityHeaders.includes("form-action 'self' $cashfree_form_action_sources;") ||
   !cashfreeFormActionMap.includes(
     'default "https://api.cashfree.com https://payments.cashfree.com";',
   ) ||
