@@ -31,6 +31,22 @@ public class PublicEventController {
  @GetMapping("/events/{slug}") public ResponseEntity<PublicEventService.EventView> event(@PathVariable @Size(max=100) String slug){return ResponseEntity.ok().cacheControl(CacheControl.maxAge(java.time.Duration.ofSeconds(10)).cachePublic()).body(events.getBySlug(slug));}
  public record RecoverBody(@NotBlank @Size(max=255) String orderNumber,@NotBlank @Email @Size(max=255) String email){}
  @PostMapping("/orders/recover") public ResponseEntity<RecoveryResponse> recover(@Valid @RequestBody RecoverBody b,HttpServletRequest req){String key=clientAddress.resolve(req);String reference=b.orderNumber().trim();String emailKey=sha256RateKey(b.email().trim().toLowerCase(java.util.Locale.ROOT));if(!limits.allow("recover:"+key,10,java.time.Duration.ofMinutes(5)) || !limits.allow("recover-reference:"+sha256RateKey(reference),10,java.time.Duration.ofMinutes(5)) || !limits.allow("recover-email:"+emailKey,10,java.time.Duration.ofMinutes(5)))return ResponseEntity.status(429).build();return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(recoverOrder(b));}
+ @PostMapping("/orders/recover-checkout") public ResponseEntity<OrderService.CheckoutResponse> recoverCheckout(@Valid @RequestBody RecoverBody b,HttpServletRequest req){
+  String key=clientAddress.resolve(req);
+  String reference=b.orderNumber().trim();
+  String emailKey=sha256RateKey(b.email().trim().toLowerCase(java.util.Locale.ROOT));
+  java.time.Duration window=java.time.Duration.ofMinutes(5);
+  if(!limits.allow("recover:"+key,10,window)
+      || !limits.allow("recover-reference:"+sha256RateKey(reference),10,window)
+      || !limits.allow("recover-email:"+emailKey,10,window)
+      || !limits.allow("recover-checkout:"+key,3,window)
+      || !limits.allow("recover-checkout-reference:"+sha256RateKey(reference),3,window)
+      || !limits.allow("recover-checkout-email:"+emailKey,3,window)) return ResponseEntity.status(429).build();
+  OrderService.CheckoutResponse checkout=orders.recoverCheckout(reference,b.email());
+  ResponseCookie cookie=ResponseCookie.from("ld_checkout",checkout.checkoutSessionToken()).httpOnly(true).secure(props.security().refreshCookieSecure()).sameSite("Lax").path("/").maxAge(checkout.checkoutSessionTtlSeconds()).build();
+  return ResponseEntity.ok().cacheControl(CacheControl.noStore()).header(HttpHeaders.SET_COOKIE,cookie.toString()).body(checkout);
+ }
+
  private RecoveryResponse recoverOrder(RecoverBody b){var o=orders.findForRecovery(b.orderNumber(),b.email());return new RecoveryResponse(o.orderNumber(),o.status().name(),o.eventName(),o.tickets().stream().map(x->new RecoveryTicket(x.ticketId(),x.ticketNumber(),x.accessToken())).toList());}
  public record RecoveryTicket(UUID ticketId,String ticketNumber,String accessToken){} public record RecoveryResponse(String orderNumber,String status,String eventName,List<RecoveryTicket> tickets){}
  private String sha256RateKey(String value){try{return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(value.trim().toUpperCase().getBytes(java.nio.charset.StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}
