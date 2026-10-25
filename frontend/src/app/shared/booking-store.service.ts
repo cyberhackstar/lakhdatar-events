@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { EventView, VerifyResponse } from '../core/api/api.models';
+import { CheckoutResponse, EventView, VerifyResponse } from '../core/api/api.models';
 
 interface CheckoutSession { fingerprint: string; key: string; createdAt: number; }
 interface RecoveryHint { orderNumber: string; createdAt: number; }
@@ -12,6 +12,8 @@ export class BookingStoreService {
   private readonly recoveryHintKey = 'lk_recovery_hint';
   private readonly recoveryHintTtlMs = 7 * 24 * 60 * 60 * 1000;
   private paymentResult?: VerifyResponse;
+  // Transient only: payment session response is never persisted to browser storage.
+  private pendingCheckoutResponse?: CheckoutResponse;
   private readonly checkoutTtlMs = 25 * 60 * 1000;
 
   setEvent(event: EventView): void { try { sessionStorage.setItem(this.eventKey, JSON.stringify(event)); } catch { /* session storage is optional */ } }
@@ -56,6 +58,16 @@ export class BookingStoreService {
       return value.key;
     } catch { return null; }
   }
+
+  setPendingCheckoutResponse(response: CheckoutResponse): void { this.pendingCheckoutResponse = response; }
+
+  takePendingCheckoutResponse(): CheckoutResponse | null {
+    const response = this.pendingCheckoutResponse;
+    this.pendingCheckoutResponse = undefined;
+    return response ?? null;
+  }
+
+  clearPendingCheckoutResponse(): void { this.pendingCheckoutResponse = undefined; }
 
   setPaymentResult(result: VerifyResponse): void {
     this.paymentResult = result;
