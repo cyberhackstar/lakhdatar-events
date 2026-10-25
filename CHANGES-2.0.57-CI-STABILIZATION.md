@@ -1,0 +1,11 @@
+# v2.0.57 — CI / qualification stabilization (no version bump)
+
+Findings from the Oct 24-25 workflow history (DAST, E2E, Staging Deploy):
+
+1. **DAST failure root cause (real):** the Spring backend emits `X-Content-Type-Options` and `X-Frame-Options`, and the edge added them again, so API responses carried duplicate security headers. The two cached catalogue locations also replaced (not inherited) the server-level headers because they set their own `add_header`. Fixed on the Copilot branch by one shared `edge/security-headers.conf`, included at server level and in both cache locations, plus `proxy_hide_header` for the upstream copies. The ZAP baseline now runs in legacy mode with `OUTOFSCOPE` limited to Cloudflare-owned `/cdn-cgi/` paths for four header rules.
+2. **E2E failure after the DAST attempt (self-inflicted):** the first DAST "fix" added CSP/nosniff/frame headers inside the Angular SSR server, producing duplicate headers (and a second, conflicting CSP). Reverted on `main` in 44ff346; the right layer for these headers is the edge.
+3. **Newest Staging Deploy runs and all PR CI runs failed in 2-5 s for a non-code reason:** GitHub reported "recent account payments have failed or your spending limit needs to be increased". Nothing after ~18:57 UTC on Oct 24 has actually executed. Staging therefore still runs the SSR-header build, not the reverted one.
+4. **New regression found on Copilot's branch:** `infra/smoke/test-hsts-ownership.sh` (a CI `security` job step) still expected three inline `add_header Strict-Transport-Security` lines and failed once the headers moved into the snippet. Updated to assert: snippet defines HSTS exactly once, no inline HSTS in either nginx file, snippet included 3x (server + both cache locations), and upstream HSTS / nosniff / frame-options are hidden.
+5. **Production compose:** tracing, OTLP and Loki now default off, matching CHANGES-2.0.57, the staging compose and the docs (previously defaulted to non-existent `tempo`/`loki`).
+
+Not verified here: backend Maven build and tests, Docker image builds, `nginx -t` (no nginx or Docker daemon in the review sandbox), and the real failure logs (the log/artifact storage host is blocked from the sandbox).

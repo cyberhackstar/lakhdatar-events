@@ -84,11 +84,22 @@ if MOCK_PUBLIC_HSTS_COUNT=2 BASE_URL=https://events.neelastack.com PUBLIC_HOST=e
 fi
 # Public staging workflow must explicitly gate on a single HSTS response.
 grep -q 'hsts_count.*== "1"' "$ROOT/.github/workflows/staging.yml"
-# The edge is the HSTS owner and must hide application/SSR copies. Two cache locations
-# have their own add_header directives, so they each need an explicit HSTS line.
+# The edge is the single owner of the response security headers (HSTS included) and must hide
+# the application/SSR copies. Two cache locations have their own add_header directive
+# (X-Cache-Status), which replaces parent-level inheritance, so the shared snippet must be
+# included at server level AND in both cache locations. The HSTS directive itself lives once
+# in the snippet and must never be repeated inline.
+SNIPPET="$ROOT/edge/security-headers.conf"
+[[ -f "$SNIPPET" ]] || { echo 'edge/security-headers.conf is missing' >&2; exit 1; }
+snippet_hsts_count="$(grep -Eic '^[[:space:]]*add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;' "$SNIPPET" || true)"
+[[ "$snippet_hsts_count" == "1" ]] || { echo "edge/security-headers.conf must define HSTS exactly once; found $snippet_hsts_count" >&2; exit 1; }
 for conf in edge/nginx.conf infra/ha/nginx-ha.conf.example; do
-  hsts_directive_count="$(grep -Eic '^[[:space:]]*add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;' "$ROOT/$conf" || true)"
-  [[ "$hsts_directive_count" == "3" ]] || { echo "$conf must set HSTS at server level and both cache locations; found $hsts_directive_count directives" >&2; exit 1; }
-  grep -Eiq '^[[:space:]]*proxy_hide_header Strict-Transport-Security;' "$ROOT/$conf" || { echo "$conf must hide upstream HSTS headers" >&2; exit 1; }
+  inline_hsts="$(grep -Eic '^[[:space:]]*add_header Strict-Transport-Security' "$ROOT/$conf" || true)"
+  [[ "$inline_hsts" == "0" ]] || { echo "$conf must not set HSTS inline; use the shared snippet ($inline_hsts inline directives)" >&2; exit 1; }
+  include_count="$(grep -Eic '^[[:space:]]*include /etc/nginx/snippets/security-headers\.conf;' "$ROOT/$conf" || true)"
+  [[ "$include_count" == "3" ]] || { echo "$conf must include the security-header snippet at server level and in both cache locations; found $include_count includes" >&2; exit 1; }
+  for header in Strict-Transport-Security X-Content-Type-Options X-Frame-Options; do
+    grep -Eiq "^[[:space:]]*proxy_hide_header $header;" "$ROOT/$conf" || { echo "$conf must hide upstream $header headers" >&2; exit 1; }
+  done
 done
 echo 'Single-owner HSTS smoke regression tests passed.'
