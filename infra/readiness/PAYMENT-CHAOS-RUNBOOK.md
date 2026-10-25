@@ -6,7 +6,7 @@ Use a disposable test event. Note the order number of every test order so you ca
 
 | # | Scenario | How |
 |---|----------|-----|
-| c1 | Browser closes after checkout creation | Start checkout, copy the order reference, close the tab before paying, reopen via `/recover` with order reference + email, then pay. Expect one order, one provider order. |
+| c1 | Browser closes after checkout creation | Start a Cashfree sandbox checkout and copy its `LK-...` order number. Close the tab before paying. Open `/recover`, enter the order number and the same checkout email, confirm the pending order, then choose **Continue payment for this order**. Complete the sandbox payment. Verify the same order/provider order is reused and exactly one ticket set is issued. Do not create a second checkout. |
 | c2 | Duplicate verify | Pay in sandbox, then replay the verify/return request twice (browser reload of the success page, or resend the request). Expect one confirmation, one set of tickets. |
 | c3 | Webhook before browser verify | Pay in the sandbox and close the browser immediately; wait for the webhook to confirm the order. Open the ticket link afterwards. |
 | c4 | Duplicate / out-of-order webhooks | In the Cashfree sandbox dashboard resend the same webhook several times. Expect no duplicate tickets, ledger rows or emails. |
@@ -15,5 +15,8 @@ Use a disposable test event. Note the order number of every test order so you ca
 | c7 | Cancel event during refund recovery | With several paid test orders, cancel the event while a refund is blocked; restore the provider; every order must end refunded or in manual review with a record. |
 | c8 | Database restart mid-payment | Pay, and as soon as the provider shows success run `docker restart lakhdatar-staging-postgres`. Expect the order to reach a consistent final state after recovery. |
 | c9 | Redis restart under load | Run checkout traffic, `docker restart lakhdatar-staging-redis`; checkout and scheduled jobs must continue afterwards. |
+
+
+**C1 safety gate:** the recovery endpoint must match the canonical `LK-...` order number and original checkout email, accept only an unpaid `CREATED`/`AWAITING_PAYMENT` order with a live reservation and eligible payment status, reuse the existing provider order, and rotate the secure `ld_checkout` HttpOnly cookie. Expired/cancelled/confirmed orders must not resume payment. If the reservation has expired or any invariant fails, record C1 as failed; do not create a replacement order to force a pass.
 
 After the scenarios, wait 15-20 minutes for recovery jobs, then run `infra/readiness/payment-chaos.sh`. It checks the staging database for lost or created money and records your answers. Keep screenshots/notes of each scenario with the evidence.
