@@ -82,7 +82,7 @@ export class RecoverComponent implements OnInit {
 
   statusMessage(status: string): string {
     const value = status.toUpperCase();
-    if (value === 'PENDING' || value === 'AWAITING_PAYMENT') return 'The payment gateway has not reported a confirmed payment yet.';
+    if (value === 'PENDING' || value === 'AWAITING_PAYMENT' || value === 'CREATED') return 'The payment gateway has not reported a confirmed payment yet.';
     if (value === 'REFUND_PENDING' || value === 'REFUNDED') return 'The payment was not eligible for ticket issuance and the refund flow is being handled safely.';
     return 'This order does not currently have an active ticket.';
   }
