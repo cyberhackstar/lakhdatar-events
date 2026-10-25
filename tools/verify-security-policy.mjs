@@ -46,8 +46,10 @@ assert.equal((securityHeaders.match(/add_header\s+Strict-Transport-Security/ig) 
 assert.doesNotMatch(nginx + haNginx, /add_header\s+Strict-Transport-Security/i, 'NGINX files must not duplicate inline HSTS directives outside the shared snippet');
 assert.match(nginx, /proxy_hide_header\s+Strict-Transport-Security/i, 'upstream HSTS must be hidden to avoid duplicates');
 assert.match(nginx, /proxy_hide_header\s+X-Content-Type-Options/i, 'upstream content-type options header must be hidden to avoid duplicates');
+assert.match(nginx, /proxy_hide_header\s+X-Frame-Options/i, 'upstream frame-options header must be hidden to avoid duplicates');
 assert.match(haNginx, /proxy_hide_header\s+Strict-Transport-Security/i, 'HA edge must hide upstream HSTS too');
 assert.match(haNginx, /proxy_hide_header\s+X-Content-Type-Options/i, 'HA edge must hide upstream content-type options header too');
+assert.match(haNginx, /proxy_hide_header\s+X-Frame-Options/i, 'HA edge must hide upstream frame-options header too');
 for (const [label, source] of [['edge', nginx], ['HA edge', haNginx]]) {
   assert.match(source, securitySnippetInclude, `${label} must include shared response security headers`);
   assert.match(source, /proxy_set_header X-CSP-Nonce \$request_id;/, `${label} must override the inbound CSP nonce with its per-request request id`);
