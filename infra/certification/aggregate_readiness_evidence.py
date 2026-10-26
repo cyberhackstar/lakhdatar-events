@@ -208,6 +208,7 @@ def validate_control(
     record: dict[str, Any] | None,
     release_sha: str,
     now: datetime,
+    audit_only: bool = False,
 ) -> tuple[dict[str, Any], list[str]]:
     cid = control_spec["id"]
     problems: list[str] = []
@@ -252,9 +253,12 @@ def validate_control(
         problems.append(f"{cid}: invalid evidence time: {exc}")
 
     if control_spec.get("requiresReleaseSha", False):
-        if record.get("releaseSha") != release_sha:
+        if audit_only:
+            if not isinstance(record.get("releaseSha"), str) or not re.fullmatch(r"[0-9a-f]{40}", record["releaseSha"]):
+                problems.append(f"{cid}: audit requires a valid release SHA in the result")
+        elif record.get("releaseSha") != release_sha:
             problems.append(f"{cid}: result release SHA does not match the qualified release")
-    elif record.get("releaseSha") is not None and record.get("releaseSha") != release_sha:
+    elif not audit_only and record.get("releaseSha") is not None and record.get("releaseSha") != release_sha:
         # When supplied, a different app SHA must not silently be treated as current.
         problems.append(f"{cid}: result is bound to a different release SHA")
     if cid == "PEN_TEST":
@@ -325,7 +329,8 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--release-sha", required=True, help="Exact 40-character SHA in the passing qualification artifact")
+    parser.add_argument("--release-sha", help="Exact 40-character SHA in the passing qualification artifact")
+    parser.add_argument("--audit-only", action="store_true", help="Read-only scheduled audit: validates freshness/checksums but never writes a certification manifest")
     parser.add_argument("--policy", type=Path, default=Path("infra/certification/single-node-readiness-policy.json"))
     parser.add_argument("--output-dir", type=Path, default=Path("certification-evidence"))
     parser.add_argument("--local-results-dir", type=Path, help="Offline/test mode: read objects and sidecars from a local directory")
@@ -343,7 +348,11 @@ def main() -> int:
         return 2
 
     blockers: list[str] = []
-    if not re.fullmatch(r"[0-9a-f]{40}", args.release_sha):
+    release_sha = args.release_sha or ""
+    if args.audit_only:
+        if release_sha and not re.fullmatch(r"[0-9a-f]{40}", release_sha):
+            blockers.append("--release-sha must be an exact lowercase 40-character Git SHA")
+    elif not re.fullmatch(r"[0-9a-f]{40}", release_sha):
         blockers.append("--release-sha must be an exact lowercase 40-character Git SHA")
     try:
         policy = json.loads(args.policy.read_text(encoding="utf-8"))
@@ -389,7 +398,7 @@ def main() -> int:
     by_id: dict[str, dict[str, Any]] = {}
     for spec in controls:
         cid = spec["id"]
-        row, issues = validate_control(source, policy, spec, latest.get(cid), args.release_sha, now)
+        row, issues = validate_control(source, policy, spec, latest.get(cid), release_sha, now, args.audit_only)
         checks.append(row)
         by_id[cid] = row
         blockers.extend(issues)
@@ -431,8 +440,9 @@ def main() -> int:
     report = {
         "schemaVersion": 1,
         "kind": "single-node-readiness-aggregation-report",
-        "status": "BLOCKED" if blockers else "PASS",
-        "releaseSha": args.release_sha,
+        "status": "BLOCKED" if blockers else ("AUDIT_PASS" if args.audit_only else "PASS"),
+        "releaseSha": release_sha or None,
+        "auditOnly": args.audit_only,
         "checkedAtUtc": now.isoformat(),
         "topology": policy.get("topology"),
         "nodeCount": policy.get("nodeCount"),
@@ -451,6 +461,11 @@ def main() -> int:
             print(f"- {item}")
         print(f"Diagnostic report written to {report_path}")
         return 2
+
+    if args.audit_only:
+        print("Read-only readiness evidence audit passed. No certification manifest was created.")
+        print(f"Diagnostic report written to {report_path}")
+        return 0
 
     if not isinstance(rpo, int) or not isinstance(rto, int):
         print("READINESS BLOCKED: RPO/RTO measurements unavailable.", file=sys.stderr)
