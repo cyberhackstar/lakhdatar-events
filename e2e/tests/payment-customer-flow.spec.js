@@ -112,7 +112,7 @@ test.describe('automated staging customer payment qualification', () => {
       fixtureCleanupStatus: 'PENDING',
       notes: [
         'The reported result describes the protected staging endpoint exercised by this run.',
-        'declaredStagingReleaseSha is supplied at dispatch for traceability and is not an attested runtime build marker.',
+        'declaredStagingReleaseSha, if supplied, is for traceability only and is not an attested runtime build marker.',
         'Payment/session data, ticket access credentials, customer email, order number and transaction ID are intentionally omitted.',
       ],
     };
@@ -178,8 +178,6 @@ test.describe('automated staging customer payment qualification', () => {
         'Preflight blocked: the disposable-fixture mutation gate is not enabled.');
       guard(process.env.E2E_PAYMENT_PROVIDER === 'CASHFREE',
         'Preflight blocked: the generated fixture provider is not Cashfree.');
-      guard(/^[0-9a-f]{40}$/.test(declaredReleaseSha),
-        'Preflight blocked: supply the 40-character staging release SHA for traceability.');
       guard(Boolean(process.env.E2E_ADMIN_BEARER) && Boolean(process.env.E2E_EVENT_ID)
         && Boolean(process.env.E2E_EVENT_SLUG) && Boolean(process.env.E2E_TICKET_TYPE_ID),
       'Preflight blocked: automatic disposable fixture provisioning did not provide its required references.');
