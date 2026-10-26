@@ -36,7 +36,8 @@ function init() { writeReport(blankReport()); }
 function summary() {
   let report;
   try { report = JSON.parse(fs.readFileSync(RESULT_PATH, 'utf8')); } catch { report = blankReport(); }
-  const lines = ['## Staging Cashfree payment-flow qualification', '', '**Overall result: ' + (report.status || 'BLOCKED') + '**', '', '| # | Check | Result | Evidence / failure detail |', '|---:|---|---|---|'];
+  const overall = report.status === 'INCOMPLETE' ? 'BLOCKED / INCOMPLETE' : (report.status || 'BLOCKED');
+  const lines = ['## Staging Cashfree payment-flow qualification', '', '**Overall result: ' + overall + '**', '', '| # | Check | Result | Evidence / failure detail |', '|---:|---|---|---|'];
   for (const [i, item] of (report.checks || []).entries()) {
     const detail = String(item.detail || '').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').slice(0, 240);
     const label = item.title || item.name || item.id || 'Unnamed check';
