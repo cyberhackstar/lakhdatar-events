@@ -117,6 +117,8 @@ export interface VerifyResponse {
   orderNumber: string;
   status: string;
   tickets: Array<{ ticketId: string; ticketNumber: string; accessToken: string }>;
+  /** Provider transaction/payment ID when a provider has reported a captured payment. */
+  transactionId?: string | null;
 }
 
 export interface TicketView {
@@ -146,6 +148,8 @@ export interface RecoveryResponse {
   status: string;
   eventName: string;
   tickets: Array<{ ticketId: string; ticketNumber: string; accessToken: string }>;
+  /** Provider transaction/payment ID when a provider has reported a captured payment. */
+  transactionId?: string | null;
 }
 
 export interface AuthResponse {
