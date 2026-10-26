@@ -6,6 +6,7 @@ node --input-type=module <<'NODE'
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const read = (p) => fs.readFileSync(p, 'utf8');
+const catalog = read('infra/loadtest/catalog.js');
 const pdf = read('infra/loadtest/ticket-pdf.js');
 const operations = read('infra/loadtest/operations.js');
 const suite = read('infra/loadtest/run-suite.sh');
@@ -16,6 +17,16 @@ const releaseWorkflow = read('.github/workflows/enterprise-release-qualification
 const edge = read('edge/nginx.conf');
 const checkin = read('infra/loadtest/checkin.js');
 const thresholdManifest = JSON.parse(read('infra/loadtest/k6-thresholds.json'));
+
+// Catalog iterations issue three public requests by default. Keep peak arrival at 17 iterations/s
+// (~51 requests/s), matching the documented 50 RPS profile; don't accidentally run 150 RPS.
+assert.match(catalog, /executor:\s*'ramping-arrival-rate'/);
+assert.match(catalog, /target:\s*17,\s*duration:\s*'2m'/);
+assert.match(catalog, /http_req_duration:\s*\['p\(95\)<500',\s*'p\(99\)<1000'\]/);
+assert.match(catalog, /get\('\/api\/v1\/public\/events\/upcoming'/);
+assert.match(catalog, /get\('\/api\/v1\/public\/events\/featured'/);
+assert.match(catalog, /get\('\/api\/v1\/public\/events\/facets'/);
+assert.match(catalog, /One iteration emits three public requests/);
 
 // PDFs must stay below the intentional 20 r/s shared API limit without changing the service SLO.
 assert.match(edge, /limit_req_zone\s+\$client_rate_key\s+zone=public_api:10m\s+rate=20r\/s;/);
@@ -57,5 +68,5 @@ assert.match(checkin, /checkin_contract:\s*\['rate>0\.98'\]/,
   'check-in business-contract guard must remain enforced');
 assert.match(checkin, /checkin_server_errors:\s*\['rate<0\.01'\]/,
   'check-in server-error guard must remain enforced');
-console.log('PASS: PDF and operations rates are isolated from generic RATE; security rate caps and strict 200/PDF contract remain enforced.');
+console.log('PASS: catalog request-rate budget, PDF/operations rate isolation, security rate caps and strict 200/PDF contract remain enforced.');
 NODE
