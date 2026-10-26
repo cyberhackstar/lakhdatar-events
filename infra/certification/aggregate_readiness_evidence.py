@@ -224,7 +224,10 @@ def validate_control(
     if record.get("status") != "PASS":
         problems.append(f"{cid}: latest recorded result is FAIL (older PASS results are ignored)")
     checks = record.get("checks")
-    if not isinstance(checks, dict) or checks.get("failCount") != 0:
+    if (not isinstance(checks, dict)
+            or isinstance(checks.get("failCount"), bool)
+            or not isinstance(checks.get("failCount"), int)
+            or checks.get("failCount") != 0):
         problems.append(f"{cid}: result does not assert zero failing checks")
     if not nonempty_person(record.get("reviewer")):
         problems.append(f"{cid}: named operator/reviewer is missing")
@@ -232,7 +235,7 @@ def validate_control(
     try:
         finished = record["_finished"]
         age_days = (now - finished).total_seconds() / 86400
-        max_age = control_spec.get("maxAgeDays", policy["defaultMaxEvidenceAgeDays"])
+        max_age = control_spec.get("maxAgeDays", policy.get("defaultMaxEvidenceAgeDays", 30))
         if age_days < -300:
             raise EvidenceError("timestamp is too far in the future")
         if age_days < 0:
