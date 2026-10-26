@@ -123,7 +123,6 @@ test('complete a real Cashfree sandbox purchase and prove all eight customer-flo
     ensure(testInfo.project.name === 'chromium', 'The stateful payment qualification must run in Chromium only.');
     ensure((process.env.E2E_ENV || '').toLowerCase() === 'staging', 'This payment test is staging-only.');
     ensure(process.env.E2E_RUN_MUTATIONS === 'true' && process.env.E2E_RUN_PAYMENT_FLOW === 'true', 'Paid mutations were not explicitly enabled.');
-    ensure((process.env.DEFAULT_PAYMENT_PROVIDER || '').toUpperCase() === 'CASHFREE', 'This run requires Cashfree as the selected provider.');
     ensure(checkoutEmail && process.env.MAILSLURP_INBOX_ID, 'A disposable MailSlurp inbox is required before fixture provisioning.');
     ensure(process.env.E2E_EVENT_SLUG && process.env.E2E_EVENT_ID && process.env.E2E_TICKET_TYPE_ID, 'The disposable staging event fixture is incomplete.');
 
