@@ -80,6 +80,11 @@ require_literal 'R2 upload refused: immutable evidence object already exists'
 require_literal 'sha256sum -c'
 require_literal 'To upload this immutable bundle to R2 and verify read-back'
 require_literal '$uploadConfirm = Read-Host $uploadPrompt'
+require_literal "^PAYMENT_CHAOS_RESULT_ID="
+require_literal '$resultLine = Get-Content -LiteralPath $variablesFile'
+require_literal 'Candidate payment-chaos result ID:'
+require_literal 'The machine-readable result JSON is missing; refusing upload.'
+require_literal 'Upload-VerifiedEvidenceToR2 -ArtifactPath $resultPath -EvidenceId $resultId'
 
 # No route is allowed to mutate production or publish certification variables.
 reject_literal 'docker compose down'
