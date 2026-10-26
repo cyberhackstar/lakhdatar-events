@@ -384,8 +384,9 @@ test.describe('automated staging customer payment qualification', () => {
         : Array.isArray(adminOrdersBody.rows) ? adminOrdersBody.rows : [];
       const matchingOrders = orderRows.filter((item) => item && item.orderNumber === orderNumber);
       guard(matchingOrders.length === 1 && Number(matchingOrders[0].ticketCount) === 1
-        && ['CONFIRMED', 'COMPLETED'].includes(String(matchingOrders[0].status || '').toUpperCase()),
-      'The server-side order record does not contain exactly one ticket for the confirmed order.');
+        && ['CONFIRMED', 'COMPLETED'].includes(String(matchingOrders[0].status || '').toUpperCase())
+        && ['CAPTURED', 'COMPLETED'].includes(String(matchingOrders[0].paymentStatus || '').toUpperCase()),
+      'The server-side order/payment records do not confirm payment with exactly one issued ticket.');
       report.facts.issuedTicketCount = 1;
       await markPass('exactly_one_ticket', 'Customer result and authenticated admin order records both show exactly one issued ticket.');
 
