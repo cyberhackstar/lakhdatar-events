@@ -1,0 +1,104 @@
+name: Staging Cashfree Payment Flow
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize with existing staging qualification runs so disposable events/orders do not overlap.
+concurrency:
+  group: neelastack-staging-qualification
+  cancel-in-progress: false
+
+jobs:
+  payment-flow:
+    if: github.ref == 'refs/heads/main'
+    name: Real sandbox payment qualification
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Initialize fail-closed result report
+        run: node e2e/payment-qualification/report.cjs init
+
+      - name: Fail closed on non-staging target or incomplete protected configuration
+        env:
+          E2E_BASE_URL: ${{ vars.STAGING_PUBLIC_URL || 'https://staging-events.neelastack.com' }}
+          E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
+          MAILSLURP_API_KEY: ${{ secrets.MAILSLURP_API_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$E2E_BASE_URL" == "https://staging-events.neelastack.com" ]] || {
+            echo "::error::Payment qualification only permits https://staging-events.neelastack.com"; exit 2;
+          }
+          node <<'NODE'
+          const { parseEnvFile, validateProvisioningConfig } = require('./e2e/support/provision');
+          const raw = process.env.E2E_STAGING_PROVISIONING_CONFIG;
+          if (!raw || !process.env.MAILSLURP_API_KEY) {
+            throw new Error('Configure protected staging secrets E2E_STAGING_PROVISIONING_CONFIG and MAILSLURP_API_KEY before running.');
+          }
+          const cfg = parseEnvFile(raw);
+          validateProvisioningConfig(cfg);
+          if (cfg.APP_ENV !== 'staging' || cfg.DEFAULT_PAYMENT_PROVIDER !== 'CASHFREE') {
+            throw new Error('The E2E secret must declare APP_ENV=staging and DEFAULT_PAYMENT_PROVIDER=CASHFREE.');
+          }
+          if (!cfg.E2E_ADMIN_EMAIL || !cfg.E2E_ADMIN_PASSWORD || !cfg.E2E_ADMIN_TOTP_SECRET) {
+            throw new Error('The existing staging E2E admin email, password, and original MFA TOTP seed are required.');
+          }
+          process.stdout.write('Staging target and secret shape verified; no secret values printed.\n');
+          NODE
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Validate disposable-fixture provisioner
+        working-directory: e2e
+        run: npm run selftest
+
+      - name: Install Chromium for the single stateful payment run
+        working-directory: e2e
+        run: npm run playwright -- install --with-deps chromium
+
+      - name: Run real Cashfree sandbox customer payment
+        working-directory: e2e
+        env:
+          CI: "true"
+          E2E_ENV: staging
+          E2E_BASE_URL: ${{ vars.STAGING_PUBLIC_URL || 'https://staging-events.neelastack.com' }}
+          E2E_RUN_MUTATIONS: "true"
+          E2E_RUN_PAYMENT_FLOW: "true"
+          E2E_PAYMENT_FLOW: "true"
+          E2E_PAYMENT_PROVIDER: "CASHFREE"
+          E2E_PAYMENT_RESULT_PATH: ${{ github.workspace }}/e2e/payment-flow-result.json
+          E2E_MAILSLURP_API_KEY: ${{ secrets.MAILSLURP_API_KEY }}
+          E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
+        run: npm test -- tests/payment-customer-flow.spec.js --project=chromium --workers=1 --retries=0
+
+      - name: Publish eight-check PASS/FAIL summary
+        if: always()
+        run: node e2e/payment-qualification/report.cjs summary >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload sanitized qualification result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: staging-cashfree-payment-flow-${{ github.run_id }}-${{ github.run_attempt }}
+          path: e2e/payment-flow-result.json
+          if-no-files-found: error
+          retention-days: 30
