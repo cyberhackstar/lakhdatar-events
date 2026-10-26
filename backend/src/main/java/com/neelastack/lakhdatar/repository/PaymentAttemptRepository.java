@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, Long> {
     Optional<PaymentAttempt> findByProviderPaymentId(String providerPaymentId);
     Optional<PaymentAttempt> findByPaymentIdAndProviderPaymentId(Long paymentId, String providerPaymentId);
+    Optional<PaymentAttempt> findFirstByPaymentIdAndStatusInOrderByLastSeenAtDesc(
+            Long paymentId, java.util.Collection<com.neelastack.lakhdatar.domain.Enums.PaymentStatus> statuses);
 
     /**
      * PostgreSQL-safe idempotent insert. A duplicate provider payment ID is a normal
