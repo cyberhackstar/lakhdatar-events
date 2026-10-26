@@ -523,4 +523,4 @@ async function apiForUser(client, token, currentPassword, newPassword) {
   return result;
 }
 
-module.exports = { provision, ProvisionError, parseEnvFile, adminCredentials, decodeQrDataUri, paymentProvider, assertSafeTarget, validateServerPaymentSafety, makeClient, login };
+module.exports = { provision, ProvisionError, parseEnvFile, validateProvisioningConfig, adminCredentials, decodeQrDataUri, paymentProvider, assertSafeTarget, validateServerPaymentSafety, makeClient, login };
