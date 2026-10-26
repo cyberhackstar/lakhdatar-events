@@ -1,0 +1,82 @@
+name: Readiness Evidence Audit
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readiness-evidence-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # This environment must not require approval: the job can only read evidence and write a local report.
+    # It cannot publish certification variables, create a readiness manifest, or deploy anything.
+    environment: readiness-evidence-audit
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Audit current immutable R2 evidence
+        env:
+          R2_ENDPOINT_URL: ${{ vars.R2_ENDPOINT_URL }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_READONLY_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_READONLY_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REGION: auto
+          AWS_EC2_METADATA_DISABLED: 'true'
+          AWS_PAGER: ''
+        run: |
+          set -euo pipefail
+          python3 infra/certification/aggregate_readiness_evidence.py --audit-only
+
+      - name: Add safe readiness status summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          report = Path("certification-evidence/readiness-aggregate-report.json")
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          if not report.is_file():
+              summary.write_text("## Readiness evidence audit\n\nNo report was produced. Check the job logs for a read-only R2 access or policy error.\n")
+              raise SystemExit(0)
+          data = json.loads(report.read_text(encoding="utf-8"))
+          lines = [
+              "## Readiness evidence audit",
+              "",
+              f"**Result:** {data.get('status', 'UNKNOWN')}",
+              "",
+              "This scheduled audit is read-only and never grants production readiness.",
+              "",
+              "| Control | Latest status | Evidence age (days) |",
+              "|---|---:|---:|",
+          ]
+          for item in data.get("controls", []):
+              age = item.get("ageDays")
+              lines.append(f"| {item.get('controlId', 'UNKNOWN')} | {item.get('status', 'UNKNOWN')} | {age if age is not None else 'n/a'} |")
+          blockers = data.get("blockers", [])
+          if blockers:
+              lines += ["", "### Blockers", ""] + [f"- {value}" for value in blockers]
+          summary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload read-only audit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: readiness-evidence-audit-${{ github.run_id }}
+          path: certification-evidence/readiness-aggregate-report.json
+          if-no-files-found: warn
+          retention-days: 30
