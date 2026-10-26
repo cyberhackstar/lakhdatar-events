@@ -57,7 +57,7 @@ def make_result(root: Path, control: str, *, status: str = "PASS",
             "SINGLE_NODE_RECOVERY", "PEN_TEST", "PAYMENT_CHAOS", "FINANCE_RECONCILIATION", "PRIVACY_REVIEW", "MFA"
         } else None),
         "reviewer": "Operator One",
-        "independentReviewer": independent or ({
+        "independentReviewer": independent if independent is not None else ({
             "SINGLE_NODE_RECOVERY": "Recovery Reviewer",
             "FINANCE_RECONCILIATION": "Finance Reviewer",
             "PRIVACY_REVIEW": "Privacy Reviewer",
@@ -132,7 +132,6 @@ class AggregateReadinessTests(unittest.TestCase):
         self.assertFalse((self.out / "single-node-production-readiness.json").exists())
 
     def test_missing_control_is_blocked(self):
-        (self.root / "mfa-" + Path("not-used")).exists() if False else None
         for path in self.root.glob("mfa-*.result.json*"):
             path.unlink()
         proc = self.run_aggregator()
