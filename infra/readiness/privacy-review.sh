@@ -5,6 +5,7 @@
 #   bash infra/readiness/privacy-review.sh        (LOG_FILES="/path/*.log" also supported)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; source "$SCRIPT_DIR/lib.sh"
 : "${BASE_URL:?BASE_URL is required}"
+: "${RELEASE_SHA:?RELEASE_SHA (the exact app release reviewed on staging) is required}"
 HOST="$(python3 - "$BASE_URL" <<'PYHOST'
 import sys, urllib.parse
 print((urllib.parse.urlsplit(sys.argv[1]).hostname or '').lower())
