@@ -166,6 +166,9 @@ class AggregateReadinessTests(unittest.TestCase):
         self.assertIn("Measured RPO 301s exceeds policy maximum 300s", proc.stdout)
 
     def test_stale_evidence_is_blocked_even_when_uploaded_recently(self):
+        # Remove the fresh setup fixture first; a stale result cannot supersede a newer valid result.
+        for path in self.root.glob("pitr-*.result.json*"):
+            path.unlink()
         make_result(self.root, "PITR", finished=NOW - timedelta(days=8))
         proc = self.run_aggregator()
         self.assertEqual(proc.returncode, 2)
