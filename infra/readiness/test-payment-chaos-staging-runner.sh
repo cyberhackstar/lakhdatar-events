@@ -85,6 +85,11 @@ require_literal '$resultLine = Get-Content -LiteralPath $variablesFile'
 require_literal 'Candidate payment-chaos result ID:'
 require_literal 'The machine-readable result JSON is missing; refusing upload.'
 require_literal 'Upload-VerifiedEvidenceToR2 -ArtifactPath $resultPath -EvidenceId $resultId'
+require_literal 'Latest payment-chaos result is FAIL:'
+require_literal 'To upload the failed evidence bundle and FAIL result JSON to R2 and verify read-back'
+require_literal 'UPLOAD FAILED PAYMENT CHAOS EVIDENCE'
+require_literal 'This published record keeps readiness blocked.'
+require_literal 'preflight/collection failure'
 
 # No route is allowed to mutate production or publish certification variables.
 reject_literal 'docker compose down'
