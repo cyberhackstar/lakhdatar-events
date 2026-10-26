@@ -295,7 +295,7 @@ public class TicketMailService {
             }
             StringBuilder html = new StringBuilder("<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1a151b\">")
                     .append("<h2 style=\"margin:0 0 8px\">").append(esc(e.getName())).append("</h2>")
-                    .append("<p><strong>Order number:</strong> ").append(esc(o.getOrderNumber())).append("</p>");
+                    .append("<p><strong>Neelastack order number:</strong> ").append(esc(o.getOrderNumber())).append("</p>");
             if (transactionId != null) {
                 html.append("<p><strong>Payment transaction ID:</strong> ").append(esc(transactionId)).append("</p>");
             }
