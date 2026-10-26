@@ -70,6 +70,13 @@ jobs:
               Write-Host ("Source: {0}" -f $parseError.Extent.Text)
               Write-Host ("ErrorId: {0}" -f $parseError.ErrorId)
             }
+            $tokenArray = @($tokens)
+            Write-Host ("Token count: {0}" -f $tokenArray.Count)
+            foreach ($token in ($tokenArray | Select-Object -Last 60)) {
+              $preview = ($token.Text -replace "`r", "<CR>" -replace "`n", "<LF>")
+              if ($preview.Length -gt 160) { $preview = $preview.Substring(0, 160) + "..." }
+              Write-Host ("TOKEN {0} {1}:{2}-{3}:{4} {5}" -f $token.Kind, $token.Extent.StartLineNumber, $token.Extent.StartColumnNumber, $token.Extent.EndLineNumber, $token.Extent.EndColumnNumber, $preview)
+            }
             exit 1
           }
           Write-Host "Windows PowerShell 5.1 syntax passed."
