@@ -4,6 +4,11 @@ set -euo pipefail
 SCRIPT="infra/readiness/run-payment-chaos-staging.ps1"
 [[ -s "$SCRIPT" ]] || { echo "missing staging payment-chaos runner: $SCRIPT" >&2; exit 1; }
 
+if LC_ALL=C grep -n '[^ -~]' "$SCRIPT"; then
+  echo "PowerShell runner must remain ASCII-safe for Windows PowerShell 5.1 without a UTF-8 BOM." >&2
+  exit 1
+fi
+
 require_literal() {
   local needle="$1"
   grep -Fq -- "$needle" "$SCRIPT" || {
