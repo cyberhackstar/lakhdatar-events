@@ -27,7 +27,8 @@ class PaymentVerificationReplayAndReferenceContractTest {
         assertTrue(statusOnly > 0 && normalResponse > statusOnly);
         String statusOnlyMethod = order.substring(statusOnly, normalResponse);
         assertTrue(statusOnlyMethod.contains("List.of()"), "unauthenticated replay must not include tickets");
-        assertTrue(statusOnlyMethod.contains("customerTransactionId(order)"));
+        assertTrue(statusOnlyMethod.contains("order.getOrderNumber()"));
+        assertTrue(statusOnlyMethod.contains("null"), "transaction references require session-bound return or email-scoped recovery");
         assertFalse(statusOnlyMethod.contains("accessTokens.issue"), "a provider order ID is not authorization for ticket links");
     }
 
