@@ -75,12 +75,6 @@ jobs:
         working-directory: e2e
         run: npm run playwright -- install --with-deps chromium
 
-      - name: Create disposable email inbox
-        env:
-          MAILSLURP_API_KEY: ${{ secrets.MAILSLURP_API_KEY }}
-        working-directory: e2e
-        run: node payment-qualification/mailbox.cjs create
-
       - name: Run real Cashfree sandbox customer payment
         working-directory: e2e
         env:
@@ -89,16 +83,12 @@ jobs:
           E2E_BASE_URL: ${{ vars.STAGING_PUBLIC_URL || 'https://staging-events.neelastack.com' }}
           E2E_RUN_MUTATIONS: "true"
           E2E_RUN_PAYMENT_FLOW: "true"
+          E2E_PAYMENT_FLOW: "true"
+          E2E_PAYMENT_PROVIDER: "CASHFREE"
+          E2E_PAYMENT_RESULT_PATH: ${{ github.workspace }}/e2e/payment-flow-result.json
+          E2E_MAILSLURP_API_KEY: ${{ secrets.MAILSLURP_API_KEY }}
           E2E_STAGING_PROVISIONING_CONFIG: ${{ secrets.E2E_STAGING_PROVISIONING_CONFIG }}
-          MAILSLURP_API_KEY: ${{ secrets.MAILSLURP_API_KEY }}
-        run: npm test -- tests/payment-flow.spec.js --project=chromium --workers=1 --retries=0
-
-      - name: Delete disposable email inbox and finalize cleanup result
-        if: always()
-        env:
-          MAILSLURP_API_KEY: ${{ secrets.MAILSLURP_API_KEY }}
-        working-directory: e2e
-        run: node payment-qualification/mailbox.cjs delete
+        run: npm test -- tests/payment-customer-flow.spec.js --project=chromium --workers=1 --retries=0
 
       - name: Publish eight-check PASS/FAIL summary
         if: always()
