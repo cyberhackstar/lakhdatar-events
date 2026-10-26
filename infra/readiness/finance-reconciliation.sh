@@ -9,6 +9,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; source "$SCRIPT_DIR/lib.sh"
 build_psql
 : "${PERIOD_FROM:?PERIOD_FROM (YYYY-MM-DD) is required}"; : "${PERIOD_TO:?PERIOD_TO (YYYY-MM-DD) is required}"
+: "${RELEASE_SHA:?RELEASE_SHA (exact app release checked by qualification/staging) is required}"
 : "${PROVIDER:?PROVIDER (CASHFREE or RAZORPAY) is required}"
 [[ "${PROVIDER_SALES_MINOR:-}" =~ ^[0-9]+$ && "${PROVIDER_REFUNDS_MINOR:-}" =~ ^[0-9]+$ ]] || { echo "Set PROVIDER_SALES_MINOR and PROVIDER_REFUNDS_MINOR (integers, paise) from the provider's report for the same period." >&2; exit 2; }
 STALE_HOURS="${STALE_HOURS:-24}"
