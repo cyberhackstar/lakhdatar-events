@@ -19,16 +19,21 @@ import { BrandMarkComponent } from '../../shared/brand-mark.component';
           <div class="check">✓</div>
           <div class="eyebrow">Payment confirmed</div>
           <h1>Your evening is booked.</h1>
-          <p>Order <strong>{{ r.orderNumber }}</strong> is confirmed. Your digital QR ticket{{ r.tickets.length > 1 ? 's' : '' }} {{ r.tickets.length > 1 ? 'are' : 'is' }} ready.</p>
+          <p>Order <strong>{{ r.orderNumber }}</strong> is confirmed. <ng-container *ngIf="r.tickets.length">Your digital QR ticket{{ r.tickets.length > 1 ? 's' : '' }} {{ r.tickets.length > 1 ? 'are' : 'is' }} ready.</ng-container><ng-container *ngIf="!r.tickets.length">Ticket links are not included in this payment return. Recover your tickets using this order number and the same email used at checkout. Do not pay again.</ng-container></p>
 
-          <div class="order-chip"><span>ORDER</span><strong>{{ r.orderNumber }}</strong><button type="button" (click)="copyOrder()">{{ copied ? 'Copied' : 'Copy' }}</button></div>
+          <div class="order-chip"><span>NEELASTACK ORDER NUMBER</span><strong>{{ r.orderNumber }}</strong><button type="button" (click)="copyOrder()">{{ copied ? 'Copied' : 'Copy' }}</button></div>
+          <div class="order-chip" *ngIf="r.transactionId"><span>PAYMENT TRANSACTION ID</span><strong>{{ r.transactionId }}</strong><button type="button" (click)="copyTransaction()">{{ transactionCopied ? 'Copied' : 'Copy' }}</button></div>
 
           <div class="ticket-list">
             <div class="ticket-row" *ngFor="let t of r.tickets"><a [routerLink]="['/ticket',t.ticketId]" [fragment]="'access=' + t.accessToken"><span><small>Ticket</small><strong>{{ t.ticketNumber }}</strong></span></a><span class="row-actions"><button type="button" (click)="shareTicket(t.ticketId,t.ticketNumber,t.accessToken)">Share</button><button type="button" (click)="saveTicketPdf(t.ticketId,t.accessToken)">Save PDF</button></span></div>
           </div>
           <div class="actions" *ngIf="r.tickets.length">
             <a class="primary" [routerLink]="['/ticket',r.tickets[0].ticketId]" [fragment]="'access=' + r.tickets[0].accessToken">Open my ticket</a>
-            <a routerLink="/recover">Recovery options</a>
+            <a routerLink="/recover" [queryParams]="{order:r.orderNumber}">Recovery options</a>
+          </div>
+          <div class="actions" *ngIf="!r.tickets.length">
+            <a class="primary" routerLink="/recover" [queryParams]="{order:r.orderNumber}">Recover my tickets</a>
+            <a routerLink="/">Back to events</a>
           </div>
         </ng-container>
         <ng-template #recoveryState>
@@ -36,7 +41,9 @@ import { BrandMarkComponent } from '../../shared/brand-mark.component';
           <h1>{{ isCancelled(r) ? 'Your payment was not completed.' : 'Your payment needs a moment.' }}</h1>
           <p *ngIf="isCancelled(r)">Order <strong>{{ r.orderNumber }}</strong> was returned from the payment gateway without a confirmed payment. <strong>No ticket has been issued for this attempt.</strong></p>
           <p *ngIf="!isCancelled(r)">Order <strong>{{ r.orderNumber }}</strong> was received, but the server has not confirmed a successful payment yet. <strong>Do not make another payment.</strong></p>
-          <div class="notice">Your Neelastack order number is <strong>{{ r.orderNumber }}</strong>. Cashfree may show a separate transaction ID. Use either reference together with the checkout email on the recovery page.</div>
+          <div class="notice">Use your Neelastack order number or payment transaction ID together with the checkout email on the recovery page. Do not start another payment while this order is being reconciled.</div>
+          <div class="order-chip"><span>NEELASTACK ORDER NUMBER</span><strong>{{ r.orderNumber }}</strong><button type="button" (click)="copyOrder()">{{ copied ? 'Copied' : 'Copy' }}</button></div>
+          <div class="order-chip" *ngIf="r.transactionId"><span>PAYMENT TRANSACTION ID</span><strong>{{ r.transactionId }}</strong><button type="button" (click)="copyTransaction()">{{ transactionCopied ? 'Copied' : 'Copy' }}</button></div>
           <div class="actions"><a class="primary" routerLink="/recover" [queryParams]="{order:r.orderNumber}">Recovery options</a><a routerLink="/">Back to event</a></div>
         </ng-template>
       </main>
@@ -56,6 +63,7 @@ export class PaymentResultComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   result?: VerifyResponse;
   copied = false;
+  transactionCopied = false;
   private pendingRetryTimer?: ReturnType<typeof setTimeout>;
   private returnAttempt = 0;
   // The API permits five verification calls per order per minute. One initial call +
@@ -143,5 +151,11 @@ export class PaymentResultComponent implements OnInit, OnDestroy {
   async copyOrder(): Promise<void> {
     if (!this.result) return;
     try { await navigator.clipboard.writeText(this.result.orderNumber); this.copied = true; setTimeout(() => this.copied = false, 1500); } catch { /* clipboard permission is optional */ }
+  }
+
+  async copyTransaction(): Promise<void> {
+    const id = this.result?.transactionId;
+    if (!id) return;
+    try { await navigator.clipboard.writeText(id); this.transactionCopied = true; setTimeout(() => this.transactionCopied = false, 1500); } catch { /* clipboard permission is optional */ }
   }
 }

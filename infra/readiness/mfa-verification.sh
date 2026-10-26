@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Privileged MFA enforcement + recovery evidence.
 #   ENV_FILE=/path/to/staging.env PSQL_CMD='docker exec -i lakhdatar-staging-postgres psql -U readiness_readonly -d lakhdatar' \
-#   BASE_URL=https://staging-events.neelastack.com OPERATOR='Name' \
+#   BASE_URL=https://staging-events.neelastack.com RELEASE_SHA=<exact-qualified-release-sha> OPERATOR='Name' \
 #   bash infra/readiness/mfa-verification.sh
 # Secrets are never printed: the env file is only tested for presence/shape.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; source "$SCRIPT_DIR/lib.sh"
 build_psql
 : "${BASE_URL:?BASE_URL (public site URL) is required}"; : "${ENV_FILE:?ENV_FILE (staging env file path before deployment; production env file only after schema migration) is required}"
+: "${RELEASE_SHA:?RELEASE_SHA (exact app release reviewed on staging) is required}"
 HOST="$(python3 - "$BASE_URL" <<'PYHOST'
 import sys, urllib.parse
 print((urllib.parse.urlsplit(sys.argv[1]).hostname or '').lower())

@@ -41,6 +41,10 @@ jobs:
         run: bash infra/certification/test-certification-workflow-separation.sh
       - name: Verify exact-SHA production readiness artifact validator
         run: python3 infra/certification/test_verify_production_readiness_artifact.py
+      - name: Verify read-only R2 readiness aggregation and fail-closed evidence selection
+        run: python3 infra/certification/test_aggregate_readiness_evidence.py
+      - name: Verify readiness JSON results and publication safety
+        run: bash infra/readiness/test-readiness-kit.sh
       - name: Verify release qualification run provenance validator
         run: python3 infra/certification/test_verify_release_qualification_run.py
       - name: Verify load-test rates respect edge limits

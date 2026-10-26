@@ -183,7 +183,11 @@ class EnterpriseScaleContractTest {
         assertTrue(recover.contains("Cashfree transaction ID"));
         assertTrue(containsNormalized(recover, "finalize(() => { this.loading = false; })"));
         assertTrue(orderService.contains("findByProviderPaymentId(normalized)"));
-        assertTrue(containsNormalized(orderService, "if(verifiedOrder.getStatus()==Enums.OrderStatus.CONFIRMED) return response(verifiedOrder);"));
+        assertTrue(orderService.contains("if(verifiedOrder.getStatus()==Enums.OrderStatus.CONFIRMED)"));
+        assertTrue(orderService.contains("return confirmedStatusOnlyResponse(verifiedOrder)"),
+                "confirmed replay without the matching checkout session must not receive ticket credentials");
+        assertTrue(orderService.contains("matchesCheckoutSession(verifiedOrder, req.checkoutSessionToken())"),
+                "the original checkout session may still receive ticket references");
     }
 
     @Test

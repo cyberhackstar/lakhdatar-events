@@ -93,36 +93,32 @@ jobs:
           print('Verified matching release qualification. Single-node operational readiness remains a separate gate.')
           PY
 
-      - name: Verify protected single-node operational evidence
+      - name: Aggregate current protected R2 evidence
         env:
           CERTIFIED_SHA: ${{ inputs.release_sha }}
-          PRODUCTION_TOPOLOGY: ${{ vars.PRODUCTION_TOPOLOGY }}
-          HA_NODE_COUNT: ${{ vars.HA_NODE_COUNT }}
-          RPO_SECONDS: ${{ vars.RPO_SECONDS }}
-          RTO_SECONDS: ${{ vars.RTO_SECONDS }}
-          MAX_RPO_SECONDS: ${{ vars.MAX_RPO_SECONDS || '300' }}
-          MAX_RTO_SECONDS: ${{ vars.MAX_RTO_SECONDS || '1800' }}
-          SINGLE_NODE_RECOVERY_EVIDENCE_ID: ${{ vars.SINGLE_NODE_RECOVERY_EVIDENCE_ID }}
-          OFFSITE_BACKUP_EVIDENCE_ID: ${{ vars.OFFSITE_BACKUP_EVIDENCE_ID }}
-          PITR_EVIDENCE_ID: ${{ vars.PITR_EVIDENCE_ID }}
-          PEN_TEST_EVIDENCE_ID: ${{ vars.PEN_TEST_EVIDENCE_ID }}
-          PAYMENT_CHAOS_EVIDENCE_ID: ${{ vars.PAYMENT_CHAOS_EVIDENCE_ID }}
-          ALERTING_EVIDENCE_ID: ${{ vars.ALERTING_EVIDENCE_ID }}
-          FINANCE_RECONCILIATION_EVIDENCE_ID: ${{ vars.FINANCE_RECONCILIATION_EVIDENCE_ID }}
-          PRIVACY_REVIEW_EVIDENCE_ID: ${{ vars.PRIVACY_REVIEW_EVIDENCE_ID }}
-          MFA_EVIDENCE_ID: ${{ vars.MFA_EVIDENCE_ID }}
-          SINGLE_NODE_RECOVERY_STATUS: ${{ vars.SINGLE_NODE_RECOVERY_STATUS }}
-          OFFSITE_BACKUP_STATUS: ${{ vars.OFFSITE_BACKUP_STATUS }}
-          PITR_STATUS: ${{ vars.PITR_STATUS }}
-          PEN_TEST_STATUS: ${{ vars.PEN_TEST_STATUS }}
-          PAYMENT_CHAOS_STATUS: ${{ vars.PAYMENT_CHAOS_STATUS }}
-          ALERTING_STATUS: ${{ vars.ALERTING_STATUS }}
-          FINANCE_RECONCILIATION_STATUS: ${{ vars.FINANCE_RECONCILIATION_STATUS }}
-          PRIVACY_REVIEW_STATUS: ${{ vars.PRIVACY_REVIEW_STATUS }}
-          MFA_STATUS: ${{ vars.MFA_STATUS }}
-        run: bash ./infra/certification/verify-single-node-readiness.sh
+          R2_ENDPOINT_URL: ${{ vars.R2_ENDPOINT_URL }}
+          R2_EVIDENCE_BUCKET: ${{ vars.R2_EVIDENCE_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_EVIDENCE_READONLY_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_EVIDENCE_READONLY_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REGION: auto
+          AWS_EC2_METADATA_DISABLED: 'true'
+          AWS_PAGER: ''
+        run: |
+          set -euo pipefail
+          python3 infra/certification/aggregate_readiness_evidence.py --release-sha "$CERTIFIED_SHA"
+
+      # Diagnostics are review-only and are uploaded even when a blocker is found.
+      - name: Upload readiness aggregation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: single-node-readiness-review-${{ inputs.release_sha }}-${{ github.run_id }}
+          path: certification-evidence/readiness-aggregate-report.json
+          if-no-files-found: warn
 
       - name: Upload single-node readiness manifest
+        if: success()
         uses: actions/upload-artifact@v7
         with:
           name: single-node-production-readiness-${{ inputs.release_sha }}

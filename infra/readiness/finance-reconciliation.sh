@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Finance reconciliation evidence: DB invariants + control totals compared with the payment provider's own totals.
 #
-#   DATABASE_URL=postgresql://readonly_user:pw@host/db PERIOD_FROM=2026-10-01 PERIOD_TO=2026-10-22 \
-#   PROVIDER=CASHFREE PROVIDER_SALES_MINOR=0 PROVIDER_REFUNDS_MINOR=0 OPERATOR='Name' \
+#   DATABASE_URL=<read-only-db-url> PERIOD_FROM=2026-10-01 PERIOD_TO=2026-10-22 \
+#   PROVIDER=CASHFREE PROVIDER_SALES_MINOR=<provider-sales-paise> PROVIDER_REFUNDS_MINOR=<provider-refunds-paise> \
+#   RELEASE_SHA=<exact-qualified-release-sha> OPERATOR='Name' FINANCE_REVIEWER='Independent Reviewer' \
 #   bash infra/readiness/finance-reconciliation.sh
 # PROVIDER_*_MINOR come from the provider dashboard/settlement report for the same period (paise). Use 0 only if the
 # dashboard really shows no activity. Use a READ-ONLY database role.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; source "$SCRIPT_DIR/lib.sh"
 build_psql
 : "${PERIOD_FROM:?PERIOD_FROM (YYYY-MM-DD) is required}"; : "${PERIOD_TO:?PERIOD_TO (YYYY-MM-DD) is required}"
+: "${RELEASE_SHA:?RELEASE_SHA (exact app release checked by qualification/staging) is required}"
 : "${PROVIDER:?PROVIDER (CASHFREE or RAZORPAY) is required}"
 [[ "${PROVIDER_SALES_MINOR:-}" =~ ^[0-9]+$ && "${PROVIDER_REFUNDS_MINOR:-}" =~ ^[0-9]+$ ]] || { echo "Set PROVIDER_SALES_MINOR and PROVIDER_REFUNDS_MINOR (integers, paise) from the provider's report for the same period." >&2; exit 2; }
 STALE_HOURS="${STALE_HOURS:-24}"

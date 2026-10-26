@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "policyId": "single-node-production-readiness",
+  "topology": "single-node",
+  "nodeCount": 1,
+  "maxRpoSeconds": 300,
+  "maxRtoSeconds": 1800,
+  "maxEvidenceAgeDays": {
+    "SINGLE_NODE_RECOVERY": 90,
+    "OFFSITE_BACKUP": 30,
+    "PITR": 7,
+    "PEN_TEST": 90,
+    "PAYMENT_CHAOS": 30,
+    "ALERTING": 30,
+    "FINANCE_RECONCILIATION": 30,
+    "PRIVACY_REVIEW": 90,
+    "MFA": 90
+  },
+  "controls": [
+    {
+      "id": "SINGLE_NODE_RECOVERY",
+      "manifestField": "singleNodeRecoveryDrill",
+      "maxAgeDays": 90,
+      "requiresReleaseSha": true
+    },
+    {
+      "id": "OFFSITE_BACKUP",
+      "manifestField": "offsiteBackup",
+      "maxAgeDays": 30,
+      "requiresReleaseSha": false
+    },
+    {
+      "id": "PITR",
+      "manifestField": "pointInTimeRecovery",
+      "maxAgeDays": 7,
+      "requiresReleaseSha": false
+    },
+    {
+      "id": "PEN_TEST",
+      "manifestField": "penetrationTest",
+      "maxAgeDays": 90,
+      "requiresReleaseSha": true
+    },
+    {
+      "id": "PAYMENT_CHAOS",
+      "manifestField": "paymentRecovery",
+      "maxAgeDays": 30,
+      "requiresReleaseSha": true
+    },
+    {
+      "id": "ALERTING",
+      "manifestField": "alerting",
+      "maxAgeDays": 30,
+      "requiresReleaseSha": false
+    },
+    {
+      "id": "FINANCE_RECONCILIATION",
+      "manifestField": "financeReconciliation",
+      "maxAgeDays": 30,
+      "requiresReleaseSha": true
+    },
+    {
+      "id": "PRIVACY_REVIEW",
+      "manifestField": "privacyReview",
+      "maxAgeDays": 90,
+      "requiresReleaseSha": true
+    },
+    {
+      "id": "MFA",
+      "manifestField": "privilegedMfa",
+      "maxAgeDays": 90,
+      "requiresReleaseSha": true
+    }
+  ],
+  "notes": [
+    "This policy is for one production VM and does not certify high availability.",
+    "RPO and RTO must come from the reviewed SINGLE_NODE_RECOVERY result, not a free-standing GitHub variable.",
+    "Independent penetration testing, finance review, privacy review, and protected environment approval remain human responsibilities.",
+    "Evidence upload timestamps do not make old evidence fresh; finishedAtUtc and the exact release SHA are validated."
+  ],
+  "defaultMaxEvidenceAgeDays": 30
+}

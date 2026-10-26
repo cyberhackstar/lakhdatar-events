@@ -3,6 +3,7 @@ param(
     [string]$StagingUrl = 'https://staging-events.neelastack.com',
     [string]$SshAlias = 'vm',
     [string]$EvidenceRoot = (Join-Path $env:LOCALAPPDATA 'Neelastack\payment-chaos-evidence'),
+    [string]$EvidenceBucket = 'neelastack-readiness-evidence',
     [switch]$PreflightOnly,
     [ValidateRange(0, 60)]
     [int]$RecoveryWaitMinutes = 15
@@ -11,9 +12,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ExpectedStagingUrl = 'https://staging-events.neelastack.com'
-$ApiRoot = 'https://api.github.com/repos/cyberhackstar/lakhdatar-events'
 
 function Stop-Safely([string]$Message) { throw $Message }
+if ($EvidenceBucket -notmatch '^[a-z0-9][a-z0-9-]{2,62}$') { Stop-Safely 'Evidence bucket must be a simple lowercase R2 bucket name.' }
+if ($EvidenceBucket -eq 'neelastack-prod-db-backups') { Stop-Safely 'Refusing to store readiness evidence in the production backup bucket; use the dedicated readiness evidence bucket.' }
+$ApiRoot = 'https://api.github.com/repos/cyberhackstar/lakhdatar-events'
 
 function ConvertTo-UnixLineEndings([string]$Text) {
     return $Text.Replace("`r`n", "`n").Replace("`r", "`n")
@@ -327,7 +330,7 @@ function Upload-VerifiedEvidenceToR2([string]$ArtifactPath, [string]$EvidenceId)
 
     $remote = @'
 set -euo pipefail
-BUCKET='neelastack-prod-db-backups'
+BUCKET='__EVIDENCE_BUCKET__'
 ENDPOINT='https://058bc80c5f25ec698f8aa691f0750603.r2.cloudflarestorage.com'
 KEY='__KEY__'
 DIR='__REMOTE_DIR__'
@@ -345,7 +348,7 @@ cleanup() {
 trap cleanup EXIT
 [[ "$DIR" =~ ^/tmp/neelastack-payment-chaos-[0-9a-f]{32}$ && "$SRC" == "$DIR/"* && "$SUM" == "$SRC.sha256" ]] || { echo 'R2 upload refused: temporary path validation failed' >&2; exit 2; }
 [[ "$KEY" =~ ^production/readiness-evidence/[A-Za-z0-9._/-]+$ && "$KEY" != *..* ]] || { echo 'R2 upload refused: unsafe evidence key' >&2; exit 2; }
-awsx() { aws --profile neelastack-r2 --endpoint-url "$ENDPOINT" "$@"; }
+awsx() { aws --profile neelastack-r2-evidence --endpoint-url "$ENDPOINT" "$@"; }
 awsx s3 ls "s3://$BUCKET/production/readiness-evidence/" >/dev/null || { echo 'R2 list preflight failed; no evidence upload attempted' >&2; exit 2; }
 if awsx s3api head-object --bucket "$BUCKET" --key "$KEY" >/dev/null 2>&1; then echo 'R2 upload refused: immutable evidence object already exists' >&2; exit 3; fi
 if awsx s3api head-object --bucket "$BUCKET" --key "$KEY.sha256" >/dev/null 2>&1; then echo 'R2 upload refused: checksum sidecar already exists' >&2; exit 3; fi
@@ -360,7 +363,7 @@ cmp -s "$SUM" "$TMP/$(basename "$SRC").sha256" || { echo 'R2 read-back sidecar d
 echo 'R2_UPLOAD_READBACK=PASS'
 echo "VERIFIED_EVIDENCE_ID=$KEY"
 '@
-    $remote = $remote.Replace('__KEY__', $EvidenceId).Replace('__REMOTE_DIR__', $remoteDir).Replace('__REMOTE_DATA__', $remoteData).Replace('__REMOTE_SUM__', $remoteSum)
+    $remote = $remote.Replace('__KEY__', $EvidenceId).Replace('__EVIDENCE_BUCKET__', $EvidenceBucket).Replace('__REMOTE_DIR__', $remoteDir).Replace('__REMOTE_DATA__', $remoteData).Replace('__REMOTE_SUM__', $remoteSum)
     $normalizedRemote = ConvertTo-UnixLineEndings -Text $remote
     $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($normalizedRemote))
     $output = @(& $ssh.Source -o BatchMode=yes -o ConnectTimeout=15 $SshAlias "printf '%s' '$encoded' | base64 -d | bash" 2>&1)
@@ -554,23 +557,58 @@ try {
 
 if ($paymentChaosExit -ne 0) {
     Write-Host "Payment-chaos qualification did not pass. Local evidence retained under: $runDirectory" -ForegroundColor Yellow
-    Write-Host 'No R2 upload or GitHub Environment variable change was made.'
+    Write-Host 'Any upload below publishes a FAIL/blocked record; it does not turn the run into a pass.'
+    $failedVariablesFile = Join-Path $runDirectory 'variables.env'
+    if (Test-Path -LiteralPath $failedVariablesFile) {
+        $failedEvidenceLine = Get-Content -LiteralPath $failedVariablesFile | Where-Object { $_ -match '^PAYMENT_CHAOS_EVIDENCE_ID=' } | Select-Object -Last 1
+        $failedResultLine = Get-Content -LiteralPath $failedVariablesFile | Where-Object { $_ -match '^PAYMENT_CHAOS_RESULT_ID=' } | Select-Object -Last 1
+        if ($failedEvidenceLine -and $failedResultLine) {
+            $failedEvidenceId = ($failedEvidenceLine -replace '^PAYMENT_CHAOS_EVIDENCE_ID=', '').Trim()
+            $failedResultId = ($failedResultLine -replace '^PAYMENT_CHAOS_RESULT_ID=', '').Trim()
+            $failedArtifactPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($failedEvidenceId))
+            $failedResultPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($failedResultId))
+            if ((Test-Path -LiteralPath $failedArtifactPath) -and (Test-Path -LiteralPath $failedResultPath)) {
+                Write-Host ('Latest payment-chaos result is FAIL: {0}' -f $failedResultId) -ForegroundColor Yellow
+                $failedUploadPrompt = 'To upload the failed evidence bundle and FAIL result JSON to R2 and verify read-back, type exactly ''UPLOAD FAILED PAYMENT CHAOS EVIDENCE''; otherwise keep it local'
+                $failedUploadConfirm = Read-Host $failedUploadPrompt
+                if ($failedUploadConfirm -ceq 'UPLOAD FAILED PAYMENT CHAOS EVIDENCE') {
+                    Upload-VerifiedEvidenceToR2 -ArtifactPath $failedArtifactPath -EvidenceId $failedEvidenceId
+                    Upload-VerifiedEvidenceToR2 -ArtifactPath $failedResultPath -EvidenceId $failedResultId
+                    Write-Host 'FAIL evidence and result JSON read-back verified. This published record keeps readiness blocked.'
+                } else {
+                    Write-Host 'Failed evidence upload skipped. It remains local; no GitHub Environment variable change was made.'
+                }
+            } else {
+                Write-Host 'No complete evidence bundle/result pair is available to upload. Readiness remains blocked.'
+            }
+        } else {
+            Write-Host 'No completed PAYMENT_CHAOS evidence/result IDs exist. This appears to be a preflight/collection failure; no R2 upload was attempted.'
+        }
+    } else {
+        Write-Host 'No local variables.env/result record exists; no R2 upload was attempted.'
+    }
     exit 1
 }
 
 $variablesFile = Join-Path $runDirectory 'variables.env'
 $evidenceLine = Get-Content -LiteralPath $variablesFile | Where-Object { $_ -match '^PAYMENT_CHAOS_EVIDENCE_ID=' } | Select-Object -Last 1
-if (-not $evidenceLine) { Stop-Safely 'The script did not produce a payment-chaos evidence ID; refusing upload.' }
+$resultLine = Get-Content -LiteralPath $variablesFile | Where-Object { $_ -match '^PAYMENT_CHAOS_RESULT_ID=' } | Select-Object -Last 1
+if (-not $evidenceLine -or -not $resultLine) { Stop-Safely 'The script did not produce both the payment-chaos evidence ID and result JSON ID; refusing upload.' }
 $evidenceId = ($evidenceLine -replace '^PAYMENT_CHAOS_EVIDENCE_ID=', '').Trim()
+$resultId = ($resultLine -replace '^PAYMENT_CHAOS_RESULT_ID=', '').Trim()
 $artifactPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($evidenceId))
+$resultPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($resultId))
+if (-not (Test-Path -LiteralPath $resultPath)) { Stop-Safely 'The machine-readable result JSON is missing; refusing upload.' }
 Write-Host ('Candidate payment-chaos evidence ID: {0}' -f $evidenceId) -ForegroundColor Green
+Write-Host ('Candidate payment-chaos result ID: {0}' -f $resultId) -ForegroundColor Green
 Write-Host ('Local evidence directory: {0}' -f $runDirectory)
 Write-Host 'GitHub Environment variables have NOT been changed.'
-$uploadPrompt = 'To upload this immutable bundle to R2 and verify read-back, type exactly ''UPLOAD PAYMENT CHAOS EVIDENCE TO R2''; otherwise keep it local'
+$uploadPrompt = 'To upload the evidence bundle and its result JSON to R2 and verify read-back, type exactly ''UPLOAD PAYMENT CHAOS EVIDENCE TO R2''; otherwise keep it local'
 $uploadConfirm = Read-Host $uploadPrompt
 if ($uploadConfirm -ceq 'UPLOAD PAYMENT CHAOS EVIDENCE TO R2') {
     Upload-VerifiedEvidenceToR2 -ArtifactPath $artifactPath -EvidenceId $evidenceId
-    Write-Host 'R2 object and SHA-256 sidecar verified. GitHub Environment variables remain unchanged.'
+    Upload-VerifiedEvidenceToR2 -ArtifactPath $resultPath -EvidenceId $resultId
+    Write-Host 'R2 evidence bundle, result JSON, and SHA-256 sidecars were read-back verified. GitHub Environment variables remain unchanged.'
 } else {
-    Write-Host 'R2 upload skipped. Evidence remains local and GitHub Environment variables remain unchanged.'
+    Write-Host 'R2 upload skipped. Evidence and result JSON remain local; GitHub Environment variables remain unchanged.'
 }
