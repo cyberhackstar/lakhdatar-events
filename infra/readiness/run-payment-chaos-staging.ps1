@@ -560,17 +560,23 @@ if ($paymentChaosExit -ne 0) {
 
 $variablesFile = Join-Path $runDirectory 'variables.env'
 $evidenceLine = Get-Content -LiteralPath $variablesFile | Where-Object { $_ -match '^PAYMENT_CHAOS_EVIDENCE_ID=' } | Select-Object -Last 1
-if (-not $evidenceLine) { Stop-Safely 'The script did not produce a payment-chaos evidence ID; refusing upload.' }
+$resultLine = Get-Content -LiteralPath $variablesFile | Where-Object { $_ -match '^PAYMENT_CHAOS_RESULT_ID=' } | Select-Object -Last 1
+if (-not $evidenceLine -or -not $resultLine) { Stop-Safely 'The script did not produce both the payment-chaos evidence ID and result JSON ID; refusing upload.' }
 $evidenceId = ($evidenceLine -replace '^PAYMENT_CHAOS_EVIDENCE_ID=', '').Trim()
+$resultId = ($resultLine -replace '^PAYMENT_CHAOS_RESULT_ID=', '').Trim()
 $artifactPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($evidenceId))
+$resultPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($resultId))
+if (-not (Test-Path -LiteralPath $resultPath)) { Stop-Safely 'The machine-readable result JSON is missing; refusing upload.' }
 Write-Host ('Candidate payment-chaos evidence ID: {0}' -f $evidenceId) -ForegroundColor Green
+Write-Host ('Candidate payment-chaos result ID: {0}' -f $resultId) -ForegroundColor Green
 Write-Host ('Local evidence directory: {0}' -f $runDirectory)
 Write-Host 'GitHub Environment variables have NOT been changed.'
-$uploadPrompt = 'To upload this immutable bundle to R2 and verify read-back, type exactly ''UPLOAD PAYMENT CHAOS EVIDENCE TO R2''; otherwise keep it local'
+$uploadPrompt = 'To upload the evidence bundle and its result JSON to R2 and verify read-back, type exactly ''UPLOAD PAYMENT CHAOS EVIDENCE TO R2''; otherwise keep it local'
 $uploadConfirm = Read-Host $uploadPrompt
 if ($uploadConfirm -ceq 'UPLOAD PAYMENT CHAOS EVIDENCE TO R2') {
     Upload-VerifiedEvidenceToR2 -ArtifactPath $artifactPath -EvidenceId $evidenceId
-    Write-Host 'R2 object and SHA-256 sidecar verified. GitHub Environment variables remain unchanged.'
+    Upload-VerifiedEvidenceToR2 -ArtifactPath $resultPath -EvidenceId $resultId
+    Write-Host 'R2 evidence bundle, result JSON, and SHA-256 sidecars were read-back verified. GitHub Environment variables remain unchanged.'
 } else {
-    Write-Host 'R2 upload skipped. Evidence remains local and GitHub Environment variables remain unchanged.'
+    Write-Host 'R2 upload skipped. Evidence and result JSON remain local; GitHub Environment variables remain unchanged.'
 }
