@@ -557,8 +557,8 @@ $evidenceLine = Get-Content -LiteralPath $variablesFile | Where-Object { $_ -mat
 if (-not $evidenceLine) { Stop-Safely 'The script did not produce a payment-chaos evidence ID; refusing upload.' }
 $evidenceId = ($evidenceLine -replace '^PAYMENT_CHAOS_EVIDENCE_ID=', '').Trim()
 $artifactPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($evidenceId))
-Write-Host "Candidate payment-chaos evidence ID: $evidenceId" -ForegroundColor Green
-Write-Host "Local evidence directory: $runDirectory"
+Write-Host ('Candidate payment-chaos evidence ID: {0}' -f $evidenceId) -ForegroundColor Green
+Write-Host ('Local evidence directory: {0}' -f $runDirectory)
 Write-Host 'GitHub Environment variables have NOT been changed.'
 $uploadPrompt = 'To upload this immutable bundle to R2 and verify read-back, type exactly ''UPLOAD PAYMENT CHAOS EVIDENCE TO R2''; otherwise keep it local'
 $uploadConfirm = Read-Host $uploadPrompt
