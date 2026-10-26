@@ -24,7 +24,7 @@ function Get-GitBash {
         if ($git) {
             $gitRoot = Split-Path (Split-Path $git.Source -Parent) -Parent
             $candidate = Join-Path $gitRoot 'bin\bash.exe'
-            if (Test-Path $candidate) { $bash = Get-Item $candidate }
+            if (Test-Path $candidate) { $bash = [pscustomobject]@{ Source = $candidate } }
         }
     }
     if (-not $bash) { Stop-Safely 'Git Bash was not found. Install Git for Windows, then rerun this script.' }
@@ -85,12 +85,17 @@ test -s .deploy-current || fail 'staging release marker missing'
 sha="$(tr -d '\r\n' < .deploy-current)"
 [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || fail 'staging release marker invalid'
 
-must_env() { grep -Fxq "$1=$2" .env || fail "staging config guard failed for $1"; }
+must_env() {
+  local key="$1" expected="$2" value
+  value="$(grep -E "^\${key}=" .env | tail -n 1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
+  [[ "$value" == "$expected" ]] || fail "staging config guard failed for $key"
+}
 must_present_nonplaceholder() {
   key="$1"; minimum="$2"
   awk -v key="$key" -v minimum="$minimum" '
     index($0,key "=")==1 { value=substr($0,length(key)+2) }
     END {
+      if (value ~ /^".*"$/ || value ~ /^'\''.*'\''$/) value=substr(value,2,length(value)-2)
       if (length(value) < minimum || value ~ /^(<|replace-with-|change-me|REPLACE_WITH)/) exit 1
     }' .env || fail "required staging value is missing or placeholder: $key"
 }
@@ -297,8 +302,12 @@ function Upload-VerifiedEvidenceToR2([string]$ArtifactPath, [string]$EvidenceId)
     if (-not $ssh -or -not $scp) { Stop-Safely 'OpenSSH ssh/scp clients were not found; evidence was not uploaded.' }
 
     $token = [Guid]::NewGuid().ToString('N')
-    $remoteData = "/tmp/neelastack-payment-chaos-$token.tar.gz"
+    $remoteDir = "/tmp/neelastack-payment-chaos-$token"
+    $artifactName = [System.IO.Path]::GetFileName($ArtifactPath)
+    $remoteData = "$remoteDir/$artifactName"
     $remoteSum = "$remoteData.sha256"
+    & $ssh.Source -o BatchMode=yes -o ConnectTimeout=15 $SshAlias "install -d -m 700 '$remoteDir'" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { Stop-Safely 'Could not create a private temporary upload directory; R2 upload was not attempted.' }
     & $scp.Source -o BatchMode=yes -o ConnectTimeout=15 $ArtifactPath "$($SshAlias):$remoteData"
     if ($LASTEXITCODE -ne 0) { Stop-Safely 'SCP of evidence bundle failed; no GitHub variables were changed.' }
     & $scp.Source -o BatchMode=yes -o ConnectTimeout=15 $sidecar "$($SshAlias):$remoteSum"
@@ -309,10 +318,14 @@ set -euo pipefail
 BUCKET='neelastack-prod-db-backups'
 ENDPOINT='https://058bc80c5f25ec698f8aa691f0750603.r2.cloudflarestorage.com'
 KEY='__KEY__'
+DIR='__REMOTE_DIR__'
 SRC='__REMOTE_DATA__'
 SUM='__REMOTE_SUM__'
 TMP="$(mktemp -d)"
-cleanup() { rm -rf "$TMP" "$SRC" "$SUM"; }
+cleanup() {
+  case "$DIR" in /tmp/neelastack-payment-chaos-*) rm -rf "$DIR" ;; *) echo 'Refusing unsafe temporary-path cleanup' >&2 ;; esac
+  rm -rf "$TMP"
+}
 trap cleanup EXIT
 [[ "$KEY" =~ ^production/readiness-evidence/[A-Za-z0-9._/-]+$ && "$KEY" != *..* ]] || { echo 'R2 upload refused: unsafe evidence key' >&2; exit 2; }
 awsx() { aws --profile neelastack-r2 --endpoint-url "$ENDPOINT" "$@"; }
@@ -330,7 +343,7 @@ cmp -s "$SUM" "$TMP/$(basename "$SRC").sha256" || { echo 'R2 read-back sidecar d
 echo 'R2_UPLOAD_READBACK=PASS'
 echo "VERIFIED_EVIDENCE_ID=$KEY"
 '@
-    $remote = $remote.Replace('__KEY__', $EvidenceId).Replace('__REMOTE_DATA__', $remoteData).Replace('__REMOTE_SUM__', $remoteSum)
+    $remote = $remote.Replace('__KEY__', $EvidenceId).Replace('__REMOTE_DIR__', $remoteDir).Replace('__REMOTE_DATA__', $remoteData).Replace('__REMOTE_SUM__', $remoteSum)
     $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remote))
     $output = @(& $ssh.Source -o BatchMode=yes -o ConnectTimeout=15 $SshAlias "printf '%s' '$encoded' | base64 -d | bash" 2>&1)
     if ($LASTEXITCODE -ne 0) {
