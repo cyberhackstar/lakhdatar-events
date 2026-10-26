@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Privileged MFA enforcement + recovery evidence.
 #   ENV_FILE=/path/to/staging.env PSQL_CMD='docker exec -i lakhdatar-staging-postgres psql -U readiness_readonly -d lakhdatar' \
-#   BASE_URL=https://staging-events.neelastack.com OPERATOR='Name' \
+#   BASE_URL=https://staging-events.neelastack.com RELEASE_SHA=<exact-qualified-release-sha> OPERATOR='Name' \
 #   bash infra/readiness/mfa-verification.sh
 # Secrets are never printed: the env file is only tested for presence/shape.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; source "$SCRIPT_DIR/lib.sh"
