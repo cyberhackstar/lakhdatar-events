@@ -19,39 +19,57 @@
   "controls": [
     {
       "id": "SINGLE_NODE_RECOVERY",
-      "manifestField": "singleNodeRecoveryDrill"
+      "manifestField": "singleNodeRecoveryDrill",
+      "maxAgeDays": 90,
+      "requiresReleaseSha": true
     },
     {
       "id": "OFFSITE_BACKUP",
-      "manifestField": "offsiteBackup"
+      "manifestField": "offsiteBackup",
+      "maxAgeDays": 30,
+      "requiresReleaseSha": false
     },
     {
       "id": "PITR",
-      "manifestField": "pointInTimeRecovery"
+      "manifestField": "pointInTimeRecovery",
+      "maxAgeDays": 7,
+      "requiresReleaseSha": false
     },
     {
       "id": "PEN_TEST",
-      "manifestField": "penetrationTest"
+      "manifestField": "penetrationTest",
+      "maxAgeDays": 90,
+      "requiresReleaseSha": true
     },
     {
       "id": "PAYMENT_CHAOS",
-      "manifestField": "paymentRecovery"
+      "manifestField": "paymentRecovery",
+      "maxAgeDays": 30,
+      "requiresReleaseSha": true
     },
     {
       "id": "ALERTING",
-      "manifestField": "alerting"
+      "manifestField": "alerting",
+      "maxAgeDays": 30,
+      "requiresReleaseSha": false
     },
     {
       "id": "FINANCE_RECONCILIATION",
-      "manifestField": "financeReconciliation"
+      "manifestField": "financeReconciliation",
+      "maxAgeDays": 30,
+      "requiresReleaseSha": true
     },
     {
       "id": "PRIVACY_REVIEW",
-      "manifestField": "privacyReview"
+      "manifestField": "privacyReview",
+      "maxAgeDays": 90,
+      "requiresReleaseSha": true
     },
     {
       "id": "MFA",
-      "manifestField": "privilegedMfa"
+      "manifestField": "privilegedMfa",
+      "maxAgeDays": 90,
+      "requiresReleaseSha": true
     }
   ],
   "notes": [
@@ -59,5 +77,6 @@
     "RPO and RTO must come from the reviewed SINGLE_NODE_RECOVERY result, not a free-standing GitHub variable.",
     "Independent penetration testing, finance review, privacy review, and protected environment approval remain human responsibilities.",
     "Evidence upload timestamps do not make old evidence fresh; finishedAtUtc and the exact release SHA are validated."
-  ]
+  ],
+  "defaultMaxEvidenceAgeDays": 30
 }
