@@ -5,16 +5,19 @@ import { Counter } from 'k6/metrics';
 const BASE_URL = (__ENV.BASE_URL || 'http://127.0.0.1:4002').replace(/\/$/, '');
 const EVENT_SLUG = __ENV.EVENT_SLUG || '';
 
+// One iteration emits three public requests (upcoming, featured and facets), plus an optional
+// event-detail request. Keep the iteration arrival rate below the documented HTTP request rate:
+// 17 iterations/s ~= 51 requests/s with the default three requests, not 50 iterations/s ~= 150 RPS.
 export const options = {
   scenarios: {
     public_browse: {
-      executor: 'ramping-arrival-rate', startRate: 5, timeUnit: '1s', preAllocatedVUs: 20, maxVUs: 150,
+      executor: 'ramping-arrival-rate', startRate: 2, timeUnit: '1s', preAllocatedVUs: 20, maxVUs: 150,
       stages: [
-        { target: 10, duration: '1m' },
-        { target: 25, duration: '2m' },
-        { target: 50, duration: '2m' },
-        { target: 25, duration: '1m' },
-        { target: 5, duration: '1m' }
+        { target: 4, duration: '1m' },
+        { target: 8, duration: '2m' },
+        { target: 17, duration: '2m' },
+        { target: 8, duration: '1m' },
+        { target: 2, duration: '1m' }
       ], gracefulStop: '30s'
     }
   },
