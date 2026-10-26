@@ -754,58 +754,58 @@ requestedTypes.add(new TicketTypeRequest(
                     "Checkout recovery is already in progress. Please retry shortly.");
         }
         try {
-        Long orderId = tx.execute(status -> {
-            Order order = orders.findByIdForUpdate(candidate.getId())
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found"));
-            if (!order.getCustomerEmail().equalsIgnoreCase(normalizedEmail)) {
-                throw new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found");
+            Long orderId = tx.execute(status -> {
+                Order order = orders.findByIdForUpdate(candidate.getId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found"));
+                if (!order.getCustomerEmail().equalsIgnoreCase(normalizedEmail)) {
+                    throw new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found");
+                }
+                if (order.getStatus() != Enums.OrderStatus.CREATED
+                        && order.getStatus() != Enums.OrderStatus.AWAITING_PAYMENT) {
+                    throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE",
+                            "This order is no longer awaiting payment. Check its current status in order recovery.");
+                }
+                Payment payment = payments.findByOrderId(order.getId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "PAYMENT_MISSING", "Payment record missing"));
+                if (!isRecoverablePaymentStatus(payment.getStatus())) {
+                    throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE",
+                            "This order cannot resume checkout. Check its current status in order recovery.");
+                }
+                return order.getId();
+            });
+            if (orderId == null) {
+                throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE", "This order cannot resume checkout");
             }
-            if (order.getStatus() != Enums.OrderStatus.CREATED
-                    && order.getStatus() != Enums.OrderStatus.AWAITING_PAYMENT) {
-                throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE",
-                        "This order is no longer awaiting payment. Check its current status in order recovery.");
-            }
-            Payment payment = payments.findByOrderId(order.getId())
-                    .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "PAYMENT_MISSING", "Payment record missing"));
-            if (!isRecoverablePaymentStatus(payment.getStatus())) {
-                throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE",
-                        "This order cannot resume checkout. Check its current status in order recovery.");
-            }
-            return order.getId();
-        });
-        if (orderId == null) {
-            throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE", "This order cannot resume checkout");
-        }
-
-        // Provision first: if the provider call fails, do not invalidate any existing checkout cookie.
-        String checkoutSessionToken = newCheckoutSessionToken();
-        CheckoutResponse response = provisionPaymentOrder(orderId, checkoutSessionToken);
-
-        tx.executeWithoutResult(status -> {
-            Order order = orders.findByIdForUpdate(orderId)
-                    .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found"));
-            if (!order.getCustomerEmail().equalsIgnoreCase(normalizedEmail)) {
-                throw new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found");
-            }
-            if (order.getStatus() == Enums.OrderStatus.CONFIRMED) {
-                throw new ApiException(HttpStatus.CONFLICT, "ORDER_ALREADY_CONFIRMED",
-                        "Payment was confirmed while recovery was in progress. Retrieve the ticket from order recovery.");
-            }
-            if (order.getStatus() != Enums.OrderStatus.CREATED
-                    && order.getStatus() != Enums.OrderStatus.AWAITING_PAYMENT) {
-                throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE",
-                        "This order is no longer awaiting payment. Check its current status in order recovery.");
-            }
-            Payment payment = payments.findByOrderId(order.getId())
-                    .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "PAYMENT_MISSING", "Payment record missing"));
-            if (!isRecoverablePaymentStatus(payment.getStatus())) {
-                throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE",
-                        "This order cannot resume checkout. Check its current status in order recovery.");
-            }
-            order.setCheckoutSessionHash(hashCheckoutSession(checkoutSessionToken));
-            orders.saveAndFlush(order);
-        });
-        return response;
+    
+            // Provision first: if the provider call fails, do not invalidate any existing checkout cookie.
+            String checkoutSessionToken = newCheckoutSessionToken();
+            CheckoutResponse response = provisionPaymentOrder(orderId, checkoutSessionToken);
+    
+            tx.executeWithoutResult(status -> {
+                Order order = orders.findByIdForUpdate(orderId)
+                        .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found"));
+                if (!order.getCustomerEmail().equalsIgnoreCase(normalizedEmail)) {
+                    throw new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found");
+                }
+                if (order.getStatus() == Enums.OrderStatus.CONFIRMED) {
+                    throw new ApiException(HttpStatus.CONFLICT, "ORDER_ALREADY_CONFIRMED",
+                            "Payment was confirmed while recovery was in progress. Retrieve the ticket from order recovery.");
+                }
+                if (order.getStatus() != Enums.OrderStatus.CREATED
+                        && order.getStatus() != Enums.OrderStatus.AWAITING_PAYMENT) {
+                    throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE",
+                            "This order is no longer awaiting payment. Check its current status in order recovery.");
+                }
+                Payment payment = payments.findByOrderId(order.getId())
+                        .orElseThrow(() -> new ApiException(HttpStatus.CONFLICT, "PAYMENT_MISSING", "Payment record missing"));
+                if (!isRecoverablePaymentStatus(payment.getStatus())) {
+                    throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE",
+                            "This order cannot resume checkout. Check its current status in order recovery.");
+                }
+                order.setCheckoutSessionHash(hashCheckoutSession(checkoutSessionToken));
+                orders.saveAndFlush(order);
+            });
+            return response;
         } finally {
             recoveryLock.close();
         }
