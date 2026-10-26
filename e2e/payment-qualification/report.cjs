@@ -39,7 +39,9 @@ function summary() {
   const lines = ['## Staging Cashfree payment-flow qualification', '', '**Overall result: ' + (report.status || 'BLOCKED') + '**', '', '| # | Check | Result | Evidence / failure detail |', '|---:|---|---|---|'];
   for (const [i, item] of (report.checks || []).entries()) {
     const detail = String(item.detail || '').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').slice(0, 240);
-    lines.push('| ' + (i + 1) + ' | ' + item.title + ' | **' + item.status + '** | ' + detail + ' |');
+    const label = item.title || item.name || item.id || 'Unnamed check';
+    const result = item.status === 'NOT_RUN' ? 'BLOCKED' : item.status;
+    lines.push('| ' + (i + 1) + ' | ' + label + ' | **' + result + '** | ' + detail + ' |');
   }
   lines.push('', 'Only sanitized check results are recorded. Credentials, mailbox contents, ticket access tokens, and full payment responses are excluded.', '');
   process.stdout.write(lines.join('\n') + '\n');
