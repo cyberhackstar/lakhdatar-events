@@ -170,6 +170,19 @@ class AggregateReadinessTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("self-run scans cannot substitute", proc.stdout)
 
+    def test_audit_only_never_creates_a_certification_manifest(self):
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT), "--audit-only", "--policy", str(POLICY),
+             "--output-dir", str(self.out), "--local-results-dir", str(self.root)],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        report = json.loads((self.out / "readiness-aggregate-report.json").read_text())
+        self.assertEqual(report["status"], "AUDIT_PASS")
+        self.assertTrue(report["auditOnly"])
+        self.assertFalse(report["productionCertificationGranted"])
+        self.assertFalse((self.out / "single-node-production-readiness.json").exists())
+
     def test_r2_mode_requires_endpoint_and_bucket(self):
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), "--release-sha", RELEASE, "--policy", str(POLICY),
