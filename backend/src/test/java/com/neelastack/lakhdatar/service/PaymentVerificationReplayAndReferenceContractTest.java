@@ -37,6 +37,8 @@ class PaymentVerificationReplayAndReferenceContractTest {
         String order = read("src/main/java/com/neelastack/lakhdatar/service/OrderService.java");
         String controller = read("src/main/java/com/neelastack/lakhdatar/controller/PublicEventController.java");
         assertTrue(order.contains("String transactionId"), "verification response exposes a provider transaction ID when known");
+        assertTrue(order.contains("findFirstByPaymentIdAndStatusInOrderByLastSeenAtDesc"),
+                "transaction references can be recovered from captured provider attempts before the primary row is reconciled");
         assertTrue(order.contains("payments.findByProviderPaymentId(normalized)"), "recovery accepts the provider transaction/payment reference");
         assertTrue(order.contains("paymentAttempts.findByProviderPaymentId(normalized)"), "recovery can resolve payment-attempt references");
         assertTrue(order.contains("if(!o.getCustomerEmail().equalsIgnoreCase(email.trim()))"));
@@ -49,6 +51,8 @@ class PaymentVerificationReplayAndReferenceContractTest {
         assertTrue(mail.contains("Order number:</strong>"));
         assertTrue(mail.contains("Payment transaction ID:</strong>"));
         assertTrue(mail.contains("payments.findByOrderId(o.getId())"));
+        assertTrue(mail.contains("findFirstByPaymentIdAndStatusInOrderByLastSeenAtDesc"),
+                "receipt uses a successful provider attempt if the primary payment reference is not yet linked");
         assertTrue(mail.contains(".append(esc(o.getOrderNumber()))"), "order reference is HTML escaped");
         assertTrue(mail.contains(".append(esc(transactionId))"), "provider reference is HTML escaped");
     }
