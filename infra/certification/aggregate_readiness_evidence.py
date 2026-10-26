@@ -229,6 +229,11 @@ def validate_control(
             or not isinstance(checks.get("failCount"), int)
             or checks.get("failCount") != 0):
         problems.append(f"{cid}: result does not assert zero failing checks")
+    if (not isinstance(checks, dict)
+            or isinstance(checks.get("passCount"), bool)
+            or not isinstance(checks.get("passCount"), int)
+            or checks.get("passCount") < 1):
+        problems.append(f"{cid}: result does not contain any recorded passing checks")
     if not nonempty_person(record.get("reviewer")):
         problems.append(f"{cid}: named operator/reviewer is missing")
 
