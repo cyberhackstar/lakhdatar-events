@@ -1,0 +1,11 @@
+# Exact historical Gitleaks fingerprints for confirmed test-only fixture values.
+# Keep these entries specific to the original commit, path, rule, and line.
+# Do not add broad rule-, file-, or directory-level suppressions.
+#
+# The first finding was a fixed synthetic TOTP seed in the in-process E2E mock;
+# the current mock generates its seed at runtime.
+4d42024e00c52cc9b7064dbd52a458dd5801c96d:e2e/selftest/mock-api.js:generic-api-key:55
+#
+# The second finding was a static MFA encryption test key in the backend integration-test base;
+# the current test setup derives a deterministic test-only key at runtime.
+f540e8af6a13c2e7816bf83b4ace583b03d5076e:backend/src/test/java/com/neelastack/lakhdatar/service/AbstractPostgresIntegrationTest.java:generic-api-key:30
