@@ -50,18 +50,42 @@ module.exports = async function globalSetup() {
           ? JSON.parse(require('node:fs').readFileSync(reportKit.RESULT_PATH, 'utf8'))
           : reportKit.blankReport();
         await teardown();
-        const cleanup = report.checks.find((item) => item.id === 'cleanup');
-        if (cleanup) {
-          cleanup.status = 'PENDING';
-          cleanup.detail = 'Disposable event/team teardown completed; disposable inbox deletion remains.';
-        }
-        reportKit.writeReport(report);
-      } catch (error) {
-        const cleanup = report && report.checks.find((item) => item.id === 'cleanup');
-        if (cleanup) {
-          cleanup.status = 'FAIL';
-          cleanup.detail = 'Disposable event/team teardown failed; inspect the sanitized workflow logs.';
+        const fs = require('node:fs');
+        if (Object.prototype.hasOwnProperty.call(report, 'fixtureCleanupStatus')) {
+          report.fixtureCleanupStatus = 'PASS';
+          report.fixtureCleanupDetail = 'Disposable staging event/team teardown completed.';
+          report.updatedAtUtc = new Date().toISOString();
+          const failed = (report.blockers || []).length > 0 || report.testStatus === 'FAIL'
+            || report.mailboxCleanupStatus === 'FAIL' || report.checks.some((item) => item.status === 'FAIL');
+          const complete = report.testStatus === 'PASS' && report.mailboxCleanupStatus === 'PASS'
+            && report.checks.every((item) => item.status === 'PASS');
+          report.status = failed ? 'FAIL' : complete ? 'PASS' : 'INCOMPLETE';
+          fs.writeFileSync(reportKit.RESULT_PATH, JSON.stringify(report, null, 2) + '\\n', { mode: 0o600 });
+        } else {
+          const cleanup = report.checks.find((item) => item.id === 'cleanup');
+          if (cleanup) {
+            cleanup.status = 'PENDING';
+            cleanup.detail = 'Disposable event/team teardown completed; disposable inbox deletion remains.';
+          }
           reportKit.writeReport(report);
+        }
+      } catch (error) {
+        const fs = require('node:fs');
+        if (report && Object.prototype.hasOwnProperty.call(report, 'fixtureCleanupStatus')) {
+          report.fixtureCleanupStatus = 'FAIL';
+          report.fixtureCleanupDetail = 'Disposable staging event/team teardown failed; inspect sanitized workflow logs.';
+          report.blockers = Array.isArray(report.blockers) ? report.blockers : [];
+          report.blockers.push('Disposable staging fixture cleanup failed.');
+          report.status = 'FAIL';
+          report.updatedAtUtc = new Date().toISOString();
+          fs.writeFileSync(reportKit.RESULT_PATH, JSON.stringify(report, null, 2) + '\\n', { mode: 0o600 });
+        } else {
+          const cleanup = report && report.checks.find((item) => item.id === 'cleanup');
+          if (cleanup) {
+            cleanup.status = 'FAIL';
+            cleanup.detail = 'Disposable event/team teardown failed; inspect the sanitized workflow logs.';
+            reportKit.writeReport(report);
+          }
         }
         throw error;
       }
