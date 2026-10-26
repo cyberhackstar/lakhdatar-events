@@ -28,8 +28,9 @@ need_operator() {
 begin_report() {
   ITEM="$1"; VARPREFIX="$2"; need_operator
   REPORT="$EVIDENCE_DIR/${ITEM}-$(stamp).txt"; : > "$REPORT"; chmod 600 "$REPORT"
+  REPORT_STARTED_AT="$(now_utc)"
   say "# $3"
-  say "Item: $ITEM"; say "Started (UTC): $(now_utc)"; say "Reviewer: $OPERATOR"
+  say "Item: $ITEM"; say "Started (UTC): $REPORT_STARTED_AT"; say "Reviewer: $OPERATOR"
   say "Release SHA: ${RELEASE_SHA:-unspecified}"; say "Host: $(hostname)"; say ""
 }
 
@@ -61,28 +62,106 @@ set_var() {
 }
 
 # finish_report [extra-file-to-bundle ...]
+# Every run, including FAIL, produces an immutable-friendly result JSON plus SHA-256 sidecar.
+# The status is always updated in variables.env so a failed rerun cannot leave a stale PASS locally.
 finish_report() {
-  say ""; say "Finished (UTC): $(now_utc)"
-  local status="PASS"; (( FAILS > 0 )) && status="FAIL"
+  local finished_at status="PASS" file="$REPORT" report_sha result_file result_key
+  finished_at="$(now_utc)"
+  say ""; say "Finished (UTC): $finished_at"
+  (( FAILS > 0 )) && status="FAIL"
   say "Result: $status ($FAILS failing check(s))"
-  local file="$REPORT"
   if (( $# )); then
     local bundle="${REPORT%.txt}.tar.gz"
     tar -czf "$bundle" -C "$EVIDENCE_DIR" "$(basename "$REPORT")" "$@" 2>/dev/null && file="$bundle"
   fi
   ( cd "$EVIDENCE_DIR" && sha256sum "$(basename "$file")" > "$(basename "$file").sha256" )
-  local sha; sha="$(cut -d' ' -f1 "$EVIDENCE_DIR/$(basename "$file").sha256")"
-  # Do not append the checksum line to REPORT after hashing it: that would invalidate the sidecar.
-  printf 'Evidence file: %s  sha256=%s\n' "$(basename "$file")" "$sha"
+  report_sha="$(cut -d' ' -f1 "$EVIDENCE_DIR/$(basename "$file").sha256")"
+  printf 'Evidence file: %s  sha256=%s\n' "$(basename "$file")" "$report_sha"
   local id="$EVIDENCE_PREFIX/$(basename "$file")"
+  result_file="${REPORT%.txt}.result.json"
+  result_key="$EVIDENCE_PREFIX/$(basename "$result_file")"
+  python3 - "$result_file" "$ITEM" "$VARPREFIX" "$status" "$REPORT_STARTED_AT" "$finished_at" "$OPERATOR" "$id" "$report_sha" "$(basename "$file")" "$FAILS" <<'PYRESULT'
+import json, os, re, subprocess, sys
+from pathlib import Path
+
+(out, item, control_id, status, started, finished, reviewer, evidence_key,
+ report_sha, report_name, fail_count) = sys.argv[1:]
+def optional(name):
+    value = os.environ.get(name, "").strip()
+    return value or None
+def number(name):
+    value = optional(name)
+    if value is None:
+        return None
+    return int(value) if re.fullmatch(r"[0-9]{1,9}", value) else value
+report = Path(os.environ.get("REPORT", ""))
+try:
+    text = report.read_text(encoding="utf-8", errors="replace")
+    pass_count = sum(1 for line in text.splitlines() if re.match(r"^PASS\s", line))
+    fail_lines = sum(1 for line in text.splitlines() if re.match(r"^FAIL\s", line))
+except Exception:
+    pass_count = 0
+    fail_lines = int(fail_count)
+metrics = {}
+for source, target in (("RESULT_RPO_SECONDS", "rpoSeconds"), ("RESULT_RTO_SECONDS", "rtoSeconds")):
+    value = number(source)
+    if value is not None:
+        metrics[target] = value
+control = {
+    "schemaVersion": 1,
+    "kind": "readiness-evidence-result",
+    "controlId": control_id,
+    "item": item,
+    "status": status,
+    "startedAtUtc": started,
+    "finishedAtUtc": finished,
+    "releaseSha": optional("RELEASE_SHA") if re.fullmatch(r"[0-9a-f]{40}", os.environ.get("RELEASE_SHA", "")) else None,
+    "reviewer": reviewer,
+    "independentReviewer": optional("INDEPENDENT_REVIEWER") or (
+        optional("INDEPENDENT_PEN_TEST_REVIEWER") if control_id == "PEN_TEST" else
+        optional("FINANCE_REVIEWER") if control_id == "FINANCE_RECONCILIATION" else
+        optional("PRIVACY_REVIEWER") if control_id == "PRIVACY_REVIEW" else None
+    ),
+    "assessor": optional("INDEPENDENT_ASSESSOR_NAME") if control_id == "PEN_TEST" else None,
+    "assessmentType": optional("ASSESSMENT_TYPE") if control_id == "PEN_TEST" else None,
+    "evidence": {
+        "key": evidence_key,
+        "fileName": report_name,
+        "sha256": report_sha,
+    },
+    "metrics": metrics,
+    "checks": {"passCount": pass_count, "failCount": fail_lines},
+    "automation": {
+        "repository": optional("GITHUB_REPOSITORY"),
+        "workflow": optional("GITHUB_WORKFLOW"),
+        "runId": optional("GITHUB_RUN_ID"),
+        "runUrl": (
+            os.environ.get("GITHUB_SERVER_URL", "").rstrip("/") + "/" +
+            os.environ.get("GITHUB_REPOSITORY", "") + "/actions/runs/" +
+            os.environ.get("GITHUB_RUN_ID", "")
+        ) if optional("GITHUB_SERVER_URL") and optional("GITHUB_REPOSITORY") and optional("GITHUB_RUN_ID") else None,
+    },
+    "productionCertificationGranted": False,
+    "humanApprovalRequired": True,
+}
+Path(out).write_text(json.dumps(control, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+Path(out).chmod(0o600)
+PYRESULT
+  ( cd "$EVIDENCE_DIR" && sha256sum "$(basename "$result_file")" > "$(basename "$result_file").sha256" )
+  set_var "${VARPREFIX}_STATUS" "$status"
+  set_var "${VARPREFIX}_EVIDENCE_ID" "$id"
+  set_var "${VARPREFIX}_RESULT_ID" "$result_key"
+  set_var "${VARPREFIX}_RESULT_SHA256" "$(cut -d' ' -f1 "$EVIDENCE_DIR/$(basename "$result_file").sha256")"
+  echo; echo "=> ${VARPREFIX}_STATUS=$status"
+  echo "=> ${VARPREFIX}_EVIDENCE_ID=$id"
+  echo "=> ${VARPREFIX}_RESULT_ID=$result_key"
+  echo "Machine-readable result: $result_file (sha256 sidecar created)."
   if [[ "$status" == PASS ]]; then
-    set_var "${VARPREFIX}_STATUS" PASS; set_var "${VARPREFIX}_EVIDENCE_ID" "$id"
-    echo; echo "=> ${VARPREFIX}_STATUS=PASS"; echo "=> ${VARPREFIX}_EVIDENCE_ID=$id"
-    echo "   Local report and checksum created. This ID is not publishable until publish-variables.sh verifies it in R2."
-  else
-    echo; echo "NOT PASSING: fix the failures above and re-run. No variable values were written for ${VARPREFIX}." >&2
-    return 1
+    echo "   Evidence is not publishable until publish-variables.sh verifies the report and result JSON in R2."
+    return 0
   fi
+  echo "NOT PASSING: fix the failures above and re-run. Latest local status is FAIL; older PASS records must not be reused." >&2
+  return 1
 }
 
 # build_psql: sets PSQL=(...) from PSQL_CMD (e.g. "docker exec -i <container> psql -U lakhdatar -d lakhdatar") or DATABASE_URL.
