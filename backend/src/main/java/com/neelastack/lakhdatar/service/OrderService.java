@@ -776,11 +776,11 @@ requestedTypes.add(new TicketTypeRequest(
             if (orderId == null) {
                 throw new ApiException(HttpStatus.CONFLICT, "ORDER_NOT_PAYABLE", "This order cannot resume checkout");
             }
-    
+
             // Provision first: if the provider call fails, do not invalidate any existing checkout cookie.
             String checkoutSessionToken = newCheckoutSessionToken();
             CheckoutResponse response = provisionPaymentOrder(orderId, checkoutSessionToken);
-    
+
             tx.executeWithoutResult(status -> {
                 Order order = orders.findByIdForUpdate(orderId)
                         .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found"));
