@@ -25,7 +25,7 @@ class RecoveryContractTest {
     assertTrue(service.contains("candidate.getCustomerEmail().equalsIgnoreCase(normalizedEmail)"));
     assertTrue(service.contains("isRecoverablePaymentStatus(payment.getStatus())"));
     assertTrue(service.contains("provisionPaymentOrder(orderId, checkoutSessionToken)"));
-    assertTrue(service.contains("order.setCheckoutSessionHash(hashCheckoutSessionToken))"));
+    assertTrue(service.contains("order.setCheckoutSessionHash(hashCheckoutSession(checkoutSessionToken))"));
     assertTrue(service.contains("locks.tryAcquire(\"checkout-recovery:\" + candidate.getId()"));
     assertTrue(service.contains("CHECKOUT_RECOVERY_BUSY"));
     assertTrue(service.contains("recoveryLock.close();"));
