@@ -7,7 +7,9 @@ import com.neelastack.lakhdatar.domain.Event;
 import com.neelastack.lakhdatar.domain.EventNotificationJob;
 import com.neelastack.lakhdatar.domain.Order;
 import com.neelastack.lakhdatar.domain.Payment;
+import com.neelastack.lakhdatar.domain.PaymentAttempt;
 import com.neelastack.lakhdatar.repository.PaymentRepository;
+import com.neelastack.lakhdatar.repository.PaymentAttemptRepository;
 import com.neelastack.lakhdatar.domain.Ticket;
 import com.neelastack.lakhdatar.domain.TicketMailJob;
 import com.neelastack.lakhdatar.exception.ApiException;
@@ -70,6 +72,7 @@ public class TicketMailService {
     private final ObjectProvider<JavaMailSender> sender;
     private final OrderRepository orders;
     private final PaymentRepository payments;
+    private final PaymentAttemptRepository paymentAttempts;
     private final TicketRepository tickets;
     private final EventRepository events;
     private final TicketMailJobRepository mailJobs;
@@ -83,14 +86,14 @@ public class TicketMailService {
     @Value("${app.worker.enabled:true}") private boolean workerEnabled;
     private final ExecutorService worker;
 
-    public TicketMailService(ObjectProvider<JavaMailSender> sender, OrderRepository orders, PaymentRepository payments, TicketRepository tickets,
+    public TicketMailService(ObjectProvider<JavaMailSender> sender, OrderRepository orders, PaymentRepository payments, PaymentAttemptRepository paymentAttempts, TicketRepository tickets,
                              EventRepository events, TicketMailJobRepository mailJobs,
                              AccessTokenService accessTokens, QrCredentialService qr,
                              EventAccessService eventAccess, RateLimitService rateLimits,
                              TransactionTemplate tx,
                              @Value("${app.mail.from:}") String from,
                              @Value("${app.public-base-url:}") String baseUrl) {
-        this.sender = sender; this.orders = orders; this.payments = payments; this.tickets = tickets; this.events = events; this.mailJobs = mailJobs;
+        this.sender = sender; this.orders = orders; this.payments = payments; this.paymentAttempts = paymentAttempts; this.tickets = tickets; this.events = events; this.mailJobs = mailJobs;
         this.accessTokens = accessTokens; this.qr = qr; this.eventAccess = eventAccess; this.rateLimits = rateLimits; this.tx = tx;
         this.from = from == null ? "" : from.trim();
         this.baseUrl = baseUrl == null ? "" : baseUrl.trim().replaceAll("/+$", "");
@@ -270,14 +273,26 @@ public class TicketMailService {
             h.setTo(o.getCustomerEmail());
             h.setSubject("Your ticket" + (live.size() > 1 ? "s" : "") + " for " + e.getName());
 
-            String transactionId = payments.findByOrderId(o.getId())
-                    .filter(p -> p.getStatus() == Enums.PaymentStatus.CAPTURED
-                            || p.getStatus() == Enums.PaymentStatus.COMPLETED
-                            || p.getStatus() == Enums.PaymentStatus.REFUND_PENDING
-                            || p.getStatus() == Enums.PaymentStatus.REFUNDED)
-                    .map(Payment::getProviderPaymentId)
-                    .filter(value -> value != null && !value.isBlank())
-                    .orElse(null);
+            Payment payment = payments.findByOrderId(o.getId()).orElse(null);
+            String transactionId = null;
+            if (payment != null) {
+                boolean customerVisibleStatus = payment.getStatus() == Enums.PaymentStatus.CAPTURED
+                        || payment.getStatus() == Enums.PaymentStatus.COMPLETED
+                        || payment.getStatus() == Enums.PaymentStatus.REFUND_PENDING
+                        || payment.getStatus() == Enums.PaymentStatus.REFUNDED;
+                if (customerVisibleStatus && payment.getProviderPaymentId() != null
+                        && !payment.getProviderPaymentId().isBlank()) {
+                    transactionId = payment.getProviderPaymentId();
+                } else {
+                    transactionId = paymentAttempts.findFirstByPaymentIdAndStatusInOrderByLastSeenAtDesc(
+                                    payment.getId(), List.of(Enums.PaymentStatus.CAPTURED,
+                                            Enums.PaymentStatus.COMPLETED, Enums.PaymentStatus.REFUND_PENDING,
+                                            Enums.PaymentStatus.REFUNDED))
+                            .map(PaymentAttempt::getProviderPaymentId)
+                            .filter(value -> value != null && !value.isBlank())
+                            .orElse(null);
+                }
+            }
             StringBuilder html = new StringBuilder("<div style=\"font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1a151b\">")
                     .append("<h2 style=\"margin:0 0 8px\">").append(esc(e.getName())).append("</h2>")
                     .append("<p><strong>Order number:</strong> ").append(esc(o.getOrderNumber())).append("</p>");
