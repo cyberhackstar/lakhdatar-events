@@ -135,7 +135,7 @@ Without `gh`, use the verified report IDs and values to update the GitHub Enviro
 5. Publish privacy pages and complete the responsible owner's review.
 6. Attach a real independent assessment report. Self-run DAST is supplementary, not a substitute.
 7. Verify/upload evidence to R2; update GitHub Environment variables only after reviewing it.
-8. Run **Single-Node Production Readiness** with `release_sha=fff2632c45dcc9b5b14b5e40190f60d876f8e147` and `qualification_run_id=39570757202` only if every required item is complete and reviewed. Inspect the manifest, then follow the protected production workflow. Do not use an “evidence mode”; the current workflow takes those two required inputs and remains fail-closed.
+8. Run **Single-Node Production Readiness** only after every required evidence report and checksum has been verified, all nine status/evidence-ID pairs have been reviewed and published, and an authorized reviewer has accepted the RPO/RTO scope and measured values. Use `release_sha=<the exact application SHA in the successful Enterprise Release Qualification manifest>` and `qualification_run_id=<the exact successful qualification Actions run ID that uploaded that manifest>`. Never copy an old example SHA or run ID; the workflow verifies that the artifact, run provenance, and requested release all match. Inspect the resulting readiness manifest, then follow the protected production workflow. Do not use an “evidence mode”; the current workflow takes those two required inputs and remains fail-closed.
 
 This kit does not change production application code or the production database. Single-node readiness does not certify HA, nor does it prove recovery after total VM loss.
 ## Read-only evidence inventory from Windows
