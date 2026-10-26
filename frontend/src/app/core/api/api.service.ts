@@ -72,6 +72,10 @@ export class ApiService {
     return this.http.post<RecoveryResponse>(`${this.base}/public/orders/recover`, body);
   }
 
+  recoverCheckout(body: { orderNumber: string; email: string }) {
+    return this.http.post<CheckoutResponse>(`${this.base}/public/orders/recover-checkout`, body, { withCredentials: true });
+  }
+
   ticket(ticketId: string, token: string) {
     return this.http.get<TicketView>(`${this.base}/public/tickets/${encodeURIComponent(ticketId)}`, { headers: { 'X-Ticket-Token': token } });
   }
