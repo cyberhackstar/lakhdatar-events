@@ -23,7 +23,8 @@ reject_literal() {
 require_literal "https://staging-events.neelastack.com"
 require_literal 'if ($StagingUrl -ne $ExpectedStagingUrl)'
 require_literal "/home/ubuntu/apps/lakhdatar-events-staging"
-require_literal 'test "$ROOT" ='
+require_literal "ROOT='/home/ubuntu/apps/lakhdatar-events-staging'"
+require_literal "staging root guard failed"
 require_literal 'APP_ENV staging'
 require_literal 'SPRING_PROFILES_ACTIVE staging'
 require_literal 'DEFAULT_PAYMENT_PROVIDER CASHFREE'
