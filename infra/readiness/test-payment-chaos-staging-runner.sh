@@ -70,6 +70,8 @@ require_literal 'R2_UPLOAD_READBACK=PASS'
 require_literal 'awsx s3api head-object --bucket "$BUCKET" --key "$KEY"'
 require_literal 'R2 upload refused: immutable evidence object already exists'
 require_literal 'sha256sum -c'
+require_literal `$uploadPrompt = 'To upload this immutable bundle to R2 and verify read-back, type exactly ''UPLOAD PAYMENT CHAOS EVIDENCE TO R2''; otherwise keep it local'`
+require_literal '$uploadConfirm = Read-Host $uploadPrompt'
 
 # No route is allowed to mutate production or publish certification variables.
 reject_literal 'docker compose down'
