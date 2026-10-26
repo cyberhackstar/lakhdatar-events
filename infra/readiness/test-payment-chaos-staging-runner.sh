@@ -26,6 +26,9 @@ reject_literal() {
 
 # Fixed-origin, staging-only, exact-release identity.
 require_literal "https://staging-events.neelastack.com"
+require_literal 'function ConvertTo-UnixLineEndings([string]$Text)'
+require_literal '$normalizedScript = ConvertTo-UnixLineEndings -Text $ScriptText'
+require_literal '$normalizedRemote = ConvertTo-UnixLineEndings -Text $remote'
 require_literal 'if ($StagingUrl -ne $ExpectedStagingUrl)'
 require_literal "/home/ubuntu/apps/lakhdatar-events-staging"
 require_literal "ROOT='/home/ubuntu/apps/lakhdatar-events-staging'"
