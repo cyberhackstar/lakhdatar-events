@@ -340,12 +340,14 @@ def main() -> int:
     output = args.output_dir
     manifest_path = output / MANIFEST_NAME
     report_path = output / REPORT_NAME
-    # A failed rerun can never leave a previous PASS manifest or diagnostic behind.
+    # A certification run must not leave a stale PASS manifest behind. The scheduled audit
+    # never deletes an existing manifest because audit-only mode is strictly non-certifying.
     try:
-        manifest_path.unlink(missing_ok=True)
+        if not args.audit_only:
+            manifest_path.unlink(missing_ok=True)
         report_path.unlink(missing_ok=True)
     except OSError:
-        print("Cannot remove previous readiness manifest/report; refusing to continue.", file=sys.stderr)
+        print("Cannot remove the previous readiness report/manifest safely; refusing to continue.", file=sys.stderr)
         return 2
 
     blockers: list[str] = []
