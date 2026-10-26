@@ -431,7 +431,7 @@ $answerLines = New-Object System.Collections.Generic.List[string]
 $scenarioResults = @{}
 foreach ($scenario in (Get-ScenarioPlan)) {
     Write-Host ''
-    Write-Host "$($scenario.Id) — $($scenario.Title)" -ForegroundColor Yellow
+    Write-Host "$($scenario.Id) - $($scenario.Title)" -ForegroundColor Yellow
     Write-Host $scenario.Instruction
     $restartRecord = ''
     $restartRequired = $scenario.Id -in @('c8', 'c9')
