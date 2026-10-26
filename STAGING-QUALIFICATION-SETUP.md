@@ -38,6 +38,27 @@ Staging explicitly rejects any supplied legacy fixture IDs, bearer tokens, ticke
 - The enterprise release qualification browser job runs the self-test and complete stateful browser suite.
 - The enterprise **load-test** job is separate. The included workflow already supplies default values for load profiles; only set optional `LOADTEST_*` GitHub variables when deliberately overriding the tested profile. The deployment SSH secrets are reused by the automated load runner to fetch and verify the staging target; these are not test-data credentials.
 
+
+## Automated Cashfree customer-payment qualification (new)
+
+The workflow `Staging Cashfree Payment Flow` automates the paid customer journey and publishes a direct eight-check PASS/FAIL report. It is separate from the existing complimentary-ticket browser suite, runs only when manually dispatched from `main`, and is hard-restricted to `https://staging-events.neelastack.com`. It **does not deploy code** or certify production readiness.
+
+### One additional secret
+
+Add `MAILSLURP_API_KEY` as a protected **Environment Secret** in GitHub Environment `staging`. The test creates a short-lived disposable inbox using that API key, uses its address as the checkout email, waits for the post-payment ticket email, then deletes the inbox. The API key and inbox contents are never included in the result artifact. The existing `E2E_STAGING_PROVISIONING_CONFIG` is still required; for this workflow it must contain `APP_ENV=staging`, `DEFAULT_PAYMENT_PROVIDER=CASHFREE`, and the existing dedicated E2E admin's email, password and original base32 MFA TOTP seed. Do not add Cashfree credentials to this E2E-only secret.
+
+The deployed staging runtime must already be correctly configured with Cashfree **sandbox** credentials and `CASHFREE_BASE_URL=https://sandbox.cashfree.com/pg`. The provisioner checks the backend's protected payment-safety endpoint before creating any event/team fixture. The test also checks that the created checkout session explicitly reports `sandbox` before attempting payment.
+
+### Run it
+
+1. Open GitHub **Actions → Staging Cashfree Payment Flow → Run workflow** and select branch `main`.
+2. Wait for the workflow result. It creates a disposable staging event and mailbox, buys one low-value (₹100) test ticket through the customer UI, and cleans up the temporary fixture and inbox.
+3. Read **Staging Cashfree payment-flow qualification** in the run summary. Download the `staging-cashfree-payment-flow-…` artifact only if you need the sanitized JSON detail. Overall `PASS` is emitted only when all eight checks pass, including fixture and inbox cleanup; a missing prerequisite or incomplete run cannot become a pass.
+
+The payment uses Cashfree's published sandbox UPI success VPA `testsuccess@gocash` (see [Cashfree sandbox test data](https://www.cashfree.com/docs/api-reference/payments/data-to-test-integration)). It must never use live credentials or real customer orders. If Cashfree changes its hosted checkout UI or the provider blocks the automated sandbox path, the run fails with a diagnostic rather than bypassing the payment step.
+
+The report checks provider-confirmed order state, exactly one paid ticket, customer-facing order/transaction references, a newly delivered ticket email containing both references, same-email recovery, repeated no-cookie verification replay privacy and idempotency, finance SALE-ledger amount/currency reconciliation, and cleanup. A successful staging flow is not a substitute for independent finance review, release qualification, or the protected production-readiness approval.
+
 ## Local, offline provisioning self-test
 
 From `e2e/`, run:
