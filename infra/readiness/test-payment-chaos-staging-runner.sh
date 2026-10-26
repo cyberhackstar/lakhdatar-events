@@ -4,6 +4,11 @@ set -euo pipefail
 SCRIPT="infra/readiness/run-payment-chaos-staging.ps1"
 [[ -s "$SCRIPT" ]] || { echo "missing staging payment-chaos runner: $SCRIPT" >&2; exit 1; }
 
+if LC_ALL=C grep -n '[^ -~]' "$SCRIPT"; then
+  echo "PowerShell runner must remain ASCII-safe for Windows PowerShell 5.1 without a UTF-8 BOM." >&2
+  exit 1
+fi
+
 require_literal() {
   local needle="$1"
   grep -Fq -- "$needle" "$SCRIPT" || {
@@ -70,6 +75,8 @@ require_literal 'R2_UPLOAD_READBACK=PASS'
 require_literal 'awsx s3api head-object --bucket "$BUCKET" --key "$KEY"'
 require_literal 'R2 upload refused: immutable evidence object already exists'
 require_literal 'sha256sum -c'
+require_literal 'To upload this immutable bundle to R2 and verify read-back'
+require_literal '$uploadConfirm = Read-Host $uploadPrompt'
 
 # No route is allowed to mutate production or publish certification variables.
 reject_literal 'docker compose down'

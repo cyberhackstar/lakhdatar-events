@@ -33,9 +33,50 @@ jobs:
             [ref]$errors
           ) | Out-Null
           if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
+            foreach ($parseError in $errors) {
+              Write-Host ("Parser error at line {0}, column {1}: {2}" -f $parseError.Extent.StartLineNumber, $parseError.Extent.StartColumnNumber, $parseError.Message)
+              Write-Host ("Source: {0}" -f $parseError.Extent.Text)
+              Write-Host ("ErrorId: {0}" -f $parseError.ErrorId)
+            }
+            foreach ($token in ($tokens | Where-Object { $_.Extent.EndLineNumber -ge 550 })) {
+              $preview = ($token.Text -replace "`r", "<CR>" -replace "`n", "<LF>")
+              if ($preview.Length -gt 180) { $preview = $preview.Substring(0, 180) + "..." }
+              Write-Host ("TOKEN {0} {1}:{2}-{3}:{4} {5}" -f $token.Kind, $token.Extent.StartLineNumber, $token.Extent.StartColumnNumber, $token.Extent.EndLineNumber, $token.Extent.EndColumnNumber, $preview)
+            }
             exit 1
           }
           Write-Host "PowerShell syntax passed."
       - name: Verify staging-only safety contract
         run: bash infra/readiness/test-payment-chaos-staging-runner.sh
+
+  windows-powershell-51:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Parse runner with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "infra/readiness/run-payment-chaos-staging.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            foreach ($parseError in $errors) {
+              Write-Host ("Parser error at line {0}, column {1}: {2}" -f $parseError.Extent.StartLineNumber, $parseError.Extent.StartColumnNumber, $parseError.Message)
+              Write-Host ("Source: {0}" -f $parseError.Extent.Text)
+              Write-Host ("ErrorId: {0}" -f $parseError.ErrorId)
+            }
+            $tokenArray = @($tokens)
+            Write-Host ("Token count: {0}" -f $tokenArray.Count)
+            foreach ($token in ($tokenArray | Select-Object -Last 120)) {
+              $preview = ($token.Text -replace "`r", "<CR>" -replace "`n", "<LF>")
+              if ($preview.Length -gt 160) { $preview = $preview.Substring(0, 160) + "..." }
+              Write-Host ("TOKEN {0} {1}:{2}-{3}:{4} {5}" -f $token.Kind, $token.Extent.StartLineNumber, $token.Extent.StartColumnNumber, $token.Extent.EndLineNumber, $token.Extent.EndColumnNumber, $preview)
+            }
+            exit 1
+          }
+          Write-Host "Windows PowerShell 5.1 syntax passed."
