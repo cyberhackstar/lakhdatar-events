@@ -658,12 +658,23 @@ requestedTypes.add(new TicketTypeRequest(
     }
 
     private String customerTransactionId(Order order) {
-        return payments.findByOrderId(order.getId())
-                .filter(payment -> payment.getStatus() == Enums.PaymentStatus.CAPTURED
-                        || payment.getStatus() == Enums.PaymentStatus.COMPLETED
-                        || payment.getStatus() == Enums.PaymentStatus.REFUND_PENDING
-                        || payment.getStatus() == Enums.PaymentStatus.REFUNDED)
-                .map(Payment::getProviderPaymentId)
+        Payment payment = payments.findByOrderId(order.getId()).orElse(null);
+        if (payment == null) return null;
+        boolean customerVisibleStatus = payment.getStatus() == Enums.PaymentStatus.CAPTURED
+                || payment.getStatus() == Enums.PaymentStatus.COMPLETED
+                || payment.getStatus() == Enums.PaymentStatus.REFUND_PENDING
+                || payment.getStatus() == Enums.PaymentStatus.REFUNDED;
+        if (customerVisibleStatus && payment.getProviderPaymentId() != null
+                && !payment.getProviderPaymentId().isBlank()) {
+            return payment.getProviderPaymentId();
+        }
+        // Cashfree may record a provider payment/attempt before the primary payment row is fully reconciled.
+        // Only expose a reference from an attempt that reached a money-moving/success state.
+        return paymentAttempts.findFirstByPaymentIdAndStatusInOrderByLastSeenAtDesc(
+                        payment.getId(), List.of(Enums.PaymentStatus.CAPTURED,
+                                Enums.PaymentStatus.COMPLETED, Enums.PaymentStatus.REFUND_PENDING,
+                                Enums.PaymentStatus.REFUNDED))
+                .map(PaymentAttempt::getProviderPaymentId)
                 .filter(value -> value != null && !value.isBlank())
                 .orElse(null);
     }
