@@ -204,7 +204,7 @@ class AggregateReadinessTests(unittest.TestCase):
             capture_output=True, text=True, check=False,
         )
         self.assertEqual(proc.returncode, 2)
-        self.assertIn("R2_BUCKET and HTTPS R2_ENDPOINT_URL are required", proc.stdout)
+        self.assertIn("R2_EVIDENCE_BUCKET and HTTPS R2_ENDPOINT_URL are required", proc.stdout)
         self.assertFalse((self.out / "single-node-production-readiness.json").exists())
 
 
