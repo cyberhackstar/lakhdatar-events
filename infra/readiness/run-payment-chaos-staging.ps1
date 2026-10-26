@@ -15,6 +15,10 @@ $ApiRoot = 'https://api.github.com/repos/cyberhackstar/lakhdatar-events'
 
 function Stop-Safely([string]$Message) { throw $Message }
 
+function ConvertTo-UnixLineEndings([string]$Text) {
+    return $Text.Replace("`r`n", "`n").Replace("`r", "`n")
+}
+
 function Test-SafeEvidenceText([string]$Value) {
     if ($Value -match '(?i)\b(password|secret|bearer|authorization|api[_ -]?key|access[_ -]?key|mfa.?seed|private.?key)\s*[:=]\s*\S+') { return $false }
     if ($Value -match '(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b') { return $false }
@@ -51,7 +55,8 @@ function Invoke-RemoteBash([string]$ScriptText) {
     $ssh = Get-Command ssh.exe -ErrorAction SilentlyContinue
     if (-not $ssh) { $ssh = Get-Command ssh -ErrorAction SilentlyContinue }
     if (-not $ssh) { Stop-Safely 'OpenSSH client was not found.' }
-    $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($ScriptText))
+    $normalizedScript = ConvertTo-UnixLineEndings -Text $ScriptText
+    $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($normalizedScript))
     $command = "printf '%s' '$encoded' | base64 -d | bash"
     $output = @(& $ssh.Source -o BatchMode=yes -o ConnectTimeout=15 $SshAlias $command 2>&1)
     $exitCode = $LASTEXITCODE
@@ -356,7 +361,8 @@ echo 'R2_UPLOAD_READBACK=PASS'
 echo "VERIFIED_EVIDENCE_ID=$KEY"
 '@
     $remote = $remote.Replace('__KEY__', $EvidenceId).Replace('__REMOTE_DIR__', $remoteDir).Replace('__REMOTE_DATA__', $remoteData).Replace('__REMOTE_SUM__', $remoteSum)
-    $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($remote))
+    $normalizedRemote = ConvertTo-UnixLineEndings -Text $remote
+    $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($normalizedRemote))
     $output = @(& $ssh.Source -o BatchMode=yes -o ConnectTimeout=15 $SshAlias "printf '%s' '$encoded' | base64 -d | bash" 2>&1)
     if ($LASTEXITCODE -ne 0) {
         foreach ($line in $output) { Write-Host ([string]$line) }
