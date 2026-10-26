@@ -31,9 +31,9 @@ The seed intentionally omits offsite-backup status until the new lock/access rev
 | `DUMP_RESTORE_DRILL_*` and `recovery-drill-candidates-*.env` | `recovery-drill.sh` | Dump restore to a disposable PostgreSQL DB. Its measured candidates do **not** overwrite the already-reviewed `RPO_SECONDS`/`RTO_SECONDS`; the scopes are not automatically interchangeable. |
 | GitHub variable publication | `publish-variables.sh` | Checks all required values, uploads or verifies each R2 object and sidecar, reads them back and verifies SHA-256. GitHub publication is separately gated. |
 
-## R2 settings for this account
+## R2 settings for backup review (existing bucket)
 
-Use the existing AWS profile on the VM. Do not print or paste credentials.
+Keep the existing backup profile and bucket for backup/PITR operations. Do not print or paste credentials.
 
 ```bash
 export AWS_PROFILE=neelastack-r2
@@ -50,6 +50,16 @@ bash infra/readiness/offsite-backup-review.sh
 ```
 
 Answer each item only after confirming it in the Cloudflare dashboard and retained lock-test evidence. The script only reads the test object; it never performs a test overwrite or deletion.
+
+## Dedicated R2 readiness evidence bucket (new)
+
+Create the separate bucket `neelastack-readiness-evidence` and configure a server-side R2 Bucket Lock/retention rule for the `production/readiness-evidence/` object prefix. Do not store these results in the backup bucket. Cloudflare's standard S3-compatible Object Read Only and Object Read & Write credentials can be scoped to specific buckets; the separate bucket avoids giving the GitHub aggregator read access to database backups. See the [Cloudflare R2 token documentation](https://developers.cloudflare.com/r2/api/tokens/).
+
+Create two bucket-scoped tokens:
+- **Read only**: for the GitHub Environments only; used to list/read evidence objects and sidecars, with no write/delete permission.
+- **Read & Write**: for local publishing and the staging payment-chaos runner, scoped only to the evidence bucket.
+
+Configure the read/write token as AWS CLI profile `neelastack-r2-evidence` on both the Windows authoring machine and the staging VM. Keep the existing `neelastack-r2` profile for backups. Do not print credentials, commit them, or reuse the backup profile for the readiness uploader.
 
 ## Docker-only PostgreSQL connections
 
@@ -118,19 +128,22 @@ When a control finishes, `lib.sh` writes:
 
 A failed run also emits a result with `status=FAIL`; keep and upload that record rather than hiding it behind an older PASS. Do not edit result JSON or checksums by hand.
 
-Use the existing write-capable VM profile only to upload/read back immutable objects, never the read-only GitHub aggregator credential:
+Use the dedicated evidence-bucket writer profile only to upload/read back objects; it must not read or write the backup bucket:
 
 ```bash
-UPLOAD_EVIDENCE=yes bash infra/readiness/publish-variables.sh readiness-evidence/variables.env
+R2_EVIDENCE_BUCKET=neelastack-readiness-evidence \
+R2_ENDPOINT_URL=https://058bc80c5f25ec698f8aa691f0750603.r2.cloudflarestorage.com \
+AWS_PROFILE=neelastack-r2-evidence UPLOAD_EVIDENCE=yes \
+  bash infra/readiness/publish-variables.sh readiness-evidence/variables.env
 ```
 
 The publisher checks the report/result sidecars, downloads each object back, verifies bytes, and refuses to overwrite an immutable/locked object with different content. It can publish partial evidence objects while the overall assessment remains blocked. `APPLY=yes` is legacy GitHub-variable publication and is **not required by the new readiness workflow**; do not use it as a substitute for source evidence or human review.
 
-The aggregation workflows require these settings:
-- Protected Environment `single-node-production-readiness`: `R2_BUCKET`, `R2_ENDPOINT_URL` variables and `R2_READONLY_ACCESS_KEY_ID`, `R2_READONLY_SECRET_ACCESS_KEY` secrets. Keep required reviewer approval enabled.
-- Environment `readiness-evidence-audit`: the same two variables and the same dedicated read-only secrets, with no approval rule so the weekly read-only audit can run unattended.
+The aggregation workflows require these settings in both GitHub Environments:
+- Protected Environment `single-node-production-readiness`: `R2_EVIDENCE_BUCKET=neelastack-readiness-evidence`, `R2_ENDPOINT_URL` variables, and `R2_EVIDENCE_READONLY_ACCESS_KEY_ID`, `R2_EVIDENCE_READONLY_SECRET_ACCESS_KEY` secrets. Keep required reviewer approval enabled.
+- Environment `readiness-evidence-audit`: the same two variables and the same bucket-scoped read-only secrets, with no approval rule so the weekly read-only audit can run unattended.
 
-The read-only S3-compatible token must be limited to ListBucket for `production/readiness-evidence/` and GetObject within that prefix. It must not have PutObject, DeleteObject, or bucket-lock administration rights. The writer profile used by `publish-variables.sh` stays separate.
+The GitHub token has access only to the dedicated readiness evidence bucket and does not have backup bucket access or write/delete rights. The writer profile used by `publish-variables.sh` and the PowerShell payment-chaos runner is separate and scoped to the same evidence bucket. Because the token is bucket-scoped, do not rely on a key-prefix restriction to protect backups stored in a different bucket.
 
 ## Correct sequence
 
