@@ -107,7 +107,7 @@ must_env DB_URL jdbc:postgresql://postgres:5432/lakhdatar_staging
 must_env REDIS_HOST redis
 must_env DEFAULT_PAYMENT_PROVIDER CASHFREE
 must_env CASHFREE_BASE_URL https://sandbox.cashfree.com/pg
-must_env CASHFREE_API_VERSION 2025-01-01
+# CASHFREE_API_VERSION may be omitted in .env because Compose defaults it; verify the effective backend runtime value below.
 must_present_nonplaceholder CASHFREE_APP_ID 4
 must_present_nonplaceholder CASHFREE_SECRET_KEY 8
 must_present_nonplaceholder DB_PASSWORD 12
@@ -324,10 +324,15 @@ SRC='__REMOTE_DATA__'
 SUM='__REMOTE_SUM__'
 TMP="$(mktemp -d)"
 cleanup() {
-  case "$DIR" in /tmp/neelastack-payment-chaos-*) rm -rf "$DIR" ;; *) echo 'Refusing unsafe temporary-path cleanup' >&2 ;; esac
-  rm -rf "$TMP"
+  if [[ "$DIR" =~ ^/tmp/neelastack-payment-chaos-[0-9a-f]{32}$ ]]; then
+    rm -rf -- "$DIR"
+  else
+    echo 'Refusing unsafe temporary-path cleanup' >&2
+  fi
+  rm -rf -- "$TMP"
 }
 trap cleanup EXIT
+[[ "$DIR" =~ ^/tmp/neelastack-payment-chaos-[0-9a-f]{32}$ && "$SRC" == "$DIR/"* && "$SUM" == "$SRC.sha256" ]] || { echo 'R2 upload refused: temporary path validation failed' >&2; exit 2; }
 [[ "$KEY" =~ ^production/readiness-evidence/[A-Za-z0-9._/-]+$ && "$KEY" != *..* ]] || { echo 'R2 upload refused: unsafe evidence key' >&2; exit 2; }
 awsx() { aws --profile neelastack-r2 --endpoint-url "$ENDPOINT" "$@"; }
 awsx s3 ls "s3://$BUCKET/production/readiness-evidence/" >/dev/null || { echo 'R2 list preflight failed; no evidence upload attempted' >&2; exit 2; }
