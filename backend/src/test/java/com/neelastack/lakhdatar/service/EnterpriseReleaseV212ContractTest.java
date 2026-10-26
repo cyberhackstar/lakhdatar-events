@@ -60,7 +60,8 @@ class EnterpriseReleaseV212ContractTest {
         String haProduction = Files.readString(Path.of("../.github/workflows/production-ha.yml"));
         assertTrue(workflow.contains("environment: single-node-production-readiness"));
         assertTrue(workflow.contains("aggregate_readiness_evidence.py"));
-        assertTrue(workflow.contains("R2_READONLY_ACCESS_KEY_ID"));
+        assertTrue(workflow.contains("R2_EVIDENCE_READONLY_ACCESS_KEY_ID"));
+        assertTrue(workflow.contains("R2_EVIDENCE_READONLY_SECRET_ACCESS_KEY"));
         assertFalse(workflow.contains("vars.SINGLE_NODE_RECOVERY_STATUS"));
         assertFalse(workflow.contains("vars.RPO_SECONDS"));
         assertTrue(validator.contains("PRODUCTION_TOPOLOGY must be single-node"));

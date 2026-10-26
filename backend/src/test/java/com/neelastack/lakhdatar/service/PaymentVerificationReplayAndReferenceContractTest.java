@@ -48,7 +48,7 @@ class PaymentVerificationReplayAndReferenceContractTest {
     @Test
     void successfulEmailShowsTheOrderNumberAndKnownTransactionReference() throws Exception {
         String mail = read("src/main/java/com/neelastack/lakhdatar/service/TicketMailService.java");
-        assertTrue(mail.contains("Order number:</strong>"));
+        assertTrue(mail.contains("Neelastack order number:</strong>"));
         assertTrue(mail.contains("Payment transaction ID:</strong>"));
         assertTrue(mail.contains("payments.findByOrderId(o.getId())"));
         assertTrue(mail.contains("findFirstByPaymentIdAndStatusInOrderByLastSeenAtDesc"),
