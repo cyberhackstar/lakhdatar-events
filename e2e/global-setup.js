@@ -37,5 +37,35 @@ module.exports = async function globalSetup() {
   // Fixtures are a coherent generated set; do not mix them with stale per-test values.
   // Workers are forked after globalSetup, so they inherit these values.
   for (const [k, v] of Object.entries(env)) process.env[k] = v;
+
+  if (process.env.E2E_RUN_PAYMENT_FLOW === 'true') {
+    // Ignore complimentary fixture emails sent during setup; only messages delivered by the
+    // paid checkout phase may satisfy the payment-email assertion.
+    process.env.E2E_PAYMENT_MAIL_SINCE = new Date().toISOString();
+    return async function paymentQualificationTeardown() {
+      const reportKit = require('./payment-qualification/report.cjs');
+      let report;
+      try {
+        report = require('node:fs').existsSync(reportKit.RESULT_PATH)
+          ? JSON.parse(require('node:fs').readFileSync(reportKit.RESULT_PATH, 'utf8'))
+          : reportKit.blankReport();
+        await teardown();
+        const cleanup = report.checks.find((item) => item.id === 'cleanup');
+        if (cleanup) {
+          cleanup.status = 'PENDING';
+          cleanup.detail = 'Disposable event/team teardown completed; disposable inbox deletion remains.';
+        }
+        reportKit.writeReport(report);
+      } catch (error) {
+        const cleanup = report && report.checks.find((item) => item.id === 'cleanup');
+        if (cleanup) {
+          cleanup.status = 'FAIL';
+          cleanup.detail = 'Disposable event/team teardown failed; inspect the sanitized workflow logs.';
+          reportKit.writeReport(report);
+        }
+        throw error;
+      }
+    };
+  }
   return teardown;
 };
