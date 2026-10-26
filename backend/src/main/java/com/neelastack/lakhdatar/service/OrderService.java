@@ -672,7 +672,7 @@ requestedTypes.add(new TicketTypeRequest(
         // Provider order identifiers are not authorization. A replay may establish the final state,
         // but secure ticket credentials are only emitted on the session-bound response.
         return new VerifyResponse(order.getPublicId().toString(), order.getOrderNumber(),
-                order.getStatus().name(), List.of(), customerTransactionId(order));
+                order.getStatus().name(), List.of(), null);
     }
 
     public VerifyResponse response(Order o){
