@@ -399,7 +399,7 @@ test.describe('automated staging customer payment qualification', () => {
       );
       let emailDetails = mail;
       const mailBody = [mail.body, mail.bodyExcerpt, mail.textBody, mail.htmlBody].filter(Boolean).join('\n');
-      if (!mailBody) {
+      if (!mailBody.includes(orderNumber)) {
         const emailId = String(mail.id || mail.emailId || '');
         guard(Boolean(emailId), 'The received ticket email had no body or retrievable message reference.');
         emailDetails = await mailSlurpRequest(mailApiKey, 'GET', '/emails/' + encodeURIComponent(emailId), undefined);
