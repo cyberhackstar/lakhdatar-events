@@ -2,26 +2,22 @@
 
 This path is for the current deployment architecture: one production VM (`PRODUCTION_TOPOLOGY=single-node`, `HA_NODE_COUNT=1`). It checks operational resilience and security evidence for a single node; it **does not** certify high availability, provide node failover, or imply there is no downtime during VM failure. The existing `Enterprise Production Certification` and `Enterprise Production HA Promotion` flows remain fail-closed and must only be used for an actual multi-node HA topology.
 
-## Protected environment
+## Evidence source and protected approval
 
-Create a protected GitHub Environment named `single-node-production-readiness` (require reviewer approval). Configure these as **Environment Variables** because the workflow uses `${{ vars.NAME }}`. Populate values only after the corresponding exercise/review completed successfully and a retained report or immutable evidence record exists. Do not use placeholders or attest to unperformed drills.
+The readiness gate no longer consumes eighteen manually maintained control-status/evidence-ID variables. It reads immutable, machine-readable records from Cloudflare R2 and fails closed if the newest record for any control is failed, stale, bound to another release where release binding is required, or has a missing/mismatched checksum.
 
-- `PRODUCTION_TOPOLOGY=single-node`
-- `HA_NODE_COUNT=1`
-- `RPO_SECONDS` and `RTO_SECONDS`: measured values from the real backup/restore or recovery drill
-- `MAX_RPO_SECONDS` (optional, defaults to `300`)
-- `MAX_RTO_SECONDS` (optional, defaults to `1800`)
-- `SINGLE_NODE_RECOVERY_STATUS=PASS` and `SINGLE_NODE_RECOVERY_EVIDENCE_ID`: restart/recovery drill on the single production node or representative environment
-- `OFFSITE_BACKUP_STATUS=PASS` and `OFFSITE_BACKUP_EVIDENCE_ID`: backup stored outside the production VM and retention/access reviewed
-- `PITR_STATUS=PASS` and `PITR_EVIDENCE_ID`: successful database point-in-time/restore drill, or documented restore method actually exercised
-- `PEN_TEST_STATUS=PASS` and `PEN_TEST_EVIDENCE_ID`: current security assessment and reviewed findings
-- `PAYMENT_CHAOS_STATUS=PASS` and `PAYMENT_CHAOS_EVIDENCE_ID`: provider retry/idempotency/failure recovery tests
-- `ALERTING_STATUS=PASS` and `ALERTING_EVIDENCE_ID`: tested alerts for service failure, DB failure and low disk space
-- `FINANCE_RECONCILIATION_STATUS=PASS` and `FINANCE_RECONCILIATION_EVIDENCE_ID`
-- `PRIVACY_REVIEW_STATUS=PASS` and `PRIVACY_REVIEW_EVIDENCE_ID`
-- `MFA_STATUS=PASS` and `MFA_EVIDENCE_ID`: privileged MFA enforcement and recovery drill
+Each readiness collector creates a human-readable report plus a checksummed `.result.json` record for **PASS and FAIL**. R2 stores both artifacts and their `.sha256` sidecars under `production/readiness-evidence/`. The aggregator verifies the result bytes, the referenced source report/bundle bytes, the evidence age, release identity, reviewer requirements, and the reviewed RPO/RTO scope. A failed re-run supersedes an older PASS based on `finishedAtUtc`, not upload time.
 
-Evidence IDs must be stable references (6–256 characters; letters, digits, `.`, `_`, `:`, `/`, and `-` are accepted). The identifier is not proof on its own; retain and review the referenced record. Measured RPO/RTO must not exceed configured maximums.
+Configure these four settings once in the protected GitHub Environment named `single-node-production-readiness`:
+
+- Environment Variables: `R2_BUCKET`, `R2_ENDPOINT_URL`.
+- Environment Secrets: `R2_READONLY_ACCESS_KEY_ID`, `R2_READONLY_SECRET_ACCESS_KEY`.
+
+The R2 credential must be a dedicated S3-compatible read-only token. Grant only `ListBucket` (constrained to the `production/readiness-evidence/` prefix) and `GetObject` for the evidence bucket. It must not permit uploads, overwrites, or deletes. The local publisher uses a separate write-capable credential; do not reuse it for the GitHub aggregator.
+
+Keep the `single-node-production-readiness` Environment's reviewer approval requirement enabled. That protected approval is still part of the attestation; the aggregator cannot replace it. The scheduled read-only audit uses a separate `readiness-evidence-audit` Environment without required reviewers, configured with the same two variables and two read-only secrets. Its weekly workflow only verifies freshness/checksums and reports blockers—it never writes the certification manifest or deploys.
+
+The following actions still require honest human input and are not auto-approved: independent penetration-test report/review, finance control-total reconciliation, privacy/legal review, evidence scope acceptance, and measured recovery RPO/RTO. RPO/RTO are taken from the reviewed `SINGLE_NODE_RECOVERY` result, never free-standing variables. The policy defaults are 300 seconds RPO and 1,800 seconds RTO; any change to those bounds must be reviewed in source.
 
 ## Release sequence
 
