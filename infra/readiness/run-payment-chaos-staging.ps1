@@ -78,6 +78,7 @@ function Get-VerifiedStagingPreflight {
 set -euo pipefail
 ROOT='/home/ubuntu/apps/lakhdatar-events-staging'
 fail() { printf 'STAGING_PREFLIGHT=FAIL (%s)\n' "$1" >&2; exit 2; }
+[[ "$ROOT" == '/home/ubuntu/apps/lakhdatar-events-staging' ]] || fail 'staging root guard failed'
 cd "$ROOT" || fail 'staging root not found'
 test -s .env || fail 'staging environment file missing'
 test "$(stat -c %a .env 2>/dev/null)" = '600' || fail 'staging environment permissions must be 0600'
