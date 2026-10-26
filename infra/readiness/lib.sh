@@ -80,12 +80,12 @@ finish_report() {
   local id="$EVIDENCE_PREFIX/$(basename "$file")"
   result_file="${REPORT%.txt}.result.json"
   result_key="$EVIDENCE_PREFIX/$(basename "$result_file")"
-  python3 - "$result_file" "$ITEM" "$VARPREFIX" "$status" "$REPORT_STARTED_AT" "$finished_at" "$OPERATOR" "$id" "$report_sha" "$(basename "$file")" "$FAILS" <<'PYRESULT'
-import json, os, re, subprocess, sys
+  python3 - "$result_file" "$ITEM" "$VARPREFIX" "$status" "$REPORT_STARTED_AT" "$finished_at" "$OPERATOR" "$id" "$report_sha" "$(basename "$file")" "$FAILS" "$REPORT" <<'PYRESULT'
+import json, os, re, sys
 from pathlib import Path
 
 (out, item, control_id, status, started, finished, reviewer, evidence_key,
- report_sha, report_name, fail_count) = sys.argv[1:]
+ report_sha, report_name, fail_count, report_path) = sys.argv[1:]
 def optional(name):
     value = os.environ.get(name, "").strip()
     return value or None
@@ -94,7 +94,7 @@ def number(name):
     if value is None:
         return None
     return int(value) if re.fullmatch(r"[0-9]{1,9}", value) else value
-report = Path(os.environ.get("REPORT", ""))
+report = Path(report_path)
 try:
     text = report.read_text(encoding="utf-8", errors="replace")
     pass_count = sum(1 for line in text.splitlines() if re.match(r"^PASS\s", line))
