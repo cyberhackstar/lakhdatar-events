@@ -60,7 +60,7 @@ module.exports = async function globalSetup() {
           const complete = report.testStatus === 'PASS' && report.mailboxCleanupStatus === 'PASS'
             && report.checks.every((item) => item.status === 'PASS');
           report.status = failed ? 'FAIL' : complete ? 'PASS' : 'INCOMPLETE';
-          fs.writeFileSync(reportKit.RESULT_PATH, JSON.stringify(report, null, 2) + '\\n', { mode: 0o600 });
+          fs.writeFileSync(reportKit.RESULT_PATH, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
         } else {
           const cleanup = report.checks.find((item) => item.id === 'cleanup');
           if (cleanup) {
