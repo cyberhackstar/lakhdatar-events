@@ -329,11 +329,12 @@ def main() -> int:
     output = args.output_dir
     manifest_path = output / MANIFEST_NAME
     report_path = output / REPORT_NAME
-    # A failed rerun can never leave a previous PASS manifest behind.
+    # A failed rerun can never leave a previous PASS manifest or diagnostic behind.
     try:
         manifest_path.unlink(missing_ok=True)
+        report_path.unlink(missing_ok=True)
     except OSError:
-        print("Cannot remove previous readiness manifest; refusing to continue.", file=sys.stderr)
+        print("Cannot remove previous readiness manifest/report; refusing to continue.", file=sys.stderr)
         return 2
 
     blockers: list[str] = []
@@ -349,23 +350,35 @@ def main() -> int:
         control_ids = {item["id"] for item in controls if isinstance(item, dict) and isinstance(item.get("id"), str)}
         if len(control_ids) != len(controls):
             raise EvidenceError("policy control IDs are missing or duplicated")
+        manifest_fields = {item.get("manifestField") for item in controls if isinstance(item, dict)}
+        if len(manifest_fields) != len(controls) or not all(isinstance(v, str) and v for v in manifest_fields):
+            raise EvidenceError("policy manifest fields are missing or duplicated")
+        if policy.get("topology") != "single-node" or policy.get("nodeCount") != 1:
+            raise EvidenceError("policy must describe exactly one single-node deployment")
     except (OSError, json.JSONDecodeError, EvidenceError, KeyError) as exc:
         print(f"Readiness policy invalid: {exc}", file=sys.stderr)
         return 2
 
     if args.local_results_dir:
         source = EvidenceSource(args.local_results_dir)
+        source_ready = True
     else:
         endpoint = os.environ.get("R2_ENDPOINT_URL", "")
         bucket = os.environ.get("R2_BUCKET", "")
+        has_profile = bool(os.environ.get("AWS_PROFILE"))
+        has_key_id = bool(os.environ.get("AWS_ACCESS_KEY_ID"))
+        has_secret = bool(os.environ.get("AWS_SECRET_ACCESS_KEY"))
+        source_ready = True
         if not endpoint.startswith("https://") or not bucket:
             blockers.append("R2_BUCKET and HTTPS R2_ENDPOINT_URL are required")
-        if not (os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_PROFILE")):
+            source_ready = False
+        if not has_profile and not (has_key_id and has_secret):
             blockers.append("R2 read-only credentials are missing")
+            source_ready = False
         source = EvidenceSource(None, bucket, endpoint)
 
     now = datetime.now(timezone.utc)
-    records = load_results(source, blockers)
+    records = load_results(source, blockers) if source_ready else []
     latest = latest_controls(records, control_ids)
     checks: list[dict[str, Any]] = []
     by_id: dict[str, dict[str, Any]] = {}
