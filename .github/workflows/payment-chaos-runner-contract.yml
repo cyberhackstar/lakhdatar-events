@@ -38,6 +38,11 @@ jobs:
               Write-Host ("Source: {0}" -f $parseError.Extent.Text)
               Write-Host ("ErrorId: {0}" -f $parseError.ErrorId)
             }
+            foreach ($token in ($tokens | Where-Object { $_.Extent.EndLineNumber -ge 550 })) {
+              $preview = ($token.Text -replace "`r", "<CR>" -replace "`n", "<LF>")
+              if ($preview.Length -gt 180) { $preview = $preview.Substring(0, 180) + "..." }
+              Write-Host ("TOKEN {0} {1}:{2}-{3}:{4} {5}" -f $token.Kind, $token.Extent.StartLineNumber, $token.Extent.StartColumnNumber, $token.Extent.EndLineNumber, $token.Extent.EndColumnNumber, $preview)
+            }
             exit 1
           }
           Write-Host "PowerShell syntax passed."
