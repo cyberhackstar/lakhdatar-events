@@ -560,7 +560,8 @@ $artifactPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($evidence
 Write-Host "Candidate payment-chaos evidence ID: $evidenceId" -ForegroundColor Green
 Write-Host "Local evidence directory: $runDirectory"
 Write-Host 'GitHub Environment variables have NOT been changed.'
-$uploadConfirm = Read-Host "To upload this immutable bundle to R2 and verify read-back, type exactly 'UPLOAD PAYMENT CHAOS EVIDENCE TO R2'; otherwise keep it local"
+$uploadPrompt = 'To upload this immutable bundle to R2 and verify read-back, type exactly ''UPLOAD PAYMENT CHAOS EVIDENCE TO R2''; otherwise keep it local'
+$uploadConfirm = Read-Host $uploadPrompt
 if ($uploadConfirm -ceq 'UPLOAD PAYMENT CHAOS EVIDENCE TO R2') {
     Upload-VerifiedEvidenceToR2 -ArtifactPath $artifactPath -EvidenceId $evidenceId
     Write-Host 'R2 object and SHA-256 sidecar verified. GitHub Environment variables remain unchanged.'
