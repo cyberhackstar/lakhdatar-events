@@ -111,11 +111,7 @@ must_present_nonplaceholder() {
 must_env APP_ENV staging
 must_env PUBLIC_BASE_URL https://staging-events.neelastack.com
 must_env CORS_ALLOWED_ORIGINS https://staging-events.neelastack.com
-must_env DB_URL jdbc:postgresql://postgres:5432/lakhdatar_staging
-must_env REDIS_HOST redis
-must_env DEFAULT_PAYMENT_PROVIDER CASHFREE
-must_env CASHFREE_BASE_URL https://sandbox.cashfree.com/pg
-# CASHFREE_API_VERSION may be omitted in .env because Compose defaults it; verify the effective backend runtime value below.
+# Verify settings from the actual running container below; Compose supplies safe defaults for these optional .env entries.
 must_present_nonplaceholder CASHFREE_APP_ID 4
 must_present_nonplaceholder CASHFREE_SECRET_KEY 8
 must_present_nonplaceholder DB_PASSWORD 12
@@ -144,6 +140,8 @@ runtime_must() {
 }
 runtime_must APP_ENV staging
 runtime_must SPRING_PROFILES_ACTIVE staging
+runtime_must DB_URL jdbc:postgresql://postgres:5432/lakhdatar_staging
+runtime_must REDIS_HOST redis
 runtime_must DEFAULT_PAYMENT_PROVIDER CASHFREE
 runtime_must CASHFREE_BASE_URL https://sandbox.cashfree.com/pg
 runtime_must CASHFREE_API_VERSION 2025-01-01
@@ -372,7 +370,7 @@ if ($SshAlias -notmatch '^[A-Za-z0-9._-]{1,64}$') { Stop-Safely 'SSH alias must 
 $repoRoot = Test-LocalRepository
 
 Write-Host '=== Public HTTPS preflight ===' -ForegroundColor Cyan
-foreach ($path in @('/edge-health', '/robots.txt')) {
+foreach ($path in @('/api/v1/public/events/upcoming', '/robots.txt')) {
     try {
         $response = Invoke-WebRequest -Uri "$ExpectedStagingUrl$path" -TimeoutSec 15 -UseBasicParsing
         if ([int]$response.StatusCode -ne 200) { Stop-Safely "Staging public endpoint failed: $path" }
