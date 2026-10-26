@@ -63,10 +63,12 @@ class PaymentVerificationReplayAndReferenceContractTest {
         String result = read("../frontend/src/app/features/payment-result/payment-result.component.ts");
         String recovery = read("../frontend/src/app/features/recover/recover.component.ts");
         assertTrue(models.contains("transactionId?: string | null;"));
-        assertTrue(result.contains("ORDER NUMBER"));
-        assertTrue(result.contains("TRANSACTION ID"));
+        assertTrue(result.contains("NEELASTACK ORDER NUMBER"));
+        assertTrue(result.contains("PAYMENT TRANSACTION ID"));
+        assertTrue(result.contains("copyOrder()"));
         assertTrue(result.contains("copyTransaction()"));
         assertTrue(result.contains("Recover my tickets"));
+        assertTrue(recovery.contains("Neelastack order number:"));
         assertTrue(recovery.contains("copyOrderNumber()"));
         assertTrue(recovery.contains("copyTransactionId()"));
         assertTrue(recovery.contains("Payment transaction ID:"));
