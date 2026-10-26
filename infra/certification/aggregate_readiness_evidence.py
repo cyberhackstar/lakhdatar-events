@@ -98,7 +98,7 @@ class EvidenceSource:
             except OSError as exc:
                 raise EvidenceError(f"Required local evidence object is missing: {Path(key).name}") from exc
         if not self.bucket or not self.endpoint:
-            raise EvidenceError("R2_BUCKET and R2_ENDPOINT_URL are required")
+            raise EvidenceError("R2_EVIDENCE_BUCKET and R2_ENDPOINT_URL are required")
         return self._aws("s3", "cp", f"s3://{self.bucket}/{key}", "-")
 
     def get_sidecar(self, key: str) -> bytes:
@@ -387,13 +387,13 @@ def main() -> int:
         source_ready = True
     else:
         endpoint = os.environ.get("R2_ENDPOINT_URL", "")
-        bucket = os.environ.get("R2_BUCKET", "")
+        bucket = os.environ.get("R2_EVIDENCE_BUCKET", "")
         has_profile = bool(os.environ.get("AWS_PROFILE"))
         has_key_id = bool(os.environ.get("AWS_ACCESS_KEY_ID"))
         has_secret = bool(os.environ.get("AWS_SECRET_ACCESS_KEY"))
         source_ready = True
         if not endpoint.startswith("https://") or not bucket:
-            blockers.append("R2_BUCKET and HTTPS R2_ENDPOINT_URL are required")
+            blockers.append("R2_EVIDENCE_BUCKET and HTTPS R2_ENDPOINT_URL are required")
             source_ready = False
         if not has_profile and not (has_key_id and has_secret):
             blockers.append("R2 read-only credentials are missing")
