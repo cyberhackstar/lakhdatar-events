@@ -72,7 +72,13 @@ finish_report() {
   say "Result: $status ($FAILS failing check(s))"
   if (( $# )); then
     local bundle="${REPORT%.txt}.tar.gz"
-    tar -czf "$bundle" -C "$EVIDENCE_DIR" "$(basename "$REPORT")" "$@" 2>/dev/null && file="$bundle"
+    if tar -czf "$bundle" -C "$EVIDENCE_DIR" "$(basename "$REPORT")" "$@" 2>/dev/null; then
+      file="$bundle"
+    else
+      say "FAIL  evidence bundle creation failed"
+      FAILS=$((FAILS+1))
+      status="FAIL"
+    fi
   fi
   ( cd "$EVIDENCE_DIR" && sha256sum "$(basename "$file")" > "$(basename "$file").sha256" )
   report_sha="$(cut -d' ' -f1 "$EVIDENCE_DIR/$(basename "$file").sha256")"
