@@ -32,7 +32,7 @@ import { finalize, timeout } from 'rxjs';
         </form>
         <div class="found" *ngIf="result as r">
           <div class="found-head"><strong>{{r.tickets.length ? r.tickets.length + ' ticket' + (r.tickets.length > 1 ? 's' : '') + ' found' : statusTitle(r.status)}}</strong><span>{{r.eventName}}</span></div>
-          <p class="status-copy"><strong>Order number:</strong> {{r.orderNumber}} <button class="copy-ref" type="button" (click)="copyOrderNumber()">{{orderCopied ? 'Copied' : 'Copy'}}</button></p>
+          <p class="status-copy"><strong>Neelastack order number:</strong> {{r.orderNumber}} <button class="copy-ref" type="button" (click)="copyOrderNumber()">{{orderCopied ? 'Copied' : 'Copy'}}</button></p>
           <p class="status-copy" *ngIf="r.transactionId"><strong>Payment transaction ID:</strong> {{r.transactionId}} <button class="copy-ref" type="button" (click)="copyTransactionId()">{{transactionCopied ? 'Copied' : 'Copy'}}</button></p>
           <p class="status-copy" *ngIf="!r.tickets.length">{{statusMessage(r.status)}} Do not make another payment for the same order.</p>
           <div class="error" *ngIf="resumeError" role="alert">{{resumeError}}</div>
