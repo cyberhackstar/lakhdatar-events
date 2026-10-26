@@ -180,7 +180,10 @@ class AggregateReadinessTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("self-run scans cannot substitute", proc.stdout)
 
-    def test_audit_only_never_creates_a_certification_manifest(self):
+    def test_audit_only_never_creates_or_deletes_a_certification_manifest(self):
+        self.out.mkdir(parents=True, exist_ok=True)
+        existing_manifest = self.out / "single-node-production-readiness.json"
+        existing_manifest.write_text('{"status":"existing-operator-file"}', encoding="utf-8")
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), "--audit-only", "--policy", str(POLICY),
              "--output-dir", str(self.out), "--local-results-dir", str(self.root)],
@@ -191,7 +194,7 @@ class AggregateReadinessTests(unittest.TestCase):
         self.assertEqual(report["status"], "AUDIT_PASS")
         self.assertTrue(report["auditOnly"])
         self.assertFalse(report["productionCertificationGranted"])
-        self.assertFalse((self.out / "single-node-production-readiness.json").exists())
+        self.assertEqual(existing_manifest.read_text(encoding="utf-8"), '{"status":"existing-operator-file"}')
 
     def test_r2_mode_requires_endpoint_and_bucket(self):
         proc = subprocess.run(
