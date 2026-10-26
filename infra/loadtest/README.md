@@ -4,7 +4,7 @@ These tests are intended for a staging environment or a dedicated load-test even
 
 ## Profiles
 
-- `catalog.js`: public discovery and optional ticket/admin read paths.
+- `catalog.js`: public discovery reads (three HTTP requests per iteration by default; peak is capped at about 51 HTTP requests/second).
 - `public-event.js`: high-volume single-event public detail reads.
 - `thousands.js`: controlled 1,000-concurrent-user public-read qualification profile; staging/dedicated load-test only.
 - `checkout.js`: provider-order provisioning under controlled, disposable inventory.
@@ -13,7 +13,7 @@ These tests are intended for a staging environment or a dedicated load-test even
 - `ticket-pdf.js`: authenticated ticket PDF generation/download pressure.
 - `operations.js`: authenticated event operations, admin health and finance reads.
 
-The suite intentionally uses scenario-specific arrival rates for rate-limited routes. PDF downloads default to 15 RPS (hard maximum 18 RPS); operations defaults to 4 iterations/second because each iteration emits five API requests, four of which count against the shared per-client 20 RPS edge limiter. The generic `RATE=50` applies only to the public catalog/event/SEO profiles and is never reused for PDF or operations. A 429 remains a test failure for these functional service profiles.
+The catalog scenario emits three HTTP requests per iteration by default, so its peak is 17 iterations/second (about 51 HTTP requests/second), not 50 iterations/second. Its strict latency SLO remains p95 under 500 ms and p99 under 1,000 ms. This keeps the documented 50-RPS target honest instead of accidentally tripling the intended load. The suite intentionally uses scenario-specific arrival rates for rate-limited routes. PDF downloads default to 15 RPS (hard maximum 18 RPS); operations defaults to 4 iterations/second because each iteration emits five API requests, four of which count against the shared per-client 20 RPS edge limiter. The generic `RATE=50` applies only to the public catalog/event/SEO profiles and is never reused for PDF or operations. A 429 remains a test failure for these functional service profiles.
 - `seo.js`: robots and sitemap availability.
 
 ## Suggested qualification stages
