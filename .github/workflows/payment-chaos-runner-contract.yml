@@ -33,7 +33,11 @@ jobs:
             [ref]$errors
           ) | Out-Null
           if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
+            foreach ($parseError in $errors) {
+              Write-Host ("Parser error at line {0}, column {1}: {2}" -f $parseError.Extent.StartLineNumber, $parseError.Extent.StartColumnNumber, $parseError.Message)
+              Write-Host ("Source: {0}" -f $parseError.Extent.Text)
+              Write-Host ("ErrorId: {0}" -f $parseError.ErrorId)
+            }
             exit 1
           }
           Write-Host "PowerShell syntax passed."
@@ -56,7 +60,11 @@ jobs:
             [ref]$errors
           ) | Out-Null
           if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
+            foreach ($parseError in $errors) {
+              Write-Host ("Parser error at line {0}, column {1}: {2}" -f $parseError.Extent.StartLineNumber, $parseError.Extent.StartColumnNumber, $parseError.Message)
+              Write-Host ("Source: {0}" -f $parseError.Extent.Text)
+              Write-Host ("ErrorId: {0}" -f $parseError.ErrorId)
+            }
             exit 1
           }
           Write-Host "Windows PowerShell 5.1 syntax passed."
