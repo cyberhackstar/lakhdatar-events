@@ -123,6 +123,13 @@ class AggregateReadinessTests(unittest.TestCase):
         diagnostic = json.loads((self.out / "readiness-aggregate-report.json").read_text())
         self.assertEqual(diagnostic["status"], "BLOCKED")
 
+    def test_failure_wins_when_two_results_share_timestamp_precision(self):
+        make_result(self.root, "PAYMENT_CHAOS", status="FAIL", finished=NOW)
+        proc = self.run_aggregator()
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("latest recorded result is FAIL", proc.stdout)
+        self.assertFalse((self.out / "single-node-production-readiness.json").exists())
+
     def test_wrong_release_sha_is_blocked(self):
         make_result(self.root, "PAYMENT_CHAOS", finished=NOW + timedelta(seconds=1),
                     release="f" * 40)
