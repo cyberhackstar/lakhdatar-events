@@ -65,7 +65,14 @@ if [[ "$CONTROL_ID" == SINGLE_NODE_RECOVERY ]]; then
   export RESULT_RPO_SECONDS RESULT_RTO_SECONDS
 fi
 if [[ "${REVIEW_STATUS^^}" == PASS ]]; then
-  pass "Named reviewers accepted the attached recovery evidence and stated scope"
+  # A reviewer cannot turn an already-failed source report into a PASS by wrapping it.
+  # The source must have an explicit successful result marker and no failed check rows.
+  if grep -Eq '^Result: PASS([[:space:]]|$)' "$EVIDENCE_FILE" \
+      && ! grep -Eq '^FAIL([[:space:]]|$)' "$EVIDENCE_FILE"; then
+    pass "Source report records PASS, contains no failed check rows, and was accepted by the named independent reviewer"
+  else
+    fail "Source report does not contain an unambiguous Result: PASS marker or contains failed check rows; review it and attach a corrected/current report"
+  fi
 else
   fail "Reviewer marked the attached evidence as failed or not accepted"
 fi
