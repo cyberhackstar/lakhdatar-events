@@ -17,12 +17,14 @@ async function api(path, options = {}) {
   });
   if (!response.ok) throw new Error('Disposable inbox API ' + method + ' failed with HTTP ' + response.status + '. Check protected staging MAILSLURP_API_KEY and account limits.');
   if (response.status === 204) return {};
-  return response.json();
+  const responseText = await response.text();
+  if (!responseText) return {};
+  try { return JSON.parse(responseText); } catch { throw new Error('Disposable inbox API returned an unreadable success response.'); }
 }
 async function createInbox() {
   const result = await api('/inboxes/withOptions', {
     method: 'POST',
-    body: { name: 'neelastack-staging-payment-' + (process.env.GITHUB_RUN_ID || Date.now()), tags: ['staging', 'automated-payment-qualification'], expiresIn: 1800000 },
+    body: { name: 'neelastack-staging-payment-' + (process.env.GITHUB_RUN_ID || Date.now()), tags: ['staging', 'automated-payment-qualification'], expiresIn: 3600000 },
   });
   if (!result.id || !result.emailAddress || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(result.emailAddress)) throw new Error('Disposable inbox service did not return an inbox ID and email address.');
   for (const value of [result.id, result.emailAddress]) if (process.env.GITHUB_ACTIONS === 'true') process.stdout.write('::add-mask::' + value + '\n');
