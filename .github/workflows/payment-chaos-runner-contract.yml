@@ -39,3 +39,24 @@ jobs:
           Write-Host "PowerShell syntax passed."
       - name: Verify staging-only safety contract
         run: bash infra/readiness/test-payment-chaos-staging-runner.sh
+
+  windows-powershell-51:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Parse runner with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "infra/readiness/run-payment-chaos-staging.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host "Windows PowerShell 5.1 syntax passed."
