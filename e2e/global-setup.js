@@ -78,7 +78,7 @@ module.exports = async function globalSetup() {
           report.blockers.push('Disposable staging fixture cleanup failed.');
           report.status = 'FAIL';
           report.updatedAtUtc = new Date().toISOString();
-          fs.writeFileSync(reportKit.RESULT_PATH, JSON.stringify(report, null, 2) + '\\n', { mode: 0o600 });
+          fs.writeFileSync(reportKit.RESULT_PATH, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
         } else {
           const cleanup = report && report.checks.find((item) => item.id === 'cleanup');
           if (cleanup) {
