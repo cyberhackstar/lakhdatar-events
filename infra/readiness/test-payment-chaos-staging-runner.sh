@@ -78,7 +78,7 @@ require_literal 'R2_UPLOAD_READBACK=PASS'
 require_literal 'awsx s3api head-object --bucket "$BUCKET" --key "$KEY"'
 require_literal 'R2 upload refused: immutable evidence object already exists'
 require_literal 'sha256sum -c'
-require_literal 'To upload this immutable bundle to R2 and verify read-back'
+require_literal 'To upload the evidence bundle and its result JSON to R2 and verify read-back'
 require_literal '$uploadConfirm = Read-Host $uploadPrompt'
 require_literal "^PAYMENT_CHAOS_RESULT_ID="
 require_literal '$resultLine = Get-Content -LiteralPath $variablesFile'
