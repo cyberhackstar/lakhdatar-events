@@ -88,7 +88,7 @@ sha="$(tr -d '\r\n' < .deploy-current)"
 
 must_env() {
   local key="$1" expected="$2" value
-  value="$(grep -E "^\${key}=" .env | tail -n 1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
+  value="$(grep -E "^${key}=" .env | tail -n 1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
   [[ "$value" == "$expected" ]] || fail "staging config guard failed for $key"
 }
 must_present_nonplaceholder() {
