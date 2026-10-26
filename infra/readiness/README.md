@@ -107,7 +107,7 @@ Change the SHA/run URL if the actual test run used another release; they must ma
 
 ## RPO/RTO interpretation
 
-Do not populate `RPO_SECONDS` from the 159-second routine-window WAL-object visibility sample; the accompanying evidence expressly says it is not transaction-level disaster-recovery RPO certification. Full recovery timing candidates vary by drill (93/455/503 seconds) and scope; the reviewed existing-VM scope excludes replacement VM, DNS and Cloudflare Tunnel cutover. Leave the numeric production gate values unset until an authorized reviewer accepts the exact scope and measurement. `recovery-drill.sh` creates separate disposable-dump-restore candidates and does not rewrite certified variables.
+Do not use the 159-second routine-window WAL-object visibility sample as transaction-level disaster-recovery RPO. Full recovery timing candidates vary by drill (93/455/503 seconds) and scope; the reviewed existing-VM scope excludes replacement VM, DNS and Cloudflare Tunnel cutover. The new gate does not read free-standing `RPO_SECONDS` or `RTO_SECONDS` variables: those values must be attached to a current, named `SINGLE_NODE_RECOVERY` result after an authorized reviewer accepts the exact measurement and scope. The result must document at least 30 characters of scope/limitations, provide measured integer seconds, and stay within the reviewed policy maxima (300-second RPO, 1,800-second RTO). `recovery-drill.sh` creates separate disposable-dump-restore candidates and must not be used to silently overwrite the reviewed scope measurements.
 
 ## Publishing evidence
 
