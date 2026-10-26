@@ -15,6 +15,14 @@ $ApiRoot = 'https://api.github.com/repos/cyberhackstar/lakhdatar-events'
 
 function Stop-Safely([string]$Message) { throw $Message }
 
+function Test-SafeEvidenceText([string]$Value) {
+    if ($Value -match '(?i)\b(password|secret|bearer|authorization|api[_ -]?key|access[_ -]?key|mfa.?seed|private.?key)\s*[:=]\s*\S+') { return $false }
+    if ($Value -match '(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b') { return $false }
+    if ($Value -match '\b\d{13,19}\b') { return $false }
+    if ($Value -match '-----BEGIN [A-Z ]*PRIVATE KEY-----') { return $false }
+    return $true
+}
+
 function Get-GitBash {
     $bash = Get-Command bash.exe -ErrorAction SilentlyContinue
     if (-not $bash) { $bash = Get-Command bash -ErrorAction SilentlyContinue }
@@ -464,6 +472,10 @@ foreach ($scenario in (Get-ScenarioPlan)) {
     if (-not $observation -or $observation.Trim().Length -lt 8) {
         $observation = 'Insufficient observed-result detail was supplied; this scenario is not accepted as a pass.'
         if ($outcome -eq 'P') { $outcome = 'F' }
+    } elseif (-not (Test-SafeEvidenceText -Value $observation)) {
+        $observation = 'Observation rejected because it appears to contain personal data or secret material; provide a sanitized, outcome-only note.'
+        if ($outcome -eq 'P') { $outcome = 'F' }
+        Write-Warning 'Sensitive-looking observation was not written to evidence. Provide an outcome-only note.'
     }
     $orderReference = Read-Host 'Disposable LK- order reference only (Enter to omit)'
     if (-not $orderReference -or $orderReference -notmatch '^LK-[A-Za-z0-9._-]{1,80}$') { $orderReference = 'OMITTED' }
