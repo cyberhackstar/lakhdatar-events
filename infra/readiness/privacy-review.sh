@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Privacy review evidence: public legal pages, secret/PII leakage in logs, and an owner checklist.
-#   BASE_URL=https://staging-events.neelastack.com PRIVACY_REVIEWER='Business/Legal Owner' \
-#   LOG_CONTAINERS="lakhdatar-staging-backend lakhdatar-staging-web" OPERATOR='Name' \
+#   BASE_URL=https://staging-events.neelastack.com RELEASE_SHA=<exact-qualified-release-sha> \
+#   PRIVACY_REVIEWER='Business/Legal Owner' LOG_CONTAINERS="lakhdatar-staging-backend lakhdatar-staging-web" OPERATOR='Name' \
 #   bash infra/readiness/privacy-review.sh        (LOG_FILES="/path/*.log" also supported)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; source "$SCRIPT_DIR/lib.sh"
 : "${BASE_URL:?BASE_URL is required}"
