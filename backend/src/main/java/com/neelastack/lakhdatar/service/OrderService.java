@@ -757,7 +757,7 @@ requestedTypes.add(new TicketTypeRequest(
         if(provider.amountRefunded()>0) throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_PARTIALLY_REFUNDED","Payment has already been refunded and cannot be issued as a new ticket purchase");
     }
     public record PublicEventControllerTicket(UUID ticketId,String ticketNumber,String accessToken){}
-    public record RecoveryOrder(String orderNumber,Enums.OrderStatus status,String eventName,List<PublicEventControllerTicket> tickets){}
+    public record RecoveryOrder(String orderNumber,Enums.OrderStatus status,String eventName,List<PublicEventControllerTicket> tickets,String transactionId){}
     /**
      * Resume an existing unpaid order after validating its order number and original checkout email.
      * This deliberately does not create another local order: provisionPaymentOrder reuses and validates
@@ -873,7 +873,7 @@ requestedTypes.add(new TicketTypeRequest(
                     .map(t -> new PublicEventControllerTicket(t.getPublicId(), t.getTicketNumber(), accessTokens.issue(t.getPublicId())))
                     .toList()
                 : List.of();
-        return new RecoveryOrder(o.getOrderNumber(),o.getStatus(),e.getName(),ts);
+        return new RecoveryOrder(o.getOrderNumber(),o.getStatus(),e.getName(),ts,customerTransactionId(o));
     }
     private String bookingBlockCode(Event event, Instant now) {
         if (event == null || event.getStatus() != Enums.EventStatus.PUBLISHED) return "EVENT_CLOSED";
