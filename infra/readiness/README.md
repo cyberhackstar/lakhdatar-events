@@ -1,10 +1,12 @@
 # Single-node production readiness evidence kit
 
-This kit is an **evidence collector**, not an application release or a certification bypass. It writes reports under `./readiness-evidence/`. A local report is not an accepted GitHub evidence ID until `publish-variables.sh` verifies the report and its SHA-256 sidecar in Cloudflare R2. No check is permitted to pass merely because a filename exists.
+This kit is an **evidence collector**, not an application release or certification bypass. It writes human-readable reports, SHA-256 sidecars, and machine-readable `.result.json` records under `./readiness-evidence/`. The result JSON is created for both PASS and FAIL and has its own checksum sidecar.
+
+The protected readiness workflow reads these immutable records from Cloudflare R2 using a dedicated **read-only** credential. It selects the latest result by `finishedAtUtc` (so a newer FAIL overrides an older PASS), verifies the result and referenced report/bundle bytes, checks release identity/freshness/reviewer requirements, and reads RPO/RTO only from the reviewed recovery result. A filename, old GitHub variable, or upload timestamp alone is never proof. The GitHub production-release and protected-environment approval gates remain required.
 
 ## Current evidence seed for this deployment
 
-Start from the already-reviewed recovery measurements and report references, then let the new offsite review and completed test scripts update their own fields:
+The environment-variable seed below is retained for local bookkeeping and compatibility with the legacy publisher; it is **not** read by the new R2 aggregator. Existing text reports without a matching `.result.json` and sidecar are not eligible for the new gate. Re-run the relevant collectors (or attach a real reviewed source report using `record-reviewed-evidence.sh` where supported) to create new records. Do not copy or promote old PASS values into fresh results:
 
 ```bash
 mkdir -p readiness-evidence
@@ -18,6 +20,8 @@ The seed intentionally omits offsite-backup status until the new lock/access rev
 | Variables | Script | Scope and requirements |
 |---|---|---|
 | `OFFSITE_BACKUP_*` | `offsite-backup-review.sh` | Read-only R2 check plus operator review of current Bucket Lock, token scope, access and recovery path. Never attempts overwrite/delete. |
+| `SINGLE_NODE_RECOVERY_*`, `PITR_*`, `ALERTING_*` | `record-reviewed-evidence.sh` | Bundles a real existing drill/report with an explicit named review, scope, SHA and (for recovery) measured RPO/RTO. It does not perform the drill or auto-approve the result. |
+| Protected readiness gate | `infra/certification/aggregate_readiness_evidence.py` | Read-only R2 aggregation with checksum, freshness, release-SHA and reviewer checks; outputs a manifest only when all nine controls pass. `--audit-only` never writes a certification manifest. |
 | `PAYMENT_CHAOS_*` | `payment-chaos.sh` | Staging only; provider sandbox; matching release SHA and E2E SHA; `c1.*` through `c9.*` notes/screenshots/logs; disposable data. |
 | `MFA_*` | `mfa-verification.sh` | Staging pre-deploy; matching staging env file; schema must contain MFA columns; wrong-code/replay/recovery checklist. Do not run against the pre-migration V32 production database. |
 | `FINANCE_RECONCILIATION_*` | `finance-reconciliation.sh` | Provider dashboard/settlement totals for the same period; database read-only role; independent reviewer different from operator. |
@@ -107,37 +111,41 @@ Do not populate `RPO_SECONDS` from the 159-second routine-window WAL-object visi
 
 ## Publishing evidence
 
-Review `readiness-evidence/variables.env` before running any publisher. The file must contain all nine required `*_STATUS`/`*_EVIDENCE_ID` pairs and `RPO_SECONDS`/`RTO_SECONDS`. Add an existing evidence row only when you have verified that its report and checksum are available.
+When a control finishes, `lib.sh` writes:
+- the human-readable report or evidence bundle plus `.sha256`;
+- the result record `*.result.json` plus its own `.sha256`;
+- current local `*_STATUS`, `*_EVIDENCE_ID`, and `*_RESULT_ID` values in `readiness-evidence/variables.env`.
 
-First upload/verify objects in R2 without changing GitHub:
+A failed run also emits a result with `status=FAIL`; keep and upload that record rather than hiding it behind an older PASS. Do not edit result JSON or checksums by hand.
+
+Use the existing write-capable VM profile only to upload/read back immutable objects, never the read-only GitHub aggregator credential:
 
 ```bash
 UPLOAD_EVIDENCE=yes bash infra/readiness/publish-variables.sh readiness-evidence/variables.env
 ```
 
-The command uses `R2_BUCKET`, `R2_ENDPOINT_URL`, and `AWS_PROFILE` set above. It refuses to overwrite an existing locked object with different bytes, checks the `.sha256` sidecar, downloads the final object and validates it again. If a matching local object is available and its key is new, the report and sidecar are uploaded; if no local object exists, both are downloaded from R2 and verified.
+The publisher checks the report/result sidecars, downloads each object back, verifies bytes, and refuses to overwrite an immutable/locked object with different content. It can publish partial evidence objects while the overall assessment remains blocked. `APPLY=yes` is legacy GitHub-variable publication and is **not required by the new readiness workflow**; do not use it as a substitute for source evidence or human review.
 
-Only after reviewing successful upload/read-back checks should you publish to GitHub. With GitHub CLI installed and authenticated:
+The aggregation workflows require these settings:
+- Protected Environment `single-node-production-readiness`: `R2_BUCKET`, `R2_ENDPOINT_URL` variables and `R2_READONLY_ACCESS_KEY_ID`, `R2_READONLY_SECRET_ACCESS_KEY` secrets. Keep required reviewer approval enabled.
+- Environment `readiness-evidence-audit`: the same two variables and the same dedicated read-only secrets, with no approval rule so the weekly read-only audit can run unattended.
 
-```bash
-UPLOAD_EVIDENCE=yes APPLY=yes REPO=cyberhackstar/lakhdatar-events \
-  bash infra/readiness/publish-variables.sh readiness-evidence/variables.env
-```
-
-Without `gh`, use the verified report IDs and values to update the GitHub Environment manually. Do not publish a variable file that lacks verified evidence.
+The read-only S3-compatible token must be limited to ListBucket for `production/readiness-evidence/` and GetObject within that prefix. It must not have PutObject, DeleteObject, or bucket-lock administration rights. The writer profile used by `publish-variables.sh` stays separate.
 
 ## Correct sequence
 
-1. Update offsite review and retain new report + checksum.
-2. Complete staging payment-chaos scenarios and their evidence bundle.
-3. Complete MFA replay and second-admin recovery checks on staging.
-4. Complete finance reconciliation with provider totals and an independent reviewer.
-5. Publish privacy pages and complete the responsible owner's review.
-6. Attach a real independent assessment report. Self-run DAST is supplementary, not a substitute.
-7. Verify/upload evidence to R2; update GitHub Environment variables only after reviewing it.
-8. Run **Single-Node Production Readiness** only after every required evidence report and checksum has been verified, all nine status/evidence-ID pairs have been reviewed and published, and an authorized reviewer has accepted the RPO/RTO scope and measured values. Use `release_sha=<the exact application SHA in the successful Enterprise Release Qualification manifest>` and `qualification_run_id=<the exact successful qualification Actions run ID that uploaded that manifest>`. Never copy an old example SHA or run ID; the workflow verifies that the artifact, run provenance, and requested release all match. Inspect the resulting readiness manifest, then follow the protected production workflow. Do not use an “evidence mode”; the current workflow takes those two required inputs and remains fail-closed.
+1. Update the offsite backup/lock review and create fresh report + result JSON + sidecars.
+2. Complete all nine staging payment-chaos scenarios with disposable data and sandbox payment credentials; **the currently observed CANCELLED/REFUNDED order with zero tickets is not a PASS**. Re-run on a new valid fixture only after the C2 preconditions are corrected.
+3. Complete the MFA replay and second-admin recovery checks on staging, using the exact qualified release SHA.
+4. Complete provider-versus-ledger finance reconciliation using a read-only DB role and an independent reviewer.
+5. Publish and review the privacy/legal pages, attaching a named business/legal reviewer.
+6. Attach a real external penetration-test report and explicit findings review; self-run DAST is supplementary and does not satisfy PEN_TEST.
+7. Exercise database point-in-time and application recovery with documented scope. Use `record-reviewed-evidence.sh` only to attach real existing evidence and the explicit independent review; do not invent numbers or promote incompatible dump-restore candidate values into RPO/RTO.
+8. After each real run/review, upload the generated report/result/checksum set to R2 with `UPLOAD_EVIDENCE=yes`. A local report or a successful upload is not a PASS by itself.
+9. Run **Single-Node Production Readiness** with `release_sha=<exact SHA in the passing Enterprise Release Qualification manifest>` and `qualification_run_id=<exact successful qualification Actions run ID>`. The aggregator verifies current R2 records and produces the artifact only if all required controls pass. Inspect the readiness manifest and evidence report before the separate protected Production workflow. The scheduled weekly audit reports missing, failed, mismatched or stale evidence but never certifies or deploys.
 
-This kit does not change production application code or the production database. Single-node readiness does not certify HA, nor does it prove recovery after total VM loss.
+No part of this kit changes production application code or the production database. Single-node readiness does not certify HA, and it does not prove recovery after total VM loss, replacement VM, DNS or Cloudflare Tunnel cutover.
+
 ## Read-only evidence inventory from Windows
 
 The packaged `single-node-evidence-inventory.ps1` uses the existing `ssh vm` alias, lists candidate R2/local evidence filenames, and does not change database state, deployment state, GitHub Variables, or readiness statuses. Run it from the repository root in PowerShell:
