@@ -554,7 +554,36 @@ try {
 
 if ($paymentChaosExit -ne 0) {
     Write-Host "Payment-chaos qualification did not pass. Local evidence retained under: $runDirectory" -ForegroundColor Yellow
-    Write-Host 'No R2 upload or GitHub Environment variable change was made.'
+    Write-Host 'Any upload below publishes a FAIL/blocked record; it does not turn the run into a pass.'
+    $failedVariablesFile = Join-Path $runDirectory 'variables.env'
+    if (Test-Path -LiteralPath $failedVariablesFile) {
+        $failedEvidenceLine = Get-Content -LiteralPath $failedVariablesFile | Where-Object { $_ -match '^PAYMENT_CHAOS_EVIDENCE_ID=' } | Select-Object -Last 1
+        $failedResultLine = Get-Content -LiteralPath $failedVariablesFile | Where-Object { $_ -match '^PAYMENT_CHAOS_RESULT_ID=' } | Select-Object -Last 1
+        if ($failedEvidenceLine -and $failedResultLine) {
+            $failedEvidenceId = ($failedEvidenceLine -replace '^PAYMENT_CHAOS_EVIDENCE_ID=', '').Trim()
+            $failedResultId = ($failedResultLine -replace '^PAYMENT_CHAOS_RESULT_ID=', '').Trim()
+            $failedArtifactPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($failedEvidenceId))
+            $failedResultPath = Join-Path $runDirectory ([System.IO.Path]::GetFileName($failedResultId))
+            if ((Test-Path -LiteralPath $failedArtifactPath) -and (Test-Path -LiteralPath $failedResultPath)) {
+                Write-Host ('Latest payment-chaos result is FAIL: {0}' -f $failedResultId) -ForegroundColor Yellow
+                $failedUploadPrompt = 'To upload the failed evidence bundle and FAIL result JSON to R2 and verify read-back, type exactly ''UPLOAD FAILED PAYMENT CHAOS EVIDENCE''; otherwise keep it local'
+                $failedUploadConfirm = Read-Host $failedUploadPrompt
+                if ($failedUploadConfirm -ceq 'UPLOAD FAILED PAYMENT CHAOS EVIDENCE') {
+                    Upload-VerifiedEvidenceToR2 -ArtifactPath $failedArtifactPath -EvidenceId $failedEvidenceId
+                    Upload-VerifiedEvidenceToR2 -ArtifactPath $failedResultPath -EvidenceId $failedResultId
+                    Write-Host 'FAIL evidence and result JSON read-back verified. This published record keeps readiness blocked.'
+                } else {
+                    Write-Host 'Failed evidence upload skipped. It remains local; no GitHub Environment variable change was made.'
+                }
+            } else {
+                Write-Host 'No complete evidence bundle/result pair is available to upload. Readiness remains blocked.'
+            }
+        } else {
+            Write-Host 'No completed PAYMENT_CHAOS evidence/result IDs exist. This appears to be a preflight/collection failure; no R2 upload was attempted.'
+        }
+    } else {
+        Write-Host 'No local variables.env/result record exists; no R2 upload was attempted.'
+    }
     exit 1
 }
 
