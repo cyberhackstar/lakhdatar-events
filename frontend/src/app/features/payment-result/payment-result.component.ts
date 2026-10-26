@@ -21,8 +21,8 @@ import { BrandMarkComponent } from '../../shared/brand-mark.component';
           <h1>Your evening is booked.</h1>
           <p>Order <strong>{{ r.orderNumber }}</strong> is confirmed. <ng-container *ngIf="r.tickets.length">Your digital QR ticket{{ r.tickets.length > 1 ? 's' : '' }} {{ r.tickets.length > 1 ? 'are' : 'is' }} ready.</ng-container><ng-container *ngIf="!r.tickets.length">Ticket links are not included in this payment return. Recover your tickets using this order number and the same email used at checkout. Do not pay again.</ng-container></p>
 
-          <div class="order-chip"><span>ORDER NUMBER</span><strong>{{ r.orderNumber }}</strong><button type="button" (click)="copyOrder()">{{ copied ? 'Copied' : 'Copy' }}</button></div>
-          <div class="order-chip" *ngIf="r.transactionId"><span>TRANSACTION ID</span><strong>{{ r.transactionId }}</strong><button type="button" (click)="copyTransaction()">{{ transactionCopied ? 'Copied' : 'Copy' }}</button></div>
+          <div class="order-chip"><span>NEELASTACK ORDER NUMBER</span><strong>{{ r.orderNumber }}</strong><button type="button" (click)="copyOrder()">{{ copied ? 'Copied' : 'Copy' }}</button></div>
+          <div class="order-chip" *ngIf="r.transactionId"><span>PAYMENT TRANSACTION ID</span><strong>{{ r.transactionId }}</strong><button type="button" (click)="copyTransaction()">{{ transactionCopied ? 'Copied' : 'Copy' }}</button></div>
 
           <div class="ticket-list">
             <div class="ticket-row" *ngFor="let t of r.tickets"><a [routerLink]="['/ticket',t.ticketId]" [fragment]="'access=' + t.accessToken"><span><small>Ticket</small><strong>{{ t.ticketNumber }}</strong></span></a><span class="row-actions"><button type="button" (click)="shareTicket(t.ticketId,t.ticketNumber,t.accessToken)">Share</button><button type="button" (click)="saveTicketPdf(t.ticketId,t.accessToken)">Save PDF</button></span></div>
@@ -41,7 +41,9 @@ import { BrandMarkComponent } from '../../shared/brand-mark.component';
           <h1>{{ isCancelled(r) ? 'Your payment was not completed.' : 'Your payment needs a moment.' }}</h1>
           <p *ngIf="isCancelled(r)">Order <strong>{{ r.orderNumber }}</strong> was returned from the payment gateway without a confirmed payment. <strong>No ticket has been issued for this attempt.</strong></p>
           <p *ngIf="!isCancelled(r)">Order <strong>{{ r.orderNumber }}</strong> was received, but the server has not confirmed a successful payment yet. <strong>Do not make another payment.</strong></p>
-          <div class="notice">Your Neelastack order number is <strong>{{ r.orderNumber }}</strong>. Cashfree may show a separate transaction ID. Use either reference together with the checkout email on the recovery page.</div>
+          <div class="notice">Use your Neelastack order number or payment transaction ID together with the checkout email on the recovery page. Do not start another payment while this order is being reconciled.</div>
+          <div class="order-chip"><span>NEELASTACK ORDER NUMBER</span><strong>{{ r.orderNumber }}</strong><button type="button" (click)="copyOrder()">{{ copied ? 'Copied' : 'Copy' }}</button></div>
+          <div class="order-chip" *ngIf="r.transactionId"><span>PAYMENT TRANSACTION ID</span><strong>{{ r.transactionId }}</strong><button type="button" (click)="copyTransaction()">{{ transactionCopied ? 'Copied' : 'Copy' }}</button></div>
           <div class="actions"><a class="primary" routerLink="/recover" [queryParams]="{order:r.orderNumber}">Recovery options</a><a routerLink="/">Back to event</a></div>
         </ng-template>
       </main>
