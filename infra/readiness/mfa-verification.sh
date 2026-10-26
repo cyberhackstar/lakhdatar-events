@@ -7,6 +7,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; source "$SCRIPT_DIR/lib.sh"
 build_psql
 : "${BASE_URL:?BASE_URL (public site URL) is required}"; : "${ENV_FILE:?ENV_FILE (staging env file path before deployment; production env file only after schema migration) is required}"
+: "${RELEASE_SHA:?RELEASE_SHA (exact app release reviewed on staging) is required}"
 HOST="$(python3 - "$BASE_URL" <<'PYHOST'
 import sys, urllib.parse
 print((urllib.parse.urlsplit(sys.argv[1]).hostname or '').lower())
