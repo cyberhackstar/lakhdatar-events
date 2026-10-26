@@ -72,7 +72,7 @@ jobs:
             }
             $tokenArray = @($tokens)
             Write-Host ("Token count: {0}" -f $tokenArray.Count)
-            foreach ($token in ($tokenArray | Select-Object -Last 60)) {
+            foreach ($token in ($tokenArray | Select-Object -Last 120)) {
               $preview = ($token.Text -replace "`r", "<CR>" -replace "`n", "<LF>")
               if ($preview.Length -gt 160) { $preview = $preview.Substring(0, 160) + "..." }
               Write-Host ("TOKEN {0} {1}:{2}-{3}:{4} {5}" -f $token.Kind, $token.Extent.StartLineNumber, $token.Extent.StartColumnNumber, $token.Extent.EndLineNumber, $token.Extent.EndColumnNumber, $preview)
