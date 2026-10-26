@@ -35,6 +35,16 @@ async function deleteInbox() {
   if (!id) { process.stdout.write('No disposable inbox was created; cleanup not required.\n'); return; }
   if (!/^[0-9a-f-]{20,}$/i.test(id)) throw new Error('Disposable inbox identifier has invalid format; refusing deletion.');
   await api('/inboxes/' + encodeURIComponent(id), { method: 'DELETE' });
+  const reportKit = require('./report.cjs');
+  if (require('node:fs').existsSync(reportKit.RESULT_PATH)) {
+    const report = JSON.parse(require('node:fs').readFileSync(reportKit.RESULT_PATH, 'utf8'));
+    const cleanup = (report.checks || []).find((item) => item.id === 'cleanup');
+    if (cleanup && cleanup.status === 'PENDING') {
+      cleanup.status = 'PASS';
+      cleanup.detail = 'Disposable staging event/team and MailSlurp inbox cleanup completed.';
+      reportKit.writeReport(report);
+    }
+  }
   process.stdout.write('Disposable test inbox deleted.\n');
 }
 async function main() {
@@ -42,5 +52,20 @@ async function main() {
   else if (process.argv[2] === 'delete') await deleteInbox();
   else throw new Error('Usage: node payment-qualification/mailbox.cjs create|delete');
 }
-if (require.main === module) main().catch((error) => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
+if (require.main === module) main().catch((error) => {
+  try {
+    const reportKit = require('./report.cjs');
+    if (require('node:fs').existsSync(reportKit.RESULT_PATH)) {
+      const report = JSON.parse(require('node:fs').readFileSync(reportKit.RESULT_PATH, 'utf8'));
+      const cleanup = (report.checks || []).find((item) => item.id === 'cleanup');
+      if (cleanup && cleanup.status === 'PENDING') {
+        cleanup.status = 'FAIL';
+        cleanup.detail = 'Disposable inbox deletion failed; see the sanitized workflow error.';
+        reportKit.writeReport(report);
+      }
+    }
+  } catch { /* preserve the original cleanup failure */ }
+  process.stderr.write(error.message + '\n');
+  process.exitCode = 1;
+});
 module.exports = { api };
