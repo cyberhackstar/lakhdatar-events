@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Validate, upload, and byte-verify readiness evidence in Cloudflare R2 before publishing GitHub variables.
 # Dry run: bash infra/readiness/publish-variables.sh [readiness-evidence/variables.env]
-# Upload/verify only: UPLOAD_EVIDENCE=yes R2_BUCKET=... R2_ENDPOINT_URL=... AWS_PROFILE=neelastack-r2 bash ...
-# Publish: UPLOAD_EVIDENCE=yes APPLY=yes R2_BUCKET=... R2_ENDPOINT_URL=... AWS_PROFILE=neelastack-r2 REPO=owner/repo bash ...
+# Upload/verify only: UPLOAD_EVIDENCE=yes R2_EVIDENCE_BUCKET=... R2_ENDPOINT_URL=... AWS_PROFILE=neelastack-r2-evidence bash ...
+# Publish: UPLOAD_EVIDENCE=yes APPLY=yes R2_EVIDENCE_BUCKET=... R2_ENDPOINT_URL=... AWS_PROFILE=neelastack-r2-evidence REPO=owner/repo bash ...
 set -Eeuo pipefail
 FILE="${1:-${EVIDENCE_DIR:-$PWD/readiness-evidence}/variables.env}"
 ENVNAME="${ENV_NAME:-single-node-production-readiness}"
@@ -45,10 +45,10 @@ done < "$FILE"
 
 # Optional upload/remote verification phase. Publishing is forbidden unless this phase completes.
 if [[ "${UPLOAD_EVIDENCE:-no}" == yes ]]; then
-  [[ -n "${R2_BUCKET:-}" && -n "${R2_ENDPOINT_URL:-}" ]] || fail "Set R2_BUCKET and R2_ENDPOINT_URL"
+  [[ -n "${R2_EVIDENCE_BUCKET:-}" && -n "${R2_ENDPOINT_URL:-}" ]] || fail "Set R2_EVIDENCE_BUCKET and R2_ENDPOINT_URL"
   command -v aws >/dev/null 2>&1 || fail "AWS CLI is required for R2 evidence upload/verification"
   [[ "${R2_ENDPOINT_URL}" == https://* ]] || fail "R2_ENDPOINT_URL must be HTTPS"
-  AWS_PROFILE="${AWS_PROFILE:-neelastack-r2}"
+  AWS_PROFILE="${AWS_PROFILE:-neelastack-r2-evidence}"
   WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
   awsx() { aws --profile "$AWS_PROFILE" --endpoint-url "$R2_ENDPOINT_URL" "$@"; }
   # A key is always a bucket-relative object key under the fixed readiness prefix.
@@ -58,28 +58,28 @@ if [[ "${UPLOAD_EVIDENCE:-no}" == yes ]]; then
     if [[ -f "$local_file" ]]; then
       [[ -f "$local_file.sha256" ]] || fail "Local checksum sidecar missing: $local_file.sha256"
       ( cd "$(dirname "$local_file")" && sha256sum -c "$(basename "$local_file").sha256" >/dev/null ) || fail "Local checksum verification failed: $local_file"
-      if awsx s3api head-object --bucket "$R2_BUCKET" --key "$key" >/dev/null 2>&1; then
-        awsx s3 cp "s3://$R2_BUCKET/$key" "$tmp" >/dev/null || fail "Cannot read existing locked R2 object: $key"
+      if awsx s3api head-object --bucket "$R2_EVIDENCE_BUCKET" --key "$key" >/dev/null 2>&1; then
+        awsx s3 cp "s3://$R2_EVIDENCE_BUCKET/$key" "$tmp" >/dev/null || fail "Cannot read existing locked R2 object: $key"
         cmp -s "$local_file" "$tmp" || fail "R2 object already exists with different bytes; refusing overwrite: $key"
       else
-        awsx s3 cp "$local_file" "s3://$R2_BUCKET/$key" >/dev/null || fail "Upload failed for $key"
+        awsx s3 cp "$local_file" "s3://$R2_EVIDENCE_BUCKET/$key" >/dev/null || fail "Upload failed for $key"
       fi
       # Upload/verify the sidecar independently; bucket lock may reject overwrites, so only create absent keys.
-      if awsx s3api head-object --bucket "$R2_BUCKET" --key "$key.sha256" >/dev/null 2>&1; then
-        awsx s3 cp "s3://$R2_BUCKET/$key.sha256" "$remote_sum" >/dev/null || fail "Cannot read checksum sidecar for $key"
+      if awsx s3api head-object --bucket "$R2_EVIDENCE_BUCKET" --key "$key.sha256" >/dev/null 2>&1; then
+        awsx s3 cp "s3://$R2_EVIDENCE_BUCKET/$key.sha256" "$remote_sum" >/dev/null || fail "Cannot read checksum sidecar for $key"
         cmp -s "$local_file.sha256" "$remote_sum" || fail "R2 checksum sidecar differs for $key; refusing overwrite"
       else
-        awsx s3 cp "$local_file.sha256" "s3://$R2_BUCKET/$key.sha256" >/dev/null || fail "Checksum sidecar upload failed for $key"
+        awsx s3 cp "$local_file.sha256" "s3://$R2_EVIDENCE_BUCKET/$key.sha256" >/dev/null || fail "Checksum sidecar upload failed for $key"
       fi
     else
-      awsx s3 cp "s3://$R2_BUCKET/$key" "$tmp" >/dev/null || fail "Evidence object absent locally and cannot be downloaded from R2: $key"
-      awsx s3 cp "s3://$R2_BUCKET/$key.sha256" "$remote_sum" >/dev/null || fail "R2 checksum sidecar missing: $key.sha256"
+      awsx s3 cp "s3://$R2_EVIDENCE_BUCKET/$key" "$tmp" >/dev/null || fail "Evidence object absent locally and cannot be downloaded from R2: $key"
+      awsx s3 cp "s3://$R2_EVIDENCE_BUCKET/$key.sha256" "$remote_sum" >/dev/null || fail "R2 checksum sidecar missing: $key.sha256"
       cp "$remote_sum" "$tmp.sha256"
       ( cd "$WORK" && sha256sum -c "$(basename "$tmp").sha256" >/dev/null ) || fail "Remote checksum verification failed: $key"
     fi
     # Always download the final object and sidecar and verify bytes, including fresh uploads.
-    awsx s3 cp "s3://$R2_BUCKET/$key" "$tmp" >/dev/null || fail "Cannot read back R2 object: $key"
-    awsx s3 cp "s3://$R2_BUCKET/$key.sha256" "$remote_sum" >/dev/null || fail "Cannot read back R2 sidecar: $key.sha256"
+    awsx s3 cp "s3://$R2_EVIDENCE_BUCKET/$key" "$tmp" >/dev/null || fail "Cannot read back R2 object: $key"
+    awsx s3 cp "s3://$R2_EVIDENCE_BUCKET/$key.sha256" "$remote_sum" >/dev/null || fail "Cannot read back R2 sidecar: $key.sha256"
     cp "$remote_sum" "$tmp.sha256"
     ( cd "$WORK" && sha256sum -c "$(basename "$tmp").sha256" >/dev/null ) || fail "R2 read-back checksum failed: $key"
     echo "R2 verified: $key"
