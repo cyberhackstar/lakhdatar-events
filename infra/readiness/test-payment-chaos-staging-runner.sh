@@ -9,6 +9,21 @@ if LC_ALL=C grep -n '[^ -~]' "$SCRIPT"; then
   exit 1
 fi
 
+# Prevent accidental duplicated PowerShell script bodies. Static parsing alone can pass a duplicated file.
+for declaration in \
+  'function Stop-Safely([string]$Message) { throw $Message }' \
+  'function Upload-VerifiedEvidenceToR2([string]$ArtifactPath, [string]$EvidenceId) {'; do
+  count="$(grep -Fxc -- "$declaration" "$SCRIPT" || true)"
+  [[ "$count" == "1" ]] || {
+    echo "PowerShell runner must contain exactly one declaration of: $declaration (found $count)." >&2
+    exit 1
+  }
+done
+[[ "$(wc -l < "$SCRIPT" | tr -d '[:space:]')" -lt 700 ]] || {
+  echo "PowerShell runner is unexpectedly long; refusing a duplicated-body regression." >&2
+  exit 1
+}
+
 require_literal() {
   local needle="$1"
   grep -Fq -- "$needle" "$SCRIPT" || {
