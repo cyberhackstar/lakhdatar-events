@@ -1,0 +1,41 @@
+name: Payment Chaos Runner Contract
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/readiness/run-payment-chaos-staging.ps1'
+      - 'infra/readiness/test-payment-chaos-staging-runner.sh'
+      - '.github/workflows/payment-chaos-runner-contract.yml'
+  pull_request:
+    paths:
+      - 'infra/readiness/run-payment-chaos-staging.ps1'
+      - 'infra/readiness/test-payment-chaos-staging-runner.sh'
+      - '.github/workflows/payment-chaos-runner-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  runner-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Parse PowerShell runner without executing it
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "infra/readiness/run-payment-chaos-staging.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host "PowerShell syntax passed."
+      - name: Verify staging-only safety contract
+        run: bash infra/readiness/test-payment-chaos-staging-runner.sh

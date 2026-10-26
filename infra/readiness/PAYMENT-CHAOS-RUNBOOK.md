@@ -20,3 +20,20 @@ Use a disposable test event. Note the order number of every test order so you ca
 **C1 safety gate:** the recovery endpoint must match the canonical `LK-...` order number and original checkout email, accept only an unpaid `CREATED`/`AWAITING_PAYMENT` order with a live reservation and eligible payment status, reuse the existing provider order, and rotate the secure `ld_checkout` HttpOnly cookie. Expired/cancelled/confirmed orders must not resume payment. If the reservation has expired or any invariant fails, record C1 as failed; do not create a replacement order to force a pass.
 
 After the scenarios, wait 15-20 minutes for recovery jobs, then run `infra/readiness/payment-chaos.sh`. It checks the staging database for lost or created money and records your answers. Keep screenshots/notes of each scenario with the evidence.
+
+
+## Guarded Windows runner
+
+After the runner change is merged to main and the local repository is updated, run the no-mutation preflight first from the repository root:
+
+    .\infra\readiness\run-payment-chaos-staging.ps1 -PreflightOnly
+
+Only if the preflight passes, schedule a quiet staging window and run the guided exercise:
+
+    .\infra\readiness\run-payment-chaos-staging.ps1
+
+The runner verifies the fixed staging HTTPS origin, the release marker and matching successful release-qualification artifact, the staging Compose project/container labels, staging-only database and Redis volumes, service health, and the deployed Cashfree sandbox configuration. The full run guides the operator through C1–C9, records actual observed outcomes, waits for recovery jobs, calls the existing read-only financial-invariant/evidence script, and can upload the bundle to R2 only after a separate explicit confirmation. It does not publish GitHub Environment variables.
+
+**Automation boundary:** C1–C4 and C5–C7 still need real sandbox/provider actions or an already reviewed fault-injection method; the runner does not fake them or introduce unreviewed provider-specific API calls. C8/C9 restart only the named staging PostgreSQL or Redis container, and each restart requires a literal interactive confirmation plus staging release/container/volume checks and a recovery-readiness check. Run the restart tests only in an approved maintenance window. Use the preflight-only option for diagnostics; it performs no service restart and does not create payment orders.
+
+The runner stores evidence locally under %LOCALAPPDATA%\Neelastack\payment-chaos-evidence. Keep credentials, bearer tokens, MFA seeds, customer details, and payment information out of screenshots and notes. R2 upload is opt-in and immutable-key only. **It is not a production-readiness certification workflow** and never updates protected GitHub readiness variables.
