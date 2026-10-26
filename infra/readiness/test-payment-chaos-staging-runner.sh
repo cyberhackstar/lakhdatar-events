@@ -30,8 +30,8 @@ require_literal 'SPRING_PROFILES_ACTIVE staging'
 require_literal 'DEFAULT_PAYMENT_PROVIDER CASHFREE'
 require_literal 'CASHFREE_BASE_URL https://sandbox.cashfree.com/pg'
 require_literal 'CASHFREE_API_VERSION 2025-01-01'
-require_literal "DEPLOYED_SHA=$sha"
-require_literal "release-qualification-$ReleaseSha"
+require_literal 'DEPLOYED_SHA=$sha'
+require_literal 'release-qualification-$ReleaseSha'
 require_literal "Release qualification result (not production certification)"
 
 # Container and data-plane isolation contracts.
@@ -59,6 +59,10 @@ done
 require_literal "c10=yes:all scenarios completed on staging with sandbox/test payment credentials only"
 require_literal 'Observed result: P = expected behavior verified, F = failed, S = skipped'
 require_literal 'Operator-reported outcome: $Outcome'
+require_literal 'function Test-SafeEvidenceText'
+require_literal 'Observation rejected because it appears to contain personal data or secret material'
+require_literal 'CASHFREE_API_VERSION 2025-01-01'
+require_literal 'temporary path validation failed'
 require_literal 'No R2 upload or GitHub Environment variable change was made.'
 require_literal 'R2_UPLOAD_READBACK=PASS'
 require_literal 'awsx s3api head-object --bucket "$BUCKET" --key "$KEY"'
