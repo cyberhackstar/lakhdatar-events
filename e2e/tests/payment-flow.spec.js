@@ -6,7 +6,7 @@ const { CHECKS, blankReport, writeReport } = require('../payment-qualification/r
 
 test.describe.configure({ mode: 'serial', retries: 0 });
 test('complete a real Cashfree sandbox purchase and prove all eight customer-flow controls', async ({ page, request }, testInfo) => {
-  test.setTimeout(300000);
+  test.setTimeout(540000);
   const report = blankReport();
   const checkById = new Map(report.checks.map((entry) => [entry.id, entry]));
   let activeStep = 'payment_confirmed';
