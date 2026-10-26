@@ -94,9 +94,9 @@ require_literal 'Latest payment-chaos result is FAIL:'
 require_literal 'FAIL evidence and result JSON read-back verified. This published record keeps readiness blocked.'
 require_literal 'No completed PAYMENT_CHAOS evidence/result IDs exist. This appears to be a preflight/collection failure; no R2 upload was attempted.'
 require_literal 'R2_UPLOAD_READBACK=PASS'
-require_literal "[string]$EvidenceBucket = 'neelastack-readiness-evidence'"
+require_literal "[string]\$EvidenceBucket = 'neelastack-readiness-evidence'"
 require_literal "BUCKET='__EVIDENCE_BUCKET__'"
-require_literal ".Replace('__EVIDENCE_BUCKET__', $EvidenceBucket)"
+require_literal ".Replace('__EVIDENCE_BUCKET__', \$EvidenceBucket)"
 require_literal "awsx() { aws --profile neelastack-r2-evidence --endpoint-url"
 require_literal 'Refusing to store readiness evidence in the production backup bucket'
 require_literal 'awsx s3api head-object --bucket "$BUCKET" --key "$KEY"'
