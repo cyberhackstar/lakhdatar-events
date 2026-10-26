@@ -192,7 +192,8 @@ def latest_controls(records: list[dict[str, Any]], control_ids: set[str]) -> dic
             by_control.setdefault(control, []).append(record)
     # A later FAIL deliberately supersedes an older PASS. Upload timestamps are not used.
     return {
-        control: sorted(items, key=lambda item: (item["_finished"], item["_objectKey"]))[-1]
+        # A timestamp tie is ambiguous; prefer FAIL so clock precision can never hide a failure.
+        control: sorted(items, key=lambda item: (item["_finished"], item.get("status") == "FAIL", item["_objectKey"]))[-1]
         for control, items in by_control.items()
     }
 
@@ -364,6 +365,12 @@ def main() -> int:
         control_ids = {item["id"] for item in controls if isinstance(item, dict) and isinstance(item.get("id"), str)}
         if len(control_ids) != len(controls):
             raise EvidenceError("policy control IDs are missing or duplicated")
+        required_control_ids = {
+            "SINGLE_NODE_RECOVERY", "OFFSITE_BACKUP", "PITR", "PEN_TEST",
+            "PAYMENT_CHAOS", "ALERTING", "FINANCE_RECONCILIATION", "PRIVACY_REVIEW", "MFA",
+        }
+        if control_ids != required_control_ids:
+            raise EvidenceError("policy must define the exact nine required single-node controls")
         manifest_fields = {item.get("manifestField") for item in controls if isinstance(item, dict)}
         if len(manifest_fields) != len(controls) or not all(isinstance(v, str) and v for v in manifest_fields):
             raise EvidenceError("policy manifest fields are missing or duplicated")
