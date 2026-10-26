@@ -122,6 +122,7 @@ control = {
         optional("FINANCE_REVIEWER") if control_id == "FINANCE_RECONCILIATION" else
         optional("PRIVACY_REVIEWER") if control_id == "PRIVACY_REVIEW" else None
     ),
+    "scope": optional("RESULT_SCOPE"),
     "assessor": optional("INDEPENDENT_ASSESSOR_NAME") if control_id == "PEN_TEST" else None,
     "assessmentType": optional("ASSESSMENT_TYPE") if control_id == "PEN_TEST" else None,
     "evidence": {
