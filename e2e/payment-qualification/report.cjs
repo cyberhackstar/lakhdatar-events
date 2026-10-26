@@ -25,7 +25,7 @@ function blankReport() {
 }
 function writeReport(report) {
   report.generatedAtUtc = new Date().toISOString();
-  report.status = report.checks.every((c) => c.status === 'PASS') ? 'PASS' : 'FAIL';
+  report.status = report.checks.every((c) => c.status === 'PASS') ? 'PASS' : report.checks.some((c) => c.status === 'FAIL') ? 'FAIL' : 'BLOCKED';
   fs.mkdirSync(path.dirname(RESULT_PATH), { recursive: true });
   const tmp = RESULT_PATH + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
