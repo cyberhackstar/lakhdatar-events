@@ -59,6 +59,8 @@ done
 require_literal "c10=yes:all scenarios completed on staging with sandbox/test payment credentials only"
 require_literal 'Observed result: P = expected behavior verified, F = failed, S = skipped'
 require_literal 'Operator-reported outcome: $Outcome'
+require_literal '$answerLines | Set-Content -LiteralPath $answerFile -Encoding Ascii'
+require_literal 'UTF-8 BOM emitted by Windows PowerShell 5.1'
 require_literal 'function Test-SafeEvidenceText'
 require_literal 'Observation rejected because it appears to contain personal data or secret material'
 require_literal 'CASHFREE_API_VERSION 2025-01-01'
