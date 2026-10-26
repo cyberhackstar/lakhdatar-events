@@ -497,7 +497,8 @@ if ($allNinePassed -and $confirmSandbox -ceq 'YES') {
 } else {
     $answerLines.Add('c10=no:one or more scenarios failed/skipped or sandbox-only execution was not confirmed')
 }
-$answerLines | Set-Content -LiteralPath $answerFile -Encoding UTF8
+# The answer file is parsed by Bash grep; use ASCII to avoid the UTF-8 BOM emitted by Windows PowerShell 5.1.
+$answerLines | Set-Content -LiteralPath $answerFile -Encoding Ascii
 
 if ($RecoveryWaitMinutes -gt 0) {
     Write-Host "Waiting $RecoveryWaitMinutes minute(s) for staging recovery jobs before read-only invariant checks."
