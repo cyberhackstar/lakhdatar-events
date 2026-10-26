@@ -10,7 +10,7 @@ mkdir -p "$EVIDENCE_DIR"; chmod 700 "$EVIDENCE_DIR" 2>/dev/null || true
 FAILS=0; REPORT=""; ITEM=""; VARPREFIX=""
 
 now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
-stamp()   { date -u +%Y%m%dT%H%M%SZ; }
+stamp()   { python3 -c 'from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))'; }
 say()     { printf '%s\n' "$*" | tee -a "$REPORT"; }
 pass()    { say "PASS  $*"; }
 fail()    { say "FAIL  $*"; FAILS=$((FAILS+1)); }
