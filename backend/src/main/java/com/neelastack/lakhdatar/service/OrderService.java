@@ -747,6 +747,13 @@ requestedTypes.add(new TicketTypeRequest(
             throw new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found");
         }
 
+        // Serialize session rotation for this order so concurrent recovery requests cannot race.
+        var recoveryLock = locks.tryAcquire("checkout-recovery:" + candidate.getId(), Duration.ofSeconds(90));
+        if (!recoveryLock.acquired()) {
+            throw new ApiException(HttpStatus.CONFLICT, "CHECKOUT_RECOVERY_BUSY",
+                    "Checkout recovery is already in progress. Please retry shortly.");
+        }
+        try {
         Long orderId = tx.execute(status -> {
             Order order = orders.findByIdForUpdate(candidate.getId())
                     .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "Order not found"));
@@ -799,6 +806,9 @@ requestedTypes.add(new TicketTypeRequest(
             orders.saveAndFlush(order);
         });
         return response;
+        } finally {
+            recoveryLock.close();
+        }
     }
 
     private boolean isRecoverablePaymentStatus(Enums.PaymentStatus status) {
