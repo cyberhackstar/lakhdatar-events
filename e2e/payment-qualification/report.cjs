@@ -3,14 +3,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const RESULT_PATH = path.resolve(__dirname, '../payment-flow-result.json');
 const CHECKS = [
-  ['payment_confirmed', 'A valid Cashfree sandbox payment reaches confirmed state'],
-  ['single_ticket_set', 'Exactly one ticket set is issued for the paid order'],
-  ['customer_references', 'Payment result shows the Neelastack order number and provider transaction ID'],
-  ['ticket_email', 'Ticket email contains the order number and known provider transaction ID'],
-  ['same_email_recovery', 'Ticket recovery works with the original checkout email'],
-  ['replay_privacy', 'Repeated verification does not duplicate tickets or expose credentials to an unauthorized replay'],
-  ['ledger_reconciliation', 'Payment and financial ledger amounts/status reconcile for this order'],
-  ['cleanup', 'Disposable test event/team and inbox cleanup complete'],
+  ['sandbox_payment', 'A Cashfree sandbox payment reaches CONFIRMED'],
+  ['exactly_one_ticket', 'Exactly one ticket is issued for the paid order'],
+  ['order_number_display', 'Payment result displays the Neelastack order number'],
+  ['transaction_id_display', 'Payment result displays the verified provider transaction ID'],
+  ['ticket_email_references', 'Ticket email contains the order number and provider transaction ID'],
+  ['same_email_recovery', 'Ticket recovery succeeds with the same checkout email'],
+  ['replay_safety', 'Repeated verification is idempotent and anonymous replay exposes no ticket credentials'],
+  ['ledger_reconciliation', 'Exactly one matching SALE ledger entry reconciles to the paid order'],
 ];
 function blankReport() {
   return {
@@ -43,6 +43,7 @@ function summary() {
     const result = item.status === 'NOT_RUN' ? 'BLOCKED' : item.status;
     lines.push('| ' + (i + 1) + ' | ' + label + ' | **' + result + '** | ' + detail + ' |');
   }
+  if (report.fixtureCleanupStatus !== undefined) lines.push('', 'Fixture cleanup: **' + report.fixtureCleanupStatus + '**. Mailbox cleanup: **' + (report.mailboxCleanupStatus || 'NOT_REPORTED') + '**.');
   lines.push('', 'Only sanitized check results are recorded. Credentials, mailbox contents, ticket access tokens, and full payment responses are excluded.', '');
   process.stdout.write(lines.join('\n') + '\n');
 }
