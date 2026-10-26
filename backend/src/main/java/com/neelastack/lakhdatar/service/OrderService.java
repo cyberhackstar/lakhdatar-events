@@ -48,7 +48,7 @@ public class OrderService {
         }
     }
     public record TicketRef(UUID ticketId,String ticketNumber,String accessToken){}
-    public record VerifyResponse(String orderPublicId,String orderNumber,String status,List<TicketRef> tickets){}
+    public record VerifyResponse(String orderPublicId,String orderNumber,String status,List<TicketRef> tickets,String transactionId){}
     public record CaptureReconciliation(String orderNumber,String status){}
 
     public CheckoutResponse checkout(CheckoutRequest request){
@@ -331,21 +331,24 @@ requestedTypes.add(new TicketTypeRequest(
         if(!rateLimits.allow("payment-verify:"+client,Math.max(5,props.rateLimit().publicCheckoutPerWindow()/2),verifyWindow)
                 || !rateLimits.allow("payment-verify-order:"+orderKey,5,verifyWindow))
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,"RATE_LIMITED","Too many payment verification attempts");
-        if(req.checkoutSessionToken()==null || req.checkoutSessionToken().isBlank()) throw new ApiException(HttpStatus.UNAUTHORIZED,"CHECKOUT_SESSION_REQUIRED","Checkout session is missing or expired");
         Payment p=payments.findByProviderOrderId(req.providerOrderId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"PAYMENT_NOT_FOUND","Payment session not found"));
         var lock=locks.tryAcquire("checkout-verify:"+p.getId(),java.time.Duration.ofSeconds(90));
         if(!lock.acquired()) throw new ApiException(HttpStatus.CONFLICT,"PAYMENT_VERIFY_BUSY","Payment verification is already in progress; please retry");
         try {
-            if(!validCheckoutSessionToken(req.checkoutSessionToken()))
-                throw new ApiException(HttpStatus.UNAUTHORIZED,"CHECKOUT_SESSION_INVALID","Checkout session is invalid or expired");
             Payment lockedPayment=payments.findById(p.getId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"PAYMENT_NOT_FOUND","Payment session not found"));
             Order verifiedOrder=orders.findById(lockedPayment.getOrderId()).orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ORDER_NOT_FOUND","Order not found"));
-            if(verifiedOrder.getCheckoutSessionHash()==null || !MessageDigest.isEqual(verifiedOrder.getCheckoutSessionHash().getBytes(StandardCharsets.US_ASCII),hashCheckoutSession(req.checkoutSessionToken()).getBytes(StandardCharsets.US_ASCII)))
+            // Idempotent replay after fulfillment is read-only. Do not issue fresh ticket access
+            // tokens merely because someone knows a provider order reference.
+            if(verifiedOrder.getStatus()==Enums.OrderStatus.CONFIRMED) {
+                if (matchesCheckoutSession(verifiedOrder, req.checkoutSessionToken())) return response(verifiedOrder);
+                return confirmedStatusOnlyResponse(verifiedOrder);
+            }
+            if(req.checkoutSessionToken()==null || req.checkoutSessionToken().isBlank())
+                throw new ApiException(HttpStatus.UNAUTHORIZED,"CHECKOUT_SESSION_REQUIRED","Checkout session is missing or expired");
+            if(!validCheckoutSessionToken(req.checkoutSessionToken()))
                 throw new ApiException(HttpStatus.UNAUTHORIZED,"CHECKOUT_SESSION_INVALID","Checkout session is invalid or expired");
-            // The payment provider webhook can win the race and fulfill this order before the browser
-            // returns from the hosted checkout. Verification must therefore be idempotent: once the
-            // order is confirmed, never attempt a backwards state transition such as COMPLETED -> CAPTURED.
-            if(verifiedOrder.getStatus()==Enums.OrderStatus.CONFIRMED) return response(verifiedOrder);
+            if(!matchesCheckoutSession(verifiedOrder, req.checkoutSessionToken()))
+                throw new ApiException(HttpStatus.UNAUTHORIZED,"CHECKOUT_SESSION_INVALID","Checkout session is invalid or expired");
             PaymentGatewayProvider gateway=gateways.forPayment(lockedPayment);
             PaymentGatewayProvider.ProviderPayment provider;
             if(lockedPayment.getProvider()==Enums.PaymentProvider.RAZORPAY){
@@ -373,7 +376,7 @@ requestedTypes.add(new TicketTypeRequest(
                     // A failed/abandoned earlier attempt must not hide a newer pending attempt.
                     EnterpriseLog.debug(log, "payment.verification.pending", "event.category", "payment", "order.id", pendingOrder.getId(), "order.number", pendingOrder.getOrderNumber(), "payment.status", failed ? "CANCELLED" : "PENDING");
                     return new VerifyResponse(pendingOrder.getPublicId().toString(), pendingOrder.getOrderNumber(),
-                            failed ? "CANCELLED" : "PENDING", List.of());
+                            failed ? "CANCELLED" : "PENDING", List.of(), null);
                 }
                 provider=captured.get();
             }
@@ -398,7 +401,7 @@ requestedTypes.add(new TicketTypeRequest(
                 });
                 EnterpriseLog.warn(log, "payment.verification.refund_pending", "event.category", "payment",
                         "order.id", pendingOrder.getId(), "order.number", pendingOrder.getOrderNumber(), "refund.required", true);
-                return new VerifyResponse(pendingOrder.getPublicId().toString(), result.orderNumber(), "REFUND_PENDING", List.of());
+                return new VerifyResponse(pendingOrder.getPublicId().toString(), result.orderNumber(), "REFUND_PENDING", List.of(), customerTransactionId(pendingOrder));
             }
             Order o=orders.findByOrderNumber(result.orderNumber()).orElseThrow();
             tx.executeWithoutResult(status->{
@@ -646,13 +649,39 @@ requestedTypes.add(new TicketTypeRequest(
         return Enums.PaymentStatus.PENDING;
     }
 
+    private boolean matchesCheckoutSession(Order order, String token) {
+        if (token == null || token.isBlank() || !validCheckoutSessionToken(token)) return false;
+        String storedHash = order.getCheckoutSessionHash();
+        return storedHash != null && MessageDigest.isEqual(
+                storedHash.getBytes(StandardCharsets.US_ASCII),
+                hashCheckoutSession(token).getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private String customerTransactionId(Order order) {
+        return payments.findByOrderId(order.getId())
+                .filter(payment -> payment.getStatus() == Enums.PaymentStatus.CAPTURED
+                        || payment.getStatus() == Enums.PaymentStatus.COMPLETED
+                        || payment.getStatus() == Enums.PaymentStatus.REFUND_PENDING
+                        || payment.getStatus() == Enums.PaymentStatus.REFUNDED)
+                .map(Payment::getProviderPaymentId)
+                .filter(value -> value != null && !value.isBlank())
+                .orElse(null);
+    }
+
+    private VerifyResponse confirmedStatusOnlyResponse(Order order) {
+        // Provider order identifiers are not authorization. A replay may establish the final state,
+        // but secure ticket credentials are only emitted on the session-bound response.
+        return new VerifyResponse(order.getPublicId().toString(), order.getOrderNumber(),
+                order.getStatus().name(), List.of(), customerTransactionId(order));
+    }
+
     public VerifyResponse response(Order o){
         List<TicketRef> refs=tickets.findByOrderIdOrderByTicketNumberAsc(o.getId()).stream()
                 .map(t->new TicketRef(t.getPublicId(),t.getTicketNumber(),accessTokens.issue(t.getPublicId()))).toList();
         EnterpriseLog.info(log, "payment.verification.completed", "event.category", "payment",
                 "order.id", o.getId(), "order.number", o.getOrderNumber(), "order.status", o.getStatus().name(),
                 "ticket.count", refs.size());
-        return new VerifyResponse(o.getPublicId().toString(),o.getOrderNumber(),o.getStatus().name(),refs);
+        return new VerifyResponse(o.getPublicId().toString(),o.getOrderNumber(),o.getStatus().name(),refs,customerTransactionId(o));
     }
     public CheckoutResponse existingResponse(Order o){return provisionPaymentOrder(o.getId());}
 
