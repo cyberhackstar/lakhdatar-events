@@ -1,6 +1,6 @@
 'use strict';
 
-const { test } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
@@ -88,6 +88,9 @@ test.describe('automated staging customer payment qualification', () => {
   test('complete all eight customer payment-flow checks using a disposable Cashfree sandbox order', async ({ page, browser }) => {
     test.skip(process.env.E2E_PAYMENT_FLOW !== 'true', 'Only the dedicated staging payment-flow workflow runs this stateful test.');
     test.setTimeout(15 * 60 * 1000);
+    // Bound locator actions so a stuck browser interaction reports a phase instead of consuming all 15 minutes.
+    page.setDefaultTimeout(20_000);
+    page.setDefaultNavigationTimeout(45_000);
 
     const resultPath = process.env.E2E_PAYMENT_RESULT_PATH
       || path.join(os.tmpdir(), 'neelastack-payment-flow-result.json');
@@ -117,6 +120,7 @@ test.describe('automated staging customer payment qualification', () => {
       ],
     };
     let activeCheck = 'sandbox_payment';
+    let activeStep = '';
     let inboxId = '';
     let inboxEmail = '';
     let mailboxCleanupStatus = 'PENDING';
@@ -148,6 +152,15 @@ test.describe('automated staging customer payment qualification', () => {
       }
     }
 
+    async function setStep(name) {
+      if (activeStep && activeStep !== name) report.lastCompletedStep = activeStep;
+      activeStep = name;
+      report.currentStep = name;
+      report.currentStepStartedAtUtc = new Date().toISOString();
+      console.log('[payment-qualification] STEP_START ' + name);
+      await saveReport();
+    }
+
     async function markPass(id, detail) {
       const check = checks.find((item) => item.id === id);
       check.status = 'PASS';
@@ -170,6 +183,7 @@ test.describe('automated staging customer payment qualification', () => {
     }
 
     try {
+      await setStep('preflight_and_inbox_setup');
       guard((process.env.E2E_ENV || '').toLowerCase() === 'staging',
         'Preflight blocked: E2E_ENV must be staging.');
       guard(process.env.E2E_BASE_URL === STAGING_ORIGIN,
@@ -203,32 +217,59 @@ test.describe('automated staging customer payment qualification', () => {
       guard(/^[a-z0-9][a-z0-9-]{1,100}$/.test(eventSlug),
         'Preflight blocked: the generated disposable event slug is invalid.');
 
+      await setStep('open_disposable_event');
       await page.goto('/events/' + encodeURIComponent(eventSlug), { waitUntil: 'domcontentloaded' });
       const quantityGroup = page.getByRole('group', { name: /Quantity for E2E General/i });
+      await setStep('wait_for_ticket_quantity_control');
       try {
         await quantityGroup.waitFor({ state: 'visible', timeout: 30000 });
       } catch {
         throw new QualificationError('The disposable event or its paid ticket type was not bookable.');
       }
+      const quantityOutput = quantityGroup.locator('output');
+      await setStep('click_increase_ticket_quantity');
       await quantityGroup.getByRole('button', { name: 'Increase' }).click();
-      await page.getByRole('button', { name: /Continue to checkout/i }).first().click();
+      try {
+        await expect(quantityOutput).toHaveText('1', { timeout: 10000 });
+      } catch {
+        throw new QualificationError('Ticket quantity stayed at zero after the Increase click; the event page may not be interactive yet.');
+      }
+
+      const continueButton = page.getByRole('button', { name: /Continue to checkout/i }).first();
+      await setStep('wait_for_checkout_button_enabled');
+      try {
+        await expect(continueButton).toBeEnabled({ timeout: 10000 });
+      } catch {
+        throw new QualificationError('Ticket selection did not enable Continue to checkout; no checkout request was started.');
+      }
+
+      await setStep('click_continue_to_checkout');
+      await continueButton.click();
+      await setStep('wait_for_checkout_route');
       try {
         await page.waitForURL((url) => url.origin === STAGING_ORIGIN && url.pathname === '/checkout', { timeout: 20000 });
       } catch {
         throw new QualificationError('The customer journey did not reach the checkout page.');
       }
 
+      await setStep('fill_customer_name');
       await page.locator('#customerName').fill('Neelastack Payment Qualification');
+      await setStep('fill_disposable_customer_email');
       await page.locator('#customerEmail').fill(inboxEmail);
+      await setStep('fill_customer_phone');
       await page.locator('#customerPhone').fill('9876543210');
+      await setStep('accept_checkout_terms');
       await page.locator('input[formcontrolname="accepted"]').check();
 
+      await setStep('click_pay_securely');
       const cashfreeNavigation = page.waitForURL((url) => sandboxCashfreeHost(url.hostname), { timeout: 60000 })
         .then(() => true)
         .catch(() => false);
       await page.getByRole('button', { name: /Pay securely/i }).click();
+      await setStep('wait_for_cashfree_sandbox_redirect');
       guard(await cashfreeNavigation, 'Cashfree sandbox checkout did not open; confirm the deployed provider is configured in sandbox mode.');
 
+      await setStep('locate_cashfree_upi_controls');
       let upiInput = await findVisibleInFrames(page, [
         'input[placeholder*="upi" i]',
         'input[placeholder*="vpa" i]',
@@ -250,14 +291,17 @@ test.describe('automated staging customer payment qualification', () => {
         ]);
       }
       guard(Boolean(upiInput), 'Cashfree sandbox checkout did not expose a supported UPI-ID input.');
+      await setStep('enter_cashfree_sandbox_upi');
       await upiInput.fill('testsuccess@gocash');
 
+      await setStep('submit_cashfree_sandbox_payment');
       const verifyButton = await findVisibleInFrames(page, [
         'button:has-text("Verify")',
         'button:has-text("Verify & Pay")',
         'button:has-text("Verify and Pay")',
       ]);
       if (verifyButton) {
+        await setStep('click_cashfree_upi_verify');
         await verifyButton.click();
         const earlyReturn = page.waitForURL((url) => providerReturnUrl(url), { timeout: 8000 })
           .then(() => true)
@@ -271,6 +315,7 @@ test.describe('automated staging customer payment qualification', () => {
             'button:has-text("Confirm")',
           ]);
           guard(Boolean(payButton), 'Cashfree sandbox UPI verification completed without a visible payment action.');
+          await setStep('click_cashfree_payment_action');
           await payButton.click();
         }
       } else {
@@ -282,14 +327,17 @@ test.describe('automated staging customer payment qualification', () => {
           'button:has-text("Confirm")',
         ]);
         guard(Boolean(payButton), 'Cashfree sandbox checkout did not expose a supported payment action.');
+        await setStep('click_cashfree_payment_action');
         await payButton.click();
       }
 
+      await setStep('wait_for_staging_payment_return');
       try {
         await page.waitForURL((url) => providerReturnUrl(url), { timeout: 120000 });
       } catch {
         throw new QualificationError('Cashfree sandbox did not return the customer to the payment result page after the test payment.');
       }
+      await setStep('wait_for_server_payment_confirmation');
       try {
         await page.getByText('Payment confirmed', { exact: true }).waitFor({ state: 'visible', timeout: 90000 });
       } catch {
@@ -306,6 +354,7 @@ test.describe('automated staging customer payment qualification', () => {
       await markPass('order_number_display', 'The confirmed payment result displays a non-empty Neelastack order number.');
 
       activeCheck = 'replay_safety';
+      await setStep('repeat_verification_and_check_replay_safety');
       const providerOrderId = new URL(page.url()).searchParams.get('order_id') || '';
       guard(Boolean(providerOrderId), 'The payment result did not retain a provider order reference for verification.');
       const verifyUrl = STAGING_ORIGIN + '/api/v1/public/checkout/verify';
@@ -370,6 +419,7 @@ test.describe('automated staging customer payment qualification', () => {
       await markPass('replay_safety', 'Two authenticated retries are stable; an anonymous replay receives status only, with no ticket credentials.');
 
       activeCheck = 'exactly_one_ticket';
+      await setStep('verify_exactly_one_ticket_in_admin');
       const adminBearer = String(process.env.E2E_ADMIN_BEARER || '').replace(/^Bearer\s+/i, '').trim();
       adminContext = await browser.newContext({ baseURL: STAGING_ORIGIN });
       const adminResponse = await adminContext.request.get(
@@ -391,6 +441,7 @@ test.describe('automated staging customer payment qualification', () => {
       await markPass('exactly_one_ticket', 'Customer result and authenticated admin order records both show exactly one issued ticket.');
 
       activeCheck = 'ticket_email_references';
+      await setStep('verify_ticket_email_references');
       const mail = await mailSlurpRequest(
         mailApiKey,
         'GET',
@@ -414,6 +465,7 @@ test.describe('automated staging customer payment qualification', () => {
       await markPass('ticket_email_references', 'A real received ticket email contains both verified customer payment references.');
 
       activeCheck = 'same_email_recovery';
+      await setStep('verify_same_email_recovery');
       await page.goto(STAGING_ORIGIN + '/recover', { waitUntil: 'domcontentloaded' });
       await page.locator('#orderNumber').fill(orderNumber);
       await page.locator('#email').fill(inboxEmail);
@@ -437,6 +489,7 @@ test.describe('automated staging customer payment qualification', () => {
       await markPass('same_email_recovery', 'Recovery using the exact checkout email returns the same order, transaction ID and ticket.');
 
       activeCheck = 'ledger_reconciliation';
+      await setStep('verify_ledger_reconciliation');
       const ledgerResponse = await adminContext.request.get(
         STAGING_ORIGIN + '/api/v1/finance/ledger?q=' + encodeURIComponent(orderNumber)
           + '&entryType=SALE&page=0&size=100',
@@ -454,11 +507,20 @@ test.describe('automated staging customer payment qualification', () => {
       report.facts.saleLedgerCount = 1;
       report.facts.ledgerAmountMatched = true;
       await markPass('ledger_reconciliation', 'Exactly one matching SALE ledger row reconciles to the INR 100.00 paid order.');
+      report.lastCompletedStep = activeStep;
+      report.currentStep = null;
+      report.currentStepStartedAtUtc = null;
+      console.log('[payment-qualification] STEP_COMPLETE ' + activeStep);
+      await saveReport();
     } catch (error) {
       flowFailed = true;
+      const timeoutLike = Boolean(error && (error.name === 'TimeoutError'
+        || /timeout of \d+ms exceeded|timed out/i.test(String(error.message || ''))));
       const safeMessage = error instanceof QualificationError
         ? error.message
-        : 'The active qualification stage failed; browser, provider and customer diagnostics were suppressed for safety.';
+        : timeoutLike
+          ? 'Browser/test timeout during qualification step: ' + (activeStep || 'unknown') + '.'
+          : 'Unexpected error during qualification step: ' + (activeStep || 'unknown') + '; sensitive diagnostics suppressed.';
       markActiveFailure(safeMessage);
       report.blockers.push(safeMessage);
       report.testStatus = 'FAIL';
