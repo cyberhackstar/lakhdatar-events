@@ -21,6 +21,11 @@ class VerificationError(RuntimeError):
     pass
 
 
+def normalize_workflow_path(raw: Any) -> str:
+    """GitHub returns either '<file>' or '<file>@<ref>' for a run's `path`; compare only the file."""
+    return str(raw or "").split("@", 1)[0]
+
+
 def parse_time(value: Any) -> datetime:
     if not isinstance(value, str) or not value:
         raise VerificationError("qualification run has no valid creation timestamp")
@@ -68,11 +73,12 @@ def verify_run(repo: str, token: str, run_id: str, *, now: datetime | None = Non
         "status": "completed",
         "conclusion": "success",
         "head_branch": "main",
-        "path": EXPECTED_PATH,
     }
     for field, expected in checks.items():
         if run.get(field) != expected:
             raise VerificationError(f"qualification run provenance mismatch for {field}")
+    if normalize_workflow_path(run.get("path")) != EXPECTED_PATH:
+        raise VerificationError("qualification run provenance mismatch for path")
 
     harness_sha = run.get("head_sha")
     if not isinstance(harness_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", harness_sha):

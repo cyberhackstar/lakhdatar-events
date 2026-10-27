@@ -1,5 +1,6 @@
 import importlib.util
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -78,6 +79,36 @@ class VerifyProductionReadinessArtifactTests(unittest.TestCase):
         data["certifiedAtUtc"] = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
         with self.assertRaisesRegex(module.VerificationError, "future"):
             module.validate_manifest(data, SHA)
+
+
+class VerifyFromGithubRunFilterTests(unittest.TestCase):
+    """Regression: GitHub may return a run `path` with or without an '@ref' suffix."""
+
+    def _run(self, path):
+        return {"id": 1, "status": "completed", "conclusion": "success", "event": "workflow_dispatch",
+                "head_branch": "main", "path": path, "created_at": datetime.now(timezone.utc).isoformat()}
+
+    def _verify(self, path):
+        responses = {
+            "runs": {"workflow_runs": [self._run(path)]},
+            "artifacts": {"artifacts": [{"id": 9, "name": f"single-node-production-readiness-{SHA}", "expired": False}]},
+        }
+        def fake_api(token, api_path):
+            return responses["artifacts"] if "/artifacts" in api_path else responses["runs"]
+        with patch.object(module, "_api_json", side_effect=fake_api), \
+             patch.object(module, "_download_artifact_zip", return_value=b""), \
+             patch.object(module, "_read_manifest", return_value=valid_manifest()):
+            return module.verify_from_github("owner/repo", "token", SHA)
+
+    def test_accepts_bare_and_ref_suffixed_paths(self):
+        for path in (".github/workflows/single-node-production-readiness.yml",
+                     ".github/workflows/single-node-production-readiness.yml@refs/heads/main"):
+            with self.subTest(path=path):
+                self.assertEqual(self._verify(path), (1, 9))
+
+    def test_rejects_other_workflow_path(self):
+        with self.assertRaises(module.VerificationError):
+            self._verify(".github/workflows/evil.yml")
 
 
 if __name__ == "__main__":
