@@ -22,6 +22,7 @@ from typing import Any
 
 API = "https://api.github.com"
 WORKFLOW = "single-node-production-readiness.yml"
+WORKFLOW_PATH = ".github/workflows/" + WORKFLOW
 ARTIFACT_PREFIX = "single-node-production-readiness-"
 MAX_ATTESTATION_AGE_DAYS = 90
 REQUIRED_EVIDENCE = (
@@ -39,6 +40,12 @@ REQUIRED_EVIDENCE = (
 
 class VerificationError(RuntimeError):
     pass
+
+
+def workflow_path_matches(raw: Any, expected_path: str) -> bool:
+    """Accept the exact workflow path, optionally suffixed with the main-branch ref."""
+    value = str(raw or "")
+    return value in {expected_path, f"{expected_path}@refs/heads/main"}
 
 
 def _parse_time(raw: Any) -> datetime:
@@ -165,7 +172,7 @@ def verify_from_github(repo: str, token: str, release_sha: str) -> tuple[int, in
                 continue
             if run.get("status") != "completed" or run.get("conclusion") != "success" or run.get("event") != "workflow_dispatch":
                 continue
-            if run.get("head_branch") != "main" or not str(run.get("path", "")).endswith("@refs/heads/main"):
+            if run.get("head_branch") != "main" or not workflow_path_matches(run.get("path"), WORKFLOW_PATH):
                 continue
             inspected_runs += 1
             run_id = run.get("id")

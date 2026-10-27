@@ -469,6 +469,11 @@ def main() -> int:
         for item in sorted(set(blockers)):
             print(f"- {item}")
         print(f"Diagnostic report written to {report_path}")
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            # Surface each blocker as a run annotation so it is visible without downloading logs or artifacts.
+            for item in sorted(set(blockers))[:10]:
+                safe = item.replace("%", "%25").replace("\r", "").replace("\n", " ")
+                print(f"::error title=Readiness blocker::{safe}", file=sys.stderr)
         return 2
 
     if args.audit_only:

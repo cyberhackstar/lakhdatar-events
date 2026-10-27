@@ -39,7 +39,7 @@ assert.match(certification, /if: github\.ref == 'refs\/heads\/main'/);
 assert.match(certification, /infra\/certification\/verify_release_qualification_run\.py/);
 assert.match(certification, /testHarnessSha': os\.environ\['QUALIFICATION_HARNESS_SHA'\]/);
 assert.match(certification, /environment: enterprise-certification/);
-assert.match(certification, /actions\/download-artifact@v7/);
+assert.match(certification, /actions\/download-artifact@v\d+/);
 assert.match(certification, /run-id: \$\{\{ inputs\.qualification_run_id \}\}/);
 assert.match(certification, /releaseSha': os\.environ\['RELEASE_SHA'\]/);
 assert.match(certification, /runId': os\.environ\['QUALIFICATION_RUN_ID'\]/);

@@ -21,6 +21,12 @@ class VerificationError(RuntimeError):
     pass
 
 
+def workflow_path_matches(raw: Any, expected_path: str) -> bool:
+    """Accept GitHub's bare path or its exact main-ref form, not arbitrary ref suffixes."""
+    value = str(raw or "")
+    return value in {expected_path, f"{expected_path}@refs/heads/main"}
+
+
 def parse_time(value: Any) -> datetime:
     if not isinstance(value, str) or not value:
         raise VerificationError("qualification run has no valid creation timestamp")
@@ -68,11 +74,12 @@ def verify_run(repo: str, token: str, run_id: str, *, now: datetime | None = Non
         "status": "completed",
         "conclusion": "success",
         "head_branch": "main",
-        "path": EXPECTED_PATH,
     }
     for field, expected in checks.items():
         if run.get(field) != expected:
             raise VerificationError(f"qualification run provenance mismatch for {field}")
+    if not workflow_path_matches(run.get("path"), EXPECTED_PATH):
+        raise VerificationError("qualification run provenance mismatch for path")
 
     harness_sha = run.get("head_sha")
     if not isinstance(harness_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", harness_sha):

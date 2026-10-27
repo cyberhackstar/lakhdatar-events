@@ -29,12 +29,23 @@ class VerifyReleaseQualificationRunTests(unittest.TestCase):
             self.assertEqual(module.verify_run("owner/repo", "test-token", "123456", now=NOW), "a" * 40)
 
     def test_rejects_non_main_or_untrusted_workflow_path(self):
-        for field, value in [("head_branch", "feature"), ("path", ".github/workflows/evil.yml")]:
-            with self.subTest(field=field):
+        for field, value in [
+            ("head_branch", "feature"),
+            ("path", ".github/workflows/evil.yml"),
+            ("path", module.EXPECTED_PATH + "@refs/heads/evil"),
+        ]:
+            with self.subTest(field=field, value=value):
                 candidate = {**GOOD_RUN, field: value}
                 with patch.object(module, "_api_json", return_value=candidate):
                     with self.assertRaises(module.VerificationError):
                         module.verify_run("owner/repo", "test-token", "123456", now=NOW)
+
+    def test_accepts_both_github_path_formats(self):
+        for path in (".github/workflows/enterprise-release-qualification.yml",
+                     ".github/workflows/enterprise-release-qualification.yml@refs/heads/main"):
+            with self.subTest(path=path):
+                with patch.object(module, "_api_json", return_value={**GOOD_RUN, "path": path}):
+                    self.assertEqual(module.verify_run("owner/repo", "test-token", "123456", now=NOW), "a" * 40)
 
     def test_rejects_failed_or_non_dispatch_run(self):
         for field, value in [("conclusion", "failure"), ("event", "push"), ("status", "in_progress")]:
