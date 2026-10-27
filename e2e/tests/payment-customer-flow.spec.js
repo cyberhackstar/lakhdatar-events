@@ -54,6 +54,73 @@ async function findVisibleInFrames(page, selectors) {
   return null;
 }
 
+async function waitForVisibleInFrames(page, selectors, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const locator = await findVisibleInFrames(page, selectors);
+    if (locator) return locator;
+    if (Date.now() < deadline) await page.waitForTimeout(400);
+  } while (Date.now() < deadline);
+  return null;
+}
+
+function safeDiagnosticValue(value) {
+  return String(value || '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]')
+    .replace(/\b\d{4,}\b/g, '[number]')
+    .trim()
+    .slice(0, 80);
+}
+
+async function cashfreeCheckoutDiagnostics(page) {
+  const frames = page.frames().slice(0, 8);
+  const frameReports = [];
+  for (const frame of frames) {
+    let host = 'unknown';
+    try { host = new URL(frame.url()).hostname; } catch { /* retain safe placeholder */ }
+    let rawControls = [];
+    try {
+      rawControls = await frame.locator('input,button,[role="button"],[role="tab"],label,select')
+        .evaluateAll((nodes) => nodes.filter((node) => {
+          const style = getComputedStyle(node);
+          const rect = node.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden'
+            && rect.width > 0 && rect.height > 0;
+        }).slice(0, 12).map((node) => ({
+          tag: node.tagName.toLowerCase(),
+          role: node.getAttribute('role') || '',
+          type: node.getAttribute('type') || '',
+          name: node.getAttribute('name') || '',
+          placeholder: node.getAttribute('placeholder') || '',
+          ariaLabel: node.getAttribute('aria-label') || '',
+          autocomplete: node.getAttribute('autocomplete') || '',
+          text: ['BUTTON', 'LABEL'].includes(node.tagName) ? (node.innerText || '').slice(0, 200) : '',
+        })));
+    } catch { /* a frame may navigate while diagnostics are sampled */ }
+    frameReports.push({
+      host: safeDiagnosticValue(host),
+      controls: rawControls.map((control) => ({
+        tag: control.tag,
+        role: safeDiagnosticValue(control.role),
+        type: safeDiagnosticValue(control.type),
+        name: safeDiagnosticValue(control.name),
+        placeholder: safeDiagnosticValue(control.placeholder),
+        ariaLabel: safeDiagnosticValue(control.ariaLabel),
+        autocomplete: safeDiagnosticValue(control.autocomplete),
+        labelLength: control.text.length,
+        labelMentionsUpi: /\bupi\b/i.test(control.text),
+        labelMentionsCard: /\bcard\b/i.test(control.text),
+        labelMentionsPay: /\bpay\b/i.test(control.text),
+      })),
+    });
+  }
+  let pageHost = 'unknown';
+  try { pageHost = new URL(page.url()).hostname; } catch { /* retain safe placeholder */ }
+  return { pageHost: safeDiagnosticValue(pageHost), frameCount: page.frames().length, frames: frameReports };
+}
+
 async function mailSlurpRequest(apiKey, method, resource, body, timeoutMs = 30000) {
   let response;
   try {
@@ -270,27 +337,55 @@ test.describe('automated staging customer payment qualification', () => {
       guard(await cashfreeNavigation, 'Cashfree sandbox checkout did not open; confirm the deployed provider is configured in sandbox mode.');
 
       await setStep('locate_cashfree_upi_controls');
-      let upiInput = await findVisibleInFrames(page, [
+      const upiInputSelectors = [
         'input[placeholder*="upi" i]',
         'input[placeholder*="vpa" i]',
+        'input[placeholder*="virtual payment" i]',
         'input[aria-label*="upi" i]',
+        'input[aria-label*="vpa" i]',
+        'input[aria-label*="virtual payment" i]',
         'input[name*="upi" i]',
-      ]);
-      const upiChoice = await findVisibleInFrames(page, [
+        'input[name*="vpa" i]',
+        'input[id*="upi" i]',
+        'input[id*="vpa" i]',
+        'input[data-testid*="upi" i]',
+        'input[autocomplete*="upi" i]',
+        '[role="textbox"][aria-label*="upi" i]',
+      ];
+      const upiChoiceSelectors = [
         'button:has-text("UPI")',
+        '[role="button"]:has-text("UPI")',
         '[role="tab"]:has-text("UPI")',
         'label:has-text("UPI")',
-      ]);
-      if (upiChoice && !upiInput) {
-        try { await upiChoice.click({ timeout: 5000 }); } catch { /* already selected or non-clickable label */ }
-        upiInput = await findVisibleInFrames(page, [
-          'input[placeholder*="upi" i]',
-          'input[placeholder*="vpa" i]',
-          'input[aria-label*="upi" i]',
-          'input[name*="upi" i]',
-        ]);
+        'button[aria-label*="UPI" i]',
+        '[role="button"][aria-label*="UPI" i]',
+      ];
+
+      // Cashfree hosted checkout can finish its redirect before its payment-method UI is
+      // rendered. Poll rather than failing on a one-shot DOM sample. Search every currently
+      // attached frame on each pass because the hosted checkout may add frames dynamically.
+      let upiInput = await findVisibleInFrames(page, upiInputSelectors);
+      if (!upiInput) {
+        const upiChoice = await waitForVisibleInFrames(page, upiChoiceSelectors, 5000);
+        if (upiChoice) {
+          await setStep('select_cashfree_upi_method');
+          try {
+            await upiChoice.click({ timeout: 5000 });
+          } catch {
+            // Continue to check whether the provider exposed the entry control despite the click.
+          }
+        }
+        upiInput = await waitForVisibleInFrames(page, upiInputSelectors, 15000);
       }
-      guard(Boolean(upiInput), 'Cashfree sandbox checkout did not expose a supported UPI-ID input.');
+      if (!upiInput) {
+        // This report contains only frame hostnames and visible control metadata. It deliberately
+        // excludes field values, cookies, URLs with query strings, response bodies and screenshots.
+        report.cashfreeCheckoutDiagnostics = await cashfreeCheckoutDiagnostics(page);
+        await saveReport();
+        throw new QualificationError(
+          'Cashfree sandbox checkout did not expose a supported UPI-ID input after waiting for the hosted UI; sanitized control diagnostics were recorded.'
+        );
+      }
       await setStep('enter_cashfree_sandbox_upi');
       await upiInput.fill('testsuccess@gocash');
 

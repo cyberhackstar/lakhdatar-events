@@ -19,6 +19,28 @@ concurrency:
 
 # Action majors are kept current; the Trivy action is pinned to its immutable v0.36.0 commit.
 jobs:
+  e2e-harness:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    name: Verify E2E harness and payment-flow syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+      - name: Syntax-check Cashfree payment-flow and diagnostic sanitizer
+        run: node --check e2e/tests/payment-customer-flow.spec.js
+      - name: Install E2E harness dependencies without downloading browsers
+        working-directory: e2e
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: npm ci --no-audit --no-fund
+      - name: Self-test E2E fixture provisioning contracts
+        working-directory: e2e
+        run: npm run selftest
+
   security:
     # Runs on PR/push and as the weekly security sweep. Keeping the sweep here avoids a second workflow.
     if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule'
