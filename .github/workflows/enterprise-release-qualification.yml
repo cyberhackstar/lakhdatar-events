@@ -139,7 +139,7 @@ jobs:
         run: bash ./infra/certification/flyway-qualification.sh
       - name: Upload database evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-database-${{ inputs.release_sha }}
           path: certification-evidence/database/
@@ -154,7 +154,7 @@ jobs:
         with:
           ref: ${{ inputs.release_sha }}
           fetch-depth: 1
-      - uses: actions/setup-java@v6.0.1
+      - uses: actions/setup-java@v6.1.0
         with:
           distribution: temurin
           java-version: '21'
@@ -236,7 +236,7 @@ jobs:
           npm test
       - name: Upload browser evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-browser-${{ inputs.release_sha }}
           path: |
@@ -302,7 +302,7 @@ jobs:
         run: node ./infra/loadtest/auto-runner.cjs enterprise-gate
       - name: Upload load-test evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-load-${{ inputs.release_sha }}-${{ github.sha }}
           path: qualification-harness/loadtest-results/
@@ -325,7 +325,7 @@ jobs:
         run: bash ./infra/security/dast-staging.sh
       - name: Upload DAST evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-dast-${{ inputs.release_sha }}
           path: security-results/
@@ -373,7 +373,7 @@ jobs:
           print("Release qualification manifest written; no production certification has been granted.")
           PY
       - name: Upload release qualification manifest
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: release-qualification-${{ inputs.release_sha }}
           path: qualification-evidence/release-qualification.json
