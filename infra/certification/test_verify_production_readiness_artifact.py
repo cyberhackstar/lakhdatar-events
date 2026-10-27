@@ -107,8 +107,11 @@ class VerifyFromGithubRunFilterTests(unittest.TestCase):
                 self.assertEqual(self._verify(path), (1, 9))
 
     def test_rejects_other_workflow_path(self):
-        with self.assertRaises(module.VerificationError):
-            self._verify(".github/workflows/evil.yml")
+        for path in (".github/workflows/evil.yml",
+                     ".github/workflows/single-node-production-readiness.yml@refs/heads/evil"):
+            with self.subTest(path=path):
+                with self.assertRaises(module.VerificationError):
+                    self._verify(path)
 
 
 if __name__ == "__main__":
