@@ -30,7 +30,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: e2e/package-lock.json
-      - name: Syntax-check the Cashfree payment-flow test
+      - name: Syntax-check Cashfree payment-flow and diagnostic sanitizer
         run: node --check e2e/tests/payment-customer-flow.spec.js
       - name: Install E2E harness dependencies without downloading browsers
         working-directory: e2e
