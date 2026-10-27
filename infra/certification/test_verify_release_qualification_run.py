@@ -32,7 +32,7 @@ class VerifyReleaseQualificationRunTests(unittest.TestCase):
         for field, value in [
             ("head_branch", "feature"),
             ("path", ".github/workflows/evil.yml"),
-            ("path", EXPECTED_PATH + "@refs/heads/evil"),
+            ("path", module.EXPECTED_PATH + "@refs/heads/evil"),
         ]:
             with self.subTest(field=field, value=value):
                 candidate = {**GOOD_RUN, field: value}
