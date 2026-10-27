@@ -500,7 +500,7 @@ test.describe('automated staging customer payment qualification', () => {
     } catch (error) {
       flowFailed = true;
       const timeoutLike = Boolean(error && (error.name === 'TimeoutError'
-        || /timeout of \\d+ms exceeded|timed out/i.test(String(error.message || ''))));
+        || /timeout of \d+ms exceeded|timed out/i.test(String(error.message || ''))));
       const safeMessage = error instanceof QualificationError
         ? error.message
         : timeoutLike
