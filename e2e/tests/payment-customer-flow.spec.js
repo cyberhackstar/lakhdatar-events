@@ -1,6 +1,6 @@
 'use strict';
 
-const { test } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
@@ -226,10 +226,25 @@ test.describe('automated staging customer payment qualification', () => {
       } catch {
         throw new QualificationError('The disposable event or its paid ticket type was not bookable.');
       }
+      const quantityOutput = quantityGroup.locator('output');
       await setStep('click_increase_ticket_quantity');
       await quantityGroup.getByRole('button', { name: 'Increase' }).click();
+      try {
+        await expect(quantityOutput).toHaveText('1', { timeout: 10000 });
+      } catch {
+        throw new QualificationError('Ticket quantity stayed at zero after the Increase click; the event page may not be interactive yet.');
+      }
+
+      const continueButton = page.getByRole('button', { name: /Continue to checkout/i }).first();
+      await setStep('wait_for_checkout_button_enabled');
+      try {
+        await expect(continueButton).toBeEnabled({ timeout: 10000 });
+      } catch {
+        throw new QualificationError('Ticket selection did not enable Continue to checkout; no checkout request was started.');
+      }
+
       await setStep('click_continue_to_checkout');
-      await page.getByRole('button', { name: /Continue to checkout/i }).first().click();
+      await continueButton.click();
       await setStep('wait_for_checkout_route');
       try {
         await page.waitForURL((url) => url.origin === STAGING_ORIGIN && url.pathname === '/checkout', { timeout: 20000 });
