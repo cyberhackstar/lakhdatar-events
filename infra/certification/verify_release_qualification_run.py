@@ -21,9 +21,10 @@ class VerificationError(RuntimeError):
     pass
 
 
-def normalize_workflow_path(raw: Any) -> str:
-    """GitHub returns either '<file>' or '<file>@<ref>' for a run's `path`; compare only the file."""
-    return str(raw or "").split("@", 1)[0]
+def workflow_path_matches(raw: Any, expected_path: str) -> bool:
+    """Accept GitHub's bare path or its exact main-ref form, not arbitrary ref suffixes."""
+    value = str(raw or "")
+    return value in {expected_path, f"{expected_path}@refs/heads/main"}
 
 
 def parse_time(value: Any) -> datetime:
