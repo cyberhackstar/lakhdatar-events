@@ -78,7 +78,7 @@ def verify_run(repo: str, token: str, run_id: str, *, now: datetime | None = Non
     for field, expected in checks.items():
         if run.get(field) != expected:
             raise VerificationError(f"qualification run provenance mismatch for {field}")
-    if normalize_workflow_path(run.get("path")) != EXPECTED_PATH:
+    if not workflow_path_matches(run.get("path"), EXPECTED_PATH):
         raise VerificationError("qualification run provenance mismatch for path")
 
     harness_sha = run.get("head_sha")
