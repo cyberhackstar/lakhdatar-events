@@ -220,31 +220,38 @@ test.describe('automated staging customer payment qualification', () => {
       await setStep('open_disposable_event');
       await page.goto('/events/' + encodeURIComponent(eventSlug), { waitUntil: 'domcontentloaded' });
       const quantityGroup = page.getByRole('group', { name: /Quantity for E2E General/i });
-      await setStep('select_ticket_and_open_checkout');
+      await setStep('wait_for_ticket_quantity_control');
       try {
         await quantityGroup.waitFor({ state: 'visible', timeout: 30000 });
       } catch {
         throw new QualificationError('The disposable event or its paid ticket type was not bookable.');
       }
+      await setStep('click_increase_ticket_quantity');
       await quantityGroup.getByRole('button', { name: 'Increase' }).click();
+      await setStep('click_continue_to_checkout');
       await page.getByRole('button', { name: /Continue to checkout/i }).first().click();
+      await setStep('wait_for_checkout_route');
       try {
         await page.waitForURL((url) => url.origin === STAGING_ORIGIN && url.pathname === '/checkout', { timeout: 20000 });
       } catch {
         throw new QualificationError('The customer journey did not reach the checkout page.');
       }
 
-      await setStep('fill_checkout_form');
+      await setStep('fill_customer_name');
       await page.locator('#customerName').fill('Neelastack Payment Qualification');
+      await setStep('fill_disposable_customer_email');
       await page.locator('#customerEmail').fill(inboxEmail);
+      await setStep('fill_customer_phone');
       await page.locator('#customerPhone').fill('9876543210');
+      await setStep('accept_checkout_terms');
       await page.locator('input[formcontrolname="accepted"]').check();
 
-      await setStep('submit_checkout_and_open_cashfree');
+      await setStep('click_pay_securely');
       const cashfreeNavigation = page.waitForURL((url) => sandboxCashfreeHost(url.hostname), { timeout: 60000 })
         .then(() => true)
         .catch(() => false);
       await page.getByRole('button', { name: /Pay securely/i }).click();
+      await setStep('wait_for_cashfree_sandbox_redirect');
       guard(await cashfreeNavigation, 'Cashfree sandbox checkout did not open; confirm the deployed provider is configured in sandbox mode.');
 
       await setStep('locate_cashfree_upi_controls');
@@ -279,6 +286,7 @@ test.describe('automated staging customer payment qualification', () => {
         'button:has-text("Verify and Pay")',
       ]);
       if (verifyButton) {
+        await setStep('click_cashfree_upi_verify');
         await verifyButton.click();
         const earlyReturn = page.waitForURL((url) => providerReturnUrl(url), { timeout: 8000 })
           .then(() => true)
@@ -292,6 +300,7 @@ test.describe('automated staging customer payment qualification', () => {
             'button:has-text("Confirm")',
           ]);
           guard(Boolean(payButton), 'Cashfree sandbox UPI verification completed without a visible payment action.');
+          await setStep('click_cashfree_payment_action');
           await payButton.click();
         }
       } else {
@@ -303,6 +312,7 @@ test.describe('automated staging customer payment qualification', () => {
           'button:has-text("Confirm")',
         ]);
         guard(Boolean(payButton), 'Cashfree sandbox checkout did not expose a supported payment action.');
+        await setStep('click_cashfree_payment_action');
         await payButton.click();
       }
 
