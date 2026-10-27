@@ -42,9 +42,10 @@ class VerificationError(RuntimeError):
     pass
 
 
-def normalize_workflow_path(raw: Any) -> str:
-    """GitHub returns either '<file>' or '<file>@<ref>' for a run's `path`; compare only the file."""
-    return str(raw or "").split("@", 1)[0]
+def workflow_path_matches(raw: Any, expected_path: str) -> bool:
+    """Accept the exact workflow path, optionally suffixed with the main-branch ref."""
+    value = str(raw or "")
+    return value in {expected_path, f"{expected_path}@refs/heads/main"}
 
 
 def _parse_time(raw: Any) -> datetime:
@@ -171,7 +172,7 @@ def verify_from_github(repo: str, token: str, release_sha: str) -> tuple[int, in
                 continue
             if run.get("status") != "completed" or run.get("conclusion") != "success" or run.get("event") != "workflow_dispatch":
                 continue
-            if run.get("head_branch") != "main" or normalize_workflow_path(run.get("path")) != WORKFLOW_PATH:
+            if run.get("head_branch") != "main" or not workflow_path_matches(run.get("path"), WORKFLOW_PATH):
                 continue
             inspected_runs += 1
             run_id = run.get("id")
