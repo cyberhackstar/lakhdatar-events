@@ -52,7 +52,7 @@ jobs:
         run: python3 infra/certification/verify_release_qualification_run.py
 
       - name: Download release qualification manifest
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-qualification-${{ inputs.release_sha }}
           path: qualification-artifact
@@ -124,7 +124,7 @@ jobs:
         run: bash ./infra/certification/verify-enterprise-evidence.sh
 
       - name: Upload enterprise certification manifest
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: enterprise-certification-${{ inputs.release_sha }}
           path: certification-evidence/enterprise-certification.json
