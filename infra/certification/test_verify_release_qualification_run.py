@@ -29,8 +29,12 @@ class VerifyReleaseQualificationRunTests(unittest.TestCase):
             self.assertEqual(module.verify_run("owner/repo", "test-token", "123456", now=NOW), "a" * 40)
 
     def test_rejects_non_main_or_untrusted_workflow_path(self):
-        for field, value in [("head_branch", "feature"), ("path", ".github/workflows/evil.yml")]:
-            with self.subTest(field=field):
+        for field, value in [
+            ("head_branch", "feature"),
+            ("path", ".github/workflows/evil.yml"),
+            ("path", EXPECTED_PATH + "@refs/heads/evil"),
+        ]:
+            with self.subTest(field=field, value=value):
                 candidate = {**GOOD_RUN, field: value}
                 with patch.object(module, "_api_json", return_value=candidate):
                     with self.assertRaises(module.VerificationError):
