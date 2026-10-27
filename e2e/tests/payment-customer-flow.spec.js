@@ -96,7 +96,7 @@ async function cashfreeCheckoutDiagnostics(page) {
           placeholder: node.getAttribute('placeholder') || '',
           ariaLabel: node.getAttribute('aria-label') || '',
           autocomplete: node.getAttribute('autocomplete') || '',
-          text: ['BUTTON', 'LABEL'].includes(node.tagName) ? (node.innerText || '') : '',
+          text: ['BUTTON', 'LABEL'].includes(node.tagName) ? (node.innerText || '').slice(0, 200) : '',
         })));
     } catch { /* a frame may navigate while diagnostics are sampled */ }
     frameReports.push({
@@ -109,7 +109,10 @@ async function cashfreeCheckoutDiagnostics(page) {
         placeholder: safeDiagnosticValue(control.placeholder),
         ariaLabel: safeDiagnosticValue(control.ariaLabel),
         autocomplete: safeDiagnosticValue(control.autocomplete),
-        text: safeDiagnosticValue(control.text),
+        labelLength: control.text.length,
+        labelMentionsUpi: /\bupi\b/i.test(control.text),
+        labelMentionsCard: /\bcard\b/i.test(control.text),
+        labelMentionsPay: /\bpay\b/i.test(control.text),
       })),
     });
   }
@@ -362,24 +365,17 @@ test.describe('automated staging customer payment qualification', () => {
       // rendered. Poll rather than failing on a one-shot DOM sample. Search every currently
       // attached frame on each pass because the hosted checkout may add frames dynamically.
       let upiInput = await findVisibleInFrames(page, upiInputSelectors);
-      let upiChoiceAttempted = false;
-      let controlsDeadline = Date.now() + 20000;
-      while (!upiInput && Date.now() < controlsDeadline) {
-        if (!upiChoiceAttempted) {
-          const upiChoice = await findVisibleInFrames(page, upiChoiceSelectors);
-          if (upiChoice) {
-            upiChoiceAttempted = true;
-            await setStep('select_cashfree_upi_method');
-            try {
-              await upiChoice.click({ timeout: 5000 });
-            } catch {
-              // Continue to check whether the provider exposed the entry control despite the click.
-            }
-            controlsDeadline = Date.now() + 15000;
+      if (!upiInput) {
+        const upiChoice = await waitForVisibleInFrames(page, upiChoiceSelectors, 5000);
+        if (upiChoice) {
+          await setStep('select_cashfree_upi_method');
+          try {
+            await upiChoice.click({ timeout: 5000 });
+          } catch {
+            // Continue to check whether the provider exposed the entry control despite the click.
           }
         }
-        upiInput = await findVisibleInFrames(page, upiInputSelectors);
-        if (!upiInput) await page.waitForTimeout(400);
+        upiInput = await waitForVisibleInFrames(page, upiInputSelectors, 15000);
       }
       if (!upiInput) {
         // This report contains only frame hostnames and visible control metadata. It deliberately
