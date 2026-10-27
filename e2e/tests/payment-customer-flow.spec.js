@@ -66,10 +66,10 @@ async function waitForVisibleInFrames(page, selectors, timeoutMs = 15000) {
 
 function safeDiagnosticValue(value) {
   return String(value || '')
-    .replace(/[\\r\\n\\t]+/g, ' ')
-    .replace(/\\s+/g, ' ')
-    .replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi, '[email]')
-    .replace(/\\b\\d{5,}\\b/g, '[number]')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]')
+    .replace(/\b\d{4,}\b/g, '[number]')
     .trim()
     .slice(0, 80);
 }
